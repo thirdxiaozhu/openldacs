@@ -1,0 +1,10 @@
+cmake-build-debug/
+bin/
+lib/
+.idea/
+build/
+*.build
+!cmake/*.cmake.in
+thirdparty/googletest/**
+thirdparty/eigen/**
+!thirdparty/*/CMakeLists.txt
