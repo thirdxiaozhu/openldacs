@@ -1,0 +1,8 @@
+//
+// Created by 邹嘉旭 on 2025/12/10.
+//
+
+#ifndef OPENLDACS_TRANSMITTER_H
+#define OPENLDACS_TRANSMITTER_H
+
+#endif //OPENLDACS_TRANSMITTER_H

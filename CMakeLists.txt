@@ -82,4 +82,7 @@ if(OPENLDACS_USE_GTEST )
         EXCLUDE_FROM_ALL)
 endif()
 
-add_executable(openldacs main.cpp)
+add_library(openldacs OBJECT)
+add_subdirectory(src)
+add_subdirectory(example)
+target_include_directories(openldacs PRIVATE include)
