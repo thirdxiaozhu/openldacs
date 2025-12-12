@@ -67,15 +67,15 @@ namespace openldacs::phy::fl {
         FL_DATA
      };
 
-    class FLPhy {
+    class PhyFl {
     public:
         struct FLConfig {
 
         };
 
-        explicit FLPhy();
+        explicit PhyFl();
 
-        void test_fl_send(FLType type);
+        void process_fl_pkt(FLType type) const;
 
     private:
 

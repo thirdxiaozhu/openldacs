@@ -7,10 +7,15 @@
 #include <iostream>
 
 #include "phy/fl.h"
+#include "phy/phy.h"
+#include "util/util.h"
+
+using  namespace  openldacs::phy;
 
 int main() {
     using namespace openldacs::phy::config;
     using namespace openldacs::phy::fl;
+    using namespace openldacs::util;
 
     std::cout << "n_fft = " << n_fft << std::endl;
     std::cout << "n_cp = " << n_cp << std::endl;
@@ -24,8 +29,9 @@ int main() {
     std::cout << "t_u = " << t_u << std::endl;
     std::cout << "t_symb = " << t_symb << std::endl;
 
-    FLPhy fl_phy;
-    fl_phy.test_fl_send(FLType::FL_DATA);
+    const phy_service::PhyService PhySer;
+
+    PhySer.send_fl_data(FLType::FL_DATA, util::generateRandomBytes(100));
 
     return 0;
 }

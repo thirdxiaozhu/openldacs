@@ -81,8 +81,12 @@ if(OPENLDACS_USE_GTEST )
         ${OPENLDACS_THIRDPARTY_DIR}/googletest/build
         EXCLUDE_FROM_ALL)
 endif()
+set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS} -fsanitize=address -g")
+
+find_package(spdlog REQUIRED)
 
 add_library(openldacs OBJECT)
+target_include_directories(openldacs PRIVATE include)
+target_link_libraries(openldacs PRIVATE spdlog::spdlog)
 add_subdirectory(src)
 add_subdirectory(example)
-target_include_directories(openldacs PRIVATE include)

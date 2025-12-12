@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <array>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 
 #endif //OPENLDACS_OPENLDACS_H

@@ -5,17 +5,14 @@
 #include "phy/fl.h"
 
 namespace openldacs::phy::fl {
-    FLPhy::FLPhy() {
+    PhyFl::PhyFl() {
+    };
 
-    }
-
-    void FLPhy::test_fl_send(FLType type) {
+    void PhyFl::process_fl_pkt(FLType type) const {
         if (type == FLType::BC1_3) {
             std::cout << "!!!!!!!!!" << std::endl;
             return;
         }
-        std::cout << "???????????" << std::endl;
     }
-
 
 }
