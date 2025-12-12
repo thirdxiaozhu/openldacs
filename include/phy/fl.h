@@ -9,10 +9,10 @@
 
 #include "config.h"
 #include "openldacs.h"
+#include "Eigen/Dense"
 
 namespace openldacs::phy::fl {
     using namespace phy::config;
-    inline constexpr std::size_t n_fl_ofdm_symb = 54;
     inline constexpr std::size_t n_fl_bc13_ofdm_symb = 13;
     inline constexpr std::size_t n_fl_bc2_ofdm_symb = 24;
     inline constexpr std::size_t n_sync_symb = 2;
@@ -67,19 +67,54 @@ namespace openldacs::phy::fl {
         FL_DATA
      };
 
+    class FLChannelHandler {
+    public:
+        virtual ~FLChannelHandler() = default;
+        virtual void handle(const std::vector<uint8_t>&input) const = 0;
+    };
+
+    class BC1_3Handler:public FLChannelHandler {
+    public:
+        void handle(const std::vector<uint8_t>&input) const override;
+    };
+
+    class BC2Handler:public FLChannelHandler {
+    public:
+        void handle(const std::vector<uint8_t>&input) const override;
+    };
+
+    class FLDataHandler:public FLChannelHandler {
+    public:
+        explicit FLDataHandler() = default;
+
+        void handle(const std::vector<uint8_t>&input) const override;
+
+    private:
+        static constexpr std::size_t n_fl_ofdm_symb_ = 54;
+        static Eigen::MatrixXi init_frame_pattern();
+        inline static Eigen::MatrixXi frame_pattern_ = init_frame_pattern();
+    };
+
     class PhyFl {
     public:
         struct FLConfig {
-
         };
 
         explicit PhyFl();
 
-        void process_fl_pkt(FLType type) const;
+        void process_fl_pkt(FLType type, const std::vector<uint8_t> &input) const;
 
     private:
+        FLConfig config_;
 
-
+        static std::unique_ptr<FLChannelHandler> make_handler(const FLType type) {
+            switch (type) {
+                case FLType::BC1_3:   return std::make_unique<BC1_3Handler>();
+                case FLType::BC2:     return std::make_unique<BC2Handler>();
+                case FLType::FL_DATA: return std::make_unique<FLDataHandler>();
+                default: throw std::runtime_error("Unknown FLType");
+            }
+        }
     };
 }
 

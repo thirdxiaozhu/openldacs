@@ -8,8 +8,9 @@
 #include <ios>
 #include <vector>
 #include <random>
+#include <iostream>
 
-namespace openldacs::util::util {
+namespace openldacs::util {
 
     inline std::vector<uint8_t> generateRandomBytes(size_t count) {
         std::random_device rd;
@@ -23,7 +24,20 @@ namespace openldacs::util::util {
         return bytes;
     }
 
+    inline std::ostream& operator<<(std::ostream& os, const uint8_t& v) {
+        return os << std::hex << std::uppercase
+              << std::setw(2) << std::setfill('0')
+              << static_cast<int>(v);
+    }
 
+    template <typename T>
+    std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
+        os << "[ ";
+        for (const auto& x : v)
+            os << x << " ";
+        os << "]";
+        return os;
+    }
 }
 
 #endif //OPENLDACS_UTIL_H
