@@ -10,8 +10,10 @@
 #include "config.h"
 #include "openldacs.h"
 #include "Eigen/Dense"
+#include "link.h"
 
-namespace openldacs::phy::fl {
+namespace openldacs::phy::link::fl {
+    class FLChannelHandler;
     using namespace phy::config;
     inline constexpr std::size_t n_fl_bc13_ofdm_symb = 13;
     inline constexpr std::size_t n_fl_bc2_ofdm_symb = 24;
@@ -61,60 +63,121 @@ namespace openldacs::phy::fl {
         24 + n_fft/2,
     };
 
-    enum class FLType: int {
-        BC1_3 = 1,
-        BC2,
-        FL_DATA
-     };
+    inline constexpr std::array<int, 4> pilot_set0 = {
+        -25 + n_fft/2,
+        -1 + n_fft/2,
+        1 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set1 = {
+        -17 + n_fft/2,
+        17 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 4> pilot_set2 = {
+        -21 + n_fft/2,
+        -13 + n_fft/2,
+        13 + n_fft/2,
+        21 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 4> pilot_set3 = {
+        -25 + n_fft/2,
+        -9 + n_fft/2,
+        9 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set4 = {
+        -5 + n_fft/2,
+        5 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set5 = {
+        -1 + n_fft/2,
+        1 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 14> pilot_set6 = {
+        -25 + n_fft/2,
+        -21 + n_fft/2,
+        -17 + n_fft/2,
+        -13 + n_fft/2,
+        -9 + n_fft/2,
+        -5 + n_fft/2,
+        -1 + n_fft/2,
+        1 + n_fft/2,
+        5 + n_fft/2,
+        9 + n_fft/2,
+        13 + n_fft/2,
+        17 + n_fft/2,
+        21 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    class PhyFl: public LinkBase {
+    public:
+        struct FLConfig {
+            std::vector<std::vector<int>> pilot_sets = {
+                {pilot_set1.begin(), pilot_set1.end()},
+                {pilot_set2.begin(), pilot_set2.end()},
+                {pilot_set3.begin(), pilot_set3.end()},
+                {pilot_set4.begin(), pilot_set4.end()},
+                {pilot_set5.begin(), pilot_set5.end()},
+            };
+        };
+
+        explicit PhyFl();
+        void process_packet(ChannelType type, const std::vector<uint8_t> &input) const override;
+
+    private:
+        FLConfig config_;
+        std::unique_ptr<FLChannelHandler> make_handler(ChannelType type) const;
+    };
 
     class FLChannelHandler {
     public:
+        explicit FLChannelHandler(const PhyFl::FLConfig& config) : config_(config) {}
         virtual ~FLChannelHandler() = default;
         virtual void handle(const std::vector<uint8_t>&input) const = 0;
+    protected:
+        const PhyFl::FLConfig& config_;
+        std::vector<int8_t> data_ind_;
+        std::vector<int8_t> pilot_ind_;
+        Eigen::MatrixXi frame_pattern_;
+
+        virtual void init_frame_pattern()  = 0;
+        static void set_data_pilot_index();
+
     };
 
     class BC1_3Handler:public FLChannelHandler {
     public:
+        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
         void handle(const std::vector<uint8_t>&input) const override;
+    private:
+        void init_frame_pattern()  override;
     };
 
     class BC2Handler:public FLChannelHandler {
     public:
+        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
         void handle(const std::vector<uint8_t>&input) const override;
+    private:
+        void init_frame_pattern()  override;
     };
 
     class FLDataHandler:public FLChannelHandler {
     public:
-        explicit FLDataHandler() = default;
-
+        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
+            FLDataHandler::init_frame_pattern();
+        }
         void handle(const std::vector<uint8_t>&input) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
-        static Eigen::MatrixXi init_frame_pattern();
-        inline static Eigen::MatrixXi frame_pattern_ = init_frame_pattern();
-    };
-
-    class PhyFl {
-    public:
-        struct FLConfig {
-        };
-
-        explicit PhyFl();
-
-        void process_fl_pkt(FLType type, const std::vector<uint8_t> &input) const;
-
-    private:
-        FLConfig config_;
-
-        static std::unique_ptr<FLChannelHandler> make_handler(const FLType type) {
-            switch (type) {
-                case FLType::BC1_3:   return std::make_unique<BC1_3Handler>();
-                case FLType::BC2:     return std::make_unique<BC2Handler>();
-                case FLType::FL_DATA: return std::make_unique<FLDataHandler>();
-                default: throw std::runtime_error("Unknown FLType");
-            }
-        }
+        void init_frame_pattern() override;
     };
 }
 

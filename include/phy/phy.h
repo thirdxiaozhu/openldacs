@@ -7,14 +7,14 @@
 #include "fl.h"
 
 namespace openldacs::phy::phy_service {
-
+    using namespace openldacs::phy::link;
     class PhyService {
     public:
         struct PhyConfig {
             fl::PhyFl PhyFL;
         };
         explicit PhyService ();
-        void send_fl_data(fl::FLType type, const std::vector<uint8_t>& input ) const;
+        void send_fl_data(ChannelType type, const std::vector<uint8_t>& input ) const;
 
     private:
         PhyConfig config_;

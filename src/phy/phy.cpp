@@ -8,11 +8,12 @@
 
 namespace openldacs::phy::phy_service {
     using namespace openldacs::util;
+    using namespace openldacs::phy::link;
     PhyService::PhyService(): config_() {
     }
 
-    void PhyService::send_fl_data(const fl::FLType type, const std::vector<uint8_t>& input) const {
-        config_.PhyFL.process_fl_pkt(type, input);
+    void PhyService::send_fl_data(const ChannelType type, const std::vector<uint8_t>& input) const {
+        config_.PhyFL.process_packet(type, input);
     }
 
 }

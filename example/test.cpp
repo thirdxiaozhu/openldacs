@@ -14,7 +14,7 @@ using  namespace  openldacs::phy;
 
 int main() {
     using namespace openldacs::phy::config;
-    using namespace openldacs::phy::fl;
+    using namespace openldacs::phy::link::fl;
     using namespace openldacs;
 
     std::cout << "n_fft = " << n_fft << std::endl;
@@ -31,7 +31,7 @@ int main() {
 
     const phy_service::PhyService PhySer;
 
-    PhySer.send_fl_data(FLType::FL_DATA, util::generateRandomBytes(50));
+    PhySer.send_fl_data(link::ChannelType::FL_DATA, util::generateRandomBytes(50));
 
     return 0;
 }
