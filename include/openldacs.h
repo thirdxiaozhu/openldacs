@@ -10,6 +10,12 @@
 #include <array>
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <iomanip>
+#include <ios>
+#include <vector>
+#include <random>
+#include <iostream>
+#include <Eigen/Dense>
 
 
 #endif //OPENLDACS_OPENLDACS_H

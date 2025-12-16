@@ -22,6 +22,7 @@ namespace openldacs::phy::link {
 
     class LinkBase {
     public:
+
         virtual ~LinkBase() = default;
         explicit LinkBase() = default;
         virtual void process_packet(ChannelType type, const std::vector<uint8_t> &input) const = 0;
