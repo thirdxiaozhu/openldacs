@@ -78,7 +78,64 @@ namespace openldacs::phy::link::fl {
         frame_info.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
     }
 
-    void FLDataHandler::set_pilots_sync_symbol(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info) {
+    void FLDataHandler::set_pilots_sync_symbol(const PhyFl::FLConfig &config, const ParamStruct::FrameInfo& frame_info) {
+        std::vector<cd> seed = frame_info.pilot_seeds;
+        std::vector<std::vector<cd>> sync_symbols = frame_info.sync_symbols;
+        // 估个上限容量，尽量减少扩容次数
+        // 最粗略的上界：seed1 + (N_ofdm_symb-4)*4 + seed7
+        seed.clear();
+        seed.reserve(4 + (std::max(0, static_cast<int>(n_fl_ofdm_symb_) - 4) * 4) + 14);
+
+        // seed1
+        seed.insert(seed.end(),
+                                 pilot_seed0.begin(), pilot_seed0.end());
+
+        for (int i = 0; i < n_fl_ofdm_symb_ - 4; i++) {
+            seed.insert(seed.end(), config.pilot_seeds[i % 5].begin(), config.pilot_seeds[i % 5].end());
+        }
+
+        seed.insert(seed.end(),
+                                 pilot_seed6.begin(), pilot_seed6.end());
+
+        //Eigen::RowVectorXcd seed_eigen = Eigen::Map<Eigen::RowVectorXcd>(seed.data(), static_cast<int>(seed.size()));
+
+        {
+            constexpr int N2 = 12;
+            constexpr int M2 = 5;
+            const double boost_factor2 = std::sqrt(4);
+            const std::complex<double> W_N2 = std::exp(std::complex<double>(0, 2 * M2 * M_PI / N2));
+
+            std::vector<double>pow2;
+            for (int i = 0; i < N2; i++) {
+                pow2.push_back(std::pow(i, 2) / 2.0);
+            }
+
+            // Initialize s2 as the boost_factor times W_N raised to the power of 'pow'
+            std::vector<cd> s2;
+            for (int i = 0; i < N2; ++i) {
+                s2.push_back(boost_factor2 * std::pow(W_N2, pow2.at(i)));
+            }
+
+            sync_symbols.push_back(s2);
+        }
+
+        {
+            constexpr int N1 = 24;
+            constexpr int M1 = 1;
+            const double boost_factor1 = std::sqrt(2);
+            const std::complex<double> W_N1 = std::exp(std::complex<double>(0, 2 * M1 * M_PI / N1));
+            std::vector<double>pow1;
+            for (int i = 0; i < N1; i++) {
+                pow1.push_back(std::pow(i, 2) / 2.0);
+            }
+
+            std::vector<cd> s1;
+            for (int i = 0; i < N1; ++i) {
+                s1.push_back(boost_factor1 * std::pow(W_N1, pow1.at(i)));
+            }
+
+            sync_symbols.push_back(s1);
+        }
 
     }
 
@@ -87,7 +144,7 @@ namespace openldacs::phy::link::fl {
         set_pilots_sync_symbol(config, frame_info);
     }
 
-    FLChannelHandler::ParamStruct FLDataHandler::build_params()  {
+    FLChannelHandler::ParamStruct FLDataHandler::build_params(const PhyFl::FLConfig &config)  {
         ParamStruct params;
         build_frame_info(config, params.frame_info_);
 

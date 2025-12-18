@@ -120,6 +120,36 @@ namespace openldacs::phy::link::fl {
         25 + n_fft/2,
     };
 
+    using cd = std::complex<double>;
+    inline constexpr std::array<cd, 4> pilot_seed0 = {
+        1, -1, -1 , -1
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed1 = {
+        1, -1
+    };
+
+    inline constexpr std::array<cd, 4> pilot_seed2 = {
+        1, 1, cd(0, 1), cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 4> pilot_seed3 = {
+        1, -1, cd(0, -1), cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed4 = {
+        1,  cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed5 = {
+        1,  -1
+    };
+
+    inline constexpr std::array<cd, 14> pilot_seed6 = {
+        1, cd(0, -1), cd(0, 1), 1, cd(0, 1), cd(0, 1),
+                         -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
+    };
+
     class PhyFl: public LinkBase {
     public:
         struct FLConfig {
@@ -130,6 +160,15 @@ namespace openldacs::phy::link::fl {
                 {pilot_set4.begin(), pilot_set4.end()},
                 {pilot_set5.begin(), pilot_set5.end()},
             };
+
+            std::vector<std::vector<cd>> pilot_seeds = {
+                {pilot_seed1.begin(), pilot_seed1.end()},
+                {pilot_seed2.begin(), pilot_seed2.end()},
+                {pilot_seed3.begin(), pilot_seed3.end()},
+                {pilot_seed4.begin(), pilot_seed4.end()},
+                {pilot_seed5.begin(), pilot_seed5.end()},
+            };
+
         };
 
         explicit PhyFl()
@@ -167,6 +206,9 @@ namespace openldacs::phy::link::fl {
                 Eigen::MatrixXi data_ind_packet;
                 Eigen::MatrixXi pilot_ind_packet;
                 Eigen::MatrixXi sync_ind_packet;
+
+                std::vector<cd> pilot_seeds;
+                std::vector<std::vector<cd>> sync_symbols;
             };
 
             FrameInfo frame_info_;
@@ -184,16 +226,16 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
 
-        virtual ParamStruct build_params() = 0;
+        virtual ParamStruct build_params(const PhyFl::FLConfig &config) = 0;
 
     };
 
     class BC1_3Handler:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC1_3Handler::build_params()) {}
+        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC1_3Handler::build_params(config)) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-        ParamStruct build_params() override {
+        ParamStruct build_params(const PhyFl::FLConfig &config) override {
             ParamStruct params;
             return params;
         }
@@ -201,10 +243,10 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler:public FLChannelHandler {
     public:
-        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC2Handler::build_params()) {}
+        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC2Handler::build_params(config)) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-        ParamStruct build_params() override {
+        ParamStruct build_params(const PhyFl::FLConfig &config) override {
             ParamStruct params;
             return params;
         }
@@ -212,7 +254,7 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler:public FLChannelHandler {
     public:
-        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config, FLDataHandler::build_params()) {
+        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config, FLDataHandler::build_params(config)) {
             spdlog::info("!!!!!!!!!!!!! {}", params_.frame_info_.n_pilot);
         }
         void handle(const std::vector<uint8_t>&input) const override;
@@ -222,9 +264,9 @@ namespace openldacs::phy::link::fl {
         static constexpr std::size_t n_frames_ = 9;
 
         static void compose_frame(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
-        static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
+        static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, const ParamStruct::FrameInfo& frame_info);
         static void build_frame_info(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
-        ParamStruct build_params() override;
+        ParamStruct build_params(const PhyFl::FLConfig &config) override;
     };
 }
 
