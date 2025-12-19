@@ -7,8 +7,6 @@
 #pragma once
 
 
-#include <map>
-
 #include "config.h"
 #include "fl.h"
 #include "openldacs.h"
@@ -172,24 +170,9 @@ namespace openldacs::phy::link::fl {
             };
 
         };
-        enum class ModulationType : int {
-            _QPSK = 0,
-            _16QAM,
-            _64QAM,
-        };
-
-        struct CodingParams {
-            ModulationType modulation_type;
-            double coding_rate;
-        };
 
         explicit PhyFl()
-            :coding_table_([this]() {
-                std::map<std::tuple<ModulationType, double>, CodingParams> map;
-                // 调用初始化函数
-                initialize_coding_table(map);
-                return map;
-            }()),
+            :
              bc13_(std::make_unique<BC1_3Handler>(config_)),
              bc2_(std::make_unique<BC2Handler>(config_)),
              data_(std::make_unique<FLDataHandler>(config_)) {
@@ -198,18 +181,32 @@ namespace openldacs::phy::link::fl {
 
     private:
         FLConfig config_;
-        std::map<std::tuple<ModulationType, double>, CodingParams> coding_table_;
         std::unique_ptr<BC1_3Handler> bc13_;
         std::unique_ptr<BC2Handler> bc2_;
         std::unique_ptr<FLDataHandler> data_;
 
         FLChannelHandler &get_handler(ChannelType type) const;
-        static void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table);
-        static CodingParams set_coding_params(ModulationType modulation_type, double coding_rate);
     };
 
     class FLChannelHandler {
     public:
+
+        enum class ModulationType : int {
+            _QPSK = 0,
+            _16QAM,
+            _64QAM,
+        };
+
+        struct CodingParams {
+            ModulationType modulation_type;
+            double coding_rate;                     //0.5 / 0.67 / 0.75
+            int L = 7;                              // constraint length
+            int a = 0, b = 0;                       // a / b
+            std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
+            int term_bits = 6;                      // L-1
+            itpp::Punctured_Convolutional_Code cc;
+            double rate_rs = 0.9;
+        };
 
         enum class SymbolValue : int {
             GUARD = 0,
@@ -241,13 +238,24 @@ namespace openldacs::phy::link::fl {
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config, ParamStruct init)
             : config_(config),
-              params_(std::move(init)){
+              params_(std::move(init)),
+              coding_table_([this]() {
+                  std::map<std::tuple<ModulationType, double>, CodingParams> map;
+                  // 调用初始化函数
+                  initialize_coding_table(map);
+                  return map;
+              }()) {
         }
 
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
+        std::map<std::tuple<ModulationType, double>, CodingParams> coding_table_;
 
         virtual ParamStruct build_params(const PhyFl::FLConfig &config) = 0;
+
+        virtual void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) = 0;
+
+        virtual CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) = 0;
 
     };
 
@@ -258,6 +266,15 @@ namespace openldacs::phy::link::fl {
     private:
         ParamStruct build_params(const PhyFl::FLConfig &config) override {
             ParamStruct params;
+            return params;
+        }
+
+        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override {
+
+        };
+
+        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override {
+            CodingParams params;
             return params;
         }
     };
@@ -271,12 +288,21 @@ namespace openldacs::phy::link::fl {
             ParamStruct params;
             return params;
         }
+
+        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override {
+
+        }
+
+        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override {
+            CodingParams params;
+            return params;
+        }
     };
 
     class FLDataHandler:public FLChannelHandler {
     public:
         explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config, FLDataHandler::build_params(config)) {
-            spdlog::info("!!!!!!!!!!!!! {}", params_.frame_info_.n_pilot);
+            SPDLOG_INFO("!!!!!!!!!!!!! {}", params_.frame_info_.n_data);
         }
         void handle(const std::vector<uint8_t>&input) const override;
 
@@ -288,6 +314,10 @@ namespace openldacs::phy::link::fl {
         static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, const ParamStruct::FrameInfo& frame_info);
         static void build_frame_info(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
         ParamStruct build_params(const PhyFl::FLConfig &config) override;
+
+        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override;
+
+        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override;
     };
 }
 

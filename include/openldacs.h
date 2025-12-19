@@ -16,6 +16,10 @@
 #include <random>
 #include <iostream>
 #include <Eigen/Dense>
+#include <itpp/comm/punct_convcode.h>
+#include <itpp/base/vec.h>
+#include <itpp/base/mat.h>
+#include <map>
 
 
 #endif //OPENLDACS_OPENLDACS_H

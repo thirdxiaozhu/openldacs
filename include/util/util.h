@@ -44,6 +44,21 @@ namespace openldacs::util {
         os << "]";
         return os;
     }
+
+    static itpp::bmat puncpat_to_matrix_2output(const std::vector<int>& punc_pat_serial)
+    {
+        // 只处理 n=2 的母码（1/2卷积码）最常见情况
+        // punc_pat_serial 是对序列 [X1_1, X2_1, X1_2, X2_2, ...] 的 0/1 模式
+        if (punc_pat_serial.size() % 2 != 0) throw std::runtime_error("punc_pat length must be even for n=2");
+
+        int Period = static_cast<int>(punc_pat_serial.size()) / 2;
+        itpp::bmat P(2, Period);
+        for (int t = 0; t < Period; ++t) {
+            P(0,t) = (punc_pat_serial[2*t + 0] != 0); // X^(1)
+            P(1,t) = (punc_pat_serial[2*t + 1] != 0); // X^(2)
+        }
+        return P;
+    }
 }
 
 #endif //OPENLDACS_UTIL_H

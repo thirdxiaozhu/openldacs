@@ -87,6 +87,6 @@ find_package(spdlog REQUIRED)
 
 add_library(openldacs OBJECT)
 target_include_directories(openldacs PRIVATE include)
-target_link_libraries(openldacs PRIVATE spdlog::spdlog)
+target_link_libraries(openldacs PRIVATE spdlog::spdlog itpp)
 add_subdirectory(src)
 add_subdirectory(example)
