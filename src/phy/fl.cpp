@@ -151,7 +151,7 @@ namespace openldacs::phy::link::fl {
         return params;
     }
 
-    FLChannelHandler &PhyFl::get_handler(const ChannelType type) const {
+    FLChannelHandler& PhyFl::get_handler(const ChannelType type) const {
         switch (type) {
             case ChannelType::BC1_3:   return *bc13_;
             case ChannelType::BC2:     return *bc2_;
@@ -163,6 +163,14 @@ namespace openldacs::phy::link::fl {
     void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
         const auto& handler = get_handler(type);
         handler.handle(input);
+    }
+
+    void PhyFl::initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) {
+        table[{ModulationType::_QPSK, 0.5}] = set_coding_params(ModulationType::_QPSK, 0.5);
+    }
+
+    PhyFl::CodingParams PhyFl::set_coding_params(ModulationType modulation_type, double coding_rate) {
+        return {modulation_type, coding_rate};
     }
 
 }
