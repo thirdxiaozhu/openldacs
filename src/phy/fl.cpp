@@ -23,7 +23,7 @@ namespace openldacs::phy::link::fl {
         std::cout << input;
     }
 
-    void FLDataHandler::compose_frame(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info) {
+    void FLDataHandler::compose_frame(const PhyFl::FLConfig &config, FrameInfo& frame_info) {
         Eigen::MatrixXi& pattern = frame_info.frame_pattern;
 
         pattern = Eigen::MatrixXi::Ones(n_fft, n_fl_ofdm_symb_);
@@ -78,9 +78,9 @@ namespace openldacs::phy::link::fl {
         frame_info.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
     }
 
-    void FLDataHandler::set_pilots_sync_symbol(const PhyFl::FLConfig &config, const ParamStruct::FrameInfo& frame_info) {
-        std::vector<cd> seed = frame_info.pilot_seeds;
-        std::vector<std::vector<cd>> sync_symbols = frame_info.sync_symbols;
+    void FLDataHandler::set_pilots_sync_symbol(const PhyFl::FLConfig &config, FrameInfo &frame_info) {
+        std::vector<cd>& seed = frame_info.pilot_seeds;
+        std::vector<std::vector<cd>>& sync_symbols = frame_info.sync_symbols;
         // 估个上限容量，尽量减少扩容次数
         // 最粗略的上界：seed1 + (N_ofdm_symb-4)*4 + seed7
         seed.clear();
@@ -96,8 +96,6 @@ namespace openldacs::phy::link::fl {
 
         seed.insert(seed.end(),
                                  pilot_seed6.begin(), pilot_seed6.end());
-
-        //Eigen::RowVectorXcd seed_eigen = Eigen::Map<Eigen::RowVectorXcd>(seed.data(), static_cast<int>(seed.size()));
 
         {
             constexpr int N2 = 12;
@@ -139,12 +137,12 @@ namespace openldacs::phy::link::fl {
 
     }
 
-    void FLDataHandler::build_frame_info(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info) {
+    void FLDataHandler::build_frame_info(const PhyFl::FLConfig &config, FrameInfo& frame_info) {
         compose_frame(config, frame_info);
         set_pilots_sync_symbol(config, frame_info);
     }
 
-    FLChannelHandler::ParamStruct FLDataHandler::build_params(const PhyFl::FLConfig &config)  {
+    ParamStruct FLDataHandler::build_params(const PhyFl::FLConfig &config)  {
         ParamStruct params;
         build_frame_info(config, params.frame_info_);
 
@@ -163,52 +161,6 @@ namespace openldacs::phy::link::fl {
     void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
         const auto& handler = get_handler(type);
         handler.handle(input);
-    }
-
-    void FLDataHandler::initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) {
-        table[{ModulationType::_QPSK, 0.5}] = set_coding_params(ModulationType::_QPSK, 0.5);
-    }
-
-    FLChannelHandler::CodingParams FLDataHandler::set_coding_params(const ModulationType modulation_type, const double coding_rate) {
-        CodingParams params;
-        params.modulation_type = modulation_type;
-        params.coding_rate = coding_rate;
-
-        if (coding_rate == 0.5) {
-            params.a = 1;
-            params.b = 2;
-            params.puncpat = {1,1};
-        }else if (coding_rate == 0.67) {
-            params.a = 2;
-            params.b = 3;
-            params.puncpat = {1,1,0,1};
-        }else if (coding_rate == 0.75) {
-            params.a = 3;
-            params.b = 4;
-            params.puncpat = {1,1,0,1,1,0};
-        }else {
-            throw std::invalid_argument("Unsupported rate_cc");
-        }
-
-        // constrain length is 7
-        itpp::ivec gen(2);
-        gen(0) = 0171; // G1 = 171oct
-        gen(1) = 0133; // G2 = 133oct
-
-        params.cc.set_generator_polynomials(gen, params.L);                                 // 相当于 poly2trellis 的“码定义”部分
-        params.cc.set_method(itpp::Trunc);                                                   // 不自动加尾
-        params.cc.set_puncture_matrix(puncpat_to_matrix_2output(params.puncpat));
-
-        // bits_bef_cod：你 MATLAB 的输入（已包含手动补的 K-1 个 0）
-        // itpp::bvec bits_bef_cod = "1 0 1 1 0 0 1 0 0 0 0 0 0 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
-        // itpp::bvec bits_cod;
-        // params.cc.encode_trunc(bits_bef_cod, bits_cod);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
-        // std::cout << bits_cod <<std::endl;
-
-        SPDLOG_INFO("N_symbols {}; N_bits_per_symbol {}； N_frame_tile_joint {}", 1,2,3 );
-
-
-        return params;
     }
 
 }

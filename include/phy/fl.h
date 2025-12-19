@@ -8,9 +8,9 @@
 
 
 #include "config.h"
-#include "fl.h"
 #include "openldacs.h"
 #include "link.h"
+#include "params.h"
 
 namespace openldacs::phy::link::fl {
     class FLChannelHandler;
@@ -18,6 +18,7 @@ namespace openldacs::phy::link::fl {
     class BC2Handler;
     class FLDataHandler;
     using namespace phy::config;
+    using namespace phy::params;
 
     inline constexpr std::size_t n_fl_bc13_ofdm_symb = 13;
     inline constexpr std::size_t n_fl_bc2_ofdm_symb = 24;
@@ -120,7 +121,6 @@ namespace openldacs::phy::link::fl {
         25 + n_fft/2,
     };
 
-    using cd = std::complex<double>;
     inline constexpr std::array<cd, 4> pilot_seed0 = {
         1, -1, -1 , -1
     };
@@ -168,11 +168,10 @@ namespace openldacs::phy::link::fl {
                 {pilot_seed4.begin(), pilot_seed4.end()},
                 {pilot_seed5.begin(), pilot_seed5.end()},
             };
-
         };
 
         explicit PhyFl()
-            :
+            :config_(),
              bc13_(std::make_unique<BC1_3Handler>(config_)),
              bc2_(std::make_unique<BC2Handler>(config_)),
              data_(std::make_unique<FLDataHandler>(config_)) {
@@ -188,121 +187,59 @@ namespace openldacs::phy::link::fl {
         FLChannelHandler &get_handler(ChannelType type) const;
     };
 
+
     class FLChannelHandler {
     public:
-
-        enum class ModulationType : int {
-            _QPSK = 0,
-            _16QAM,
-            _64QAM,
-        };
-
-        struct CodingParams {
-            ModulationType modulation_type;
-            double coding_rate;                     //0.5 / 0.67 / 0.75
-            int L = 7;                              // constraint length
-            int a = 0, b = 0;                       // a / b
-            std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
-            int term_bits = 6;                      // L-1
-            itpp::Punctured_Convolutional_Code cc;
-            double rate_rs = 0.9;
-        };
-
-        enum class SymbolValue : int {
-            GUARD = 0,
-            DATA = 1,
-            PILOT = 2,
-        };
-
-        struct ParamStruct {
-            struct FrameInfo {
-                std::vector<int> data_ind;
-                std::vector<int> pilot_ind;
-                Eigen::MatrixXi frame_pattern;
-                size_t n_data = 0;
-                size_t n_pilot = 0;
-                Eigen::MatrixXi data_ind_packet;
-                Eigen::MatrixXi pilot_ind_packet;
-                Eigen::MatrixXi sync_ind_packet;
-
-                std::vector<cd> pilot_seeds;
-                std::vector<std::vector<cd>> sync_symbols;
-            };
-
-            FrameInfo frame_info_;
-        };
-
-
         virtual ~FLChannelHandler() = default;
         virtual void handle(const std::vector<uint8_t>&input) const = 0;
+
+        const PhyFl::FLConfig& config() const noexcept { return config_; }
+        const ParamStruct& params() const noexcept { return params_; }
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config, ParamStruct init)
             : config_(config),
-              params_(std::move(init)),
-              coding_table_([this]() {
-                  std::map<std::tuple<ModulationType, double>, CodingParams> map;
-                  // 调用初始化函数
-                  initialize_coding_table(map);
-                  return map;
-              }()) {
+              params_(std::move(init)){
         }
 
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
-        std::map<std::tuple<ModulationType, double>, CodingParams> coding_table_;
-
-        virtual ParamStruct build_params(const PhyFl::FLConfig &config) = 0;
-
-        virtual void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) = 0;
-
-        virtual CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) = 0;
-
+        CodingTable coding_table_;
     };
 
-    class BC1_3Handler:public FLChannelHandler {
+    template<ChannelType CH>
+    class FLChannelHandlerT : public FLChannelHandler {
     public:
-        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC1_3Handler::build_params(config)) {}
+        explicit FLChannelHandlerT(const PhyFl::FLConfig &cfg, ParamStruct p)
+            : FLChannelHandler(cfg, std::move(p)) {
+            CodingTableInitializer<CH>::initialize(params_, coding_table_);
+        }
+    };
+
+    class BC1_3Handler final:public FLChannelHandlerT<ChannelType::BC1_3> {
+    public:
+        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-        ParamStruct build_params(const PhyFl::FLConfig &config) override {
+         ParamStruct build_params(const PhyFl::FLConfig &config){
             ParamStruct params;
             return params;
         }
-
-        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override {
-
-        };
-
-        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override {
-            CodingParams params;
-            return params;
-        }
     };
 
-    class BC2Handler:public FLChannelHandler {
+    class BC2Handler final:public FLChannelHandlerT<ChannelType::BC2> {
     public:
-        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config, BC2Handler::build_params(config)) {}
+        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-        ParamStruct build_params(const PhyFl::FLConfig &config) override {
+        ParamStruct build_params(const PhyFl::FLConfig &config) {
             ParamStruct params;
             return params;
         }
-
-        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override {
-
-        }
-
-        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override {
-            CodingParams params;
-            return params;
-        }
     };
 
-    class FLDataHandler:public FLChannelHandler {
+    class FLDataHandler final:public FLChannelHandlerT<ChannelType::FL_DATA> {
     public:
-        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config, FLDataHandler::build_params(config)) {
-            SPDLOG_INFO("!!!!!!!!!!!!! {}", params_.frame_info_.n_data);
+        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {
         }
         void handle(const std::vector<uint8_t>&input) const override;
 
@@ -310,14 +247,10 @@ namespace openldacs::phy::link::fl {
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         static constexpr std::size_t n_frames_ = 9;
 
-        static void compose_frame(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
-        static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, const ParamStruct::FrameInfo& frame_info);
-        static void build_frame_info(const PhyFl::FLConfig &config, ParamStruct::FrameInfo& frame_info);
-        ParamStruct build_params(const PhyFl::FLConfig &config) override;
-
-        void initialize_coding_table(std::map<std::tuple<ModulationType, double>, CodingParams>& table) override;
-
-        CodingParams set_coding_params(ModulationType modulation_type, double coding_rate) override;
+        static void compose_frame(const PhyFl::FLConfig &config, FrameInfo& frame_info);
+        static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, FrameInfo &frame_info);
+        static void build_frame_info(const PhyFl::FLConfig &config, FrameInfo& frame_info);
+        ParamStruct build_params(const PhyFl::FLConfig &config);
     };
 }
 

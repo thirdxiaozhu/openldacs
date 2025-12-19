@@ -13,6 +13,7 @@
 using  namespace  openldacs::phy;
 
 int main() {
+    std::cout << "!!!!!!!!!" << std::endl;
     using namespace openldacs::phy::config;
     using namespace openldacs::phy::link::fl;
     using namespace openldacs;
