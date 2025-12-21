@@ -13,6 +13,7 @@
 #include "params.h"
 
 namespace openldacs::phy::link::fl {
+
     class FLChannelHandler;
     class BC1_3Handler;
     class BC2Handler;
@@ -150,24 +151,25 @@ namespace openldacs::phy::link::fl {
                          -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
     };
 
-    class PhyFl: public LinkBase {
+    inline const std::vector<std::vector<int>> pilot_sets = {
+        {pilot_set1.begin(), pilot_set1.end()},
+        {pilot_set2.begin(), pilot_set2.end()},
+        {pilot_set3.begin(), pilot_set3.end()},
+        {pilot_set4.begin(), pilot_set4.end()},
+        {pilot_set5.begin(), pilot_set5.end()},
+    };
+
+    inline const std::vector<std::vector<cd>> pilot_seeds = {
+        {pilot_seed1.begin(), pilot_seed1.end()},
+        {pilot_seed2.begin(), pilot_seed2.end()},
+        {pilot_seed3.begin(), pilot_seed3.end()},
+        {pilot_seed4.begin(), pilot_seed4.end()},
+        {pilot_seed5.begin(), pilot_seed5.end()},
+    };
+
+    class PhyFl final : public LinkBase {
     public:
         struct FLConfig {
-            std::vector<std::vector<int>> pilot_sets = {
-                {pilot_set1.begin(), pilot_set1.end()},
-                {pilot_set2.begin(), pilot_set2.end()},
-                {pilot_set3.begin(), pilot_set3.end()},
-                {pilot_set4.begin(), pilot_set4.end()},
-                {pilot_set5.begin(), pilot_set5.end()},
-            };
-
-            std::vector<std::vector<cd>> pilot_seeds = {
-                {pilot_seed1.begin(), pilot_seed1.end()},
-                {pilot_seed2.begin(), pilot_seed2.end()},
-                {pilot_seed3.begin(), pilot_seed3.end()},
-                {pilot_seed4.begin(), pilot_seed4.end()},
-                {pilot_seed5.begin(), pilot_seed5.end()},
-            };
         };
 
         explicit PhyFl()
@@ -176,6 +178,7 @@ namespace openldacs::phy::link::fl {
              bc2_(std::make_unique<BC2Handler>(config_)),
              data_(std::make_unique<FLDataHandler>(config_)) {
         }
+
         void process_packet(ChannelType type, const std::vector<uint8_t> &input) const override;
 
     private:
@@ -196,50 +199,42 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
     protected:
-        FLChannelHandler(const PhyFl::FLConfig& config, ParamStruct init)
-            : config_(config),
-              params_(std::move(init)){
+        FLChannelHandler(const PhyFl::FLConfig& config)
+            : config_(config){
         }
 
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
         CodingTable coding_table_;
+
+        void build_params();
+        void build_frame_info();
+        virtual void compose_frame() = 0;
+        virtual void set_pilots_sync_symbol() = 0;
     };
 
-    template<ChannelType CH>
-    class FLChannelHandlerT : public FLChannelHandler {
+    class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit FLChannelHandlerT(const PhyFl::FLConfig &cfg, ParamStruct p)
-            : FLChannelHandler(cfg, std::move(p)) {
-            CodingTableInitializer<CH>::initialize(params_, coding_table_);
-        }
-    };
-
-    class BC1_3Handler final:public FLChannelHandlerT<ChannelType::BC1_3> {
-    public:
-        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {}
+        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-         ParamStruct build_params(const PhyFl::FLConfig &config){
-            ParamStruct params;
-            return params;
-        }
+         void compose_frame() override {};
+         void set_pilots_sync_symbol() override{};
     };
 
-    class BC2Handler final:public FLChannelHandlerT<ChannelType::BC2> {
+    class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {}
+        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
         void handle(const std::vector<uint8_t>&input) const override;
     private:
-        ParamStruct build_params(const PhyFl::FLConfig &config) {
-            ParamStruct params;
-            return params;
-        }
+        void compose_frame() override {};
+        void set_pilots_sync_symbol() override{};
     };
 
-    class FLDataHandler final:public FLChannelHandlerT<ChannelType::FL_DATA> {
+    class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandlerT(config, build_params(config)) {
+        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
+            build_params();
         }
         void handle(const std::vector<uint8_t>&input) const override;
 
@@ -247,10 +242,8 @@ namespace openldacs::phy::link::fl {
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         static constexpr std::size_t n_frames_ = 9;
 
-        static void compose_frame(const PhyFl::FLConfig &config, FrameInfo& frame_info);
-        static void set_pilots_sync_symbol(const PhyFl::FLConfig &config, FrameInfo &frame_info);
-        static void build_frame_info(const PhyFl::FLConfig &config, FrameInfo& frame_info);
-        ParamStruct build_params(const PhyFl::FLConfig &config);
+        void compose_frame() override;
+        void set_pilots_sync_symbol() override;
     };
 }
 

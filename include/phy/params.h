@@ -46,37 +46,15 @@ namespace openldacs::phy::params {
     };
 
 
-    using CodingKey = std::tuple<ModulationType, CodingRate>;
+    using CodingKey = std::tuple<ModulationType, CodingRate, int>;
     struct CodingTable {
         std::map<CodingKey, CodingParams> coding_table;
 
-        void set(ModulationType type, CodingRate rate) {
-            coding_table[{type, rate}] = get_coding_params(type, rate);
+        void set(ModulationType type, CodingRate rate, int joint_frame) {
+            coding_table[{type, rate, joint_frame}] = get_coding_params(type, rate);
         }
 
         static CodingParams get_coding_params(ModulationType type, CodingRate rate);
-    };
-
-    template<ChannelType CH>
-    struct CodingTableInitializer;
-
-    template<>
-    struct CodingTableInitializer<ChannelType::BC1_3> {
-        static void initialize(const ParamStruct& params, CodingTable& t) {
-        }
-    };
-
-    template<>
-    struct CodingTableInitializer<ChannelType::BC2> {
-        static void initialize(const ParamStruct& params, CodingTable& t) {
-        }
-    };
-
-    template<>
-    struct CodingTableInitializer<ChannelType::FL_DATA> {
-        static void initialize(const ParamStruct& params, CodingTable& t) {
-            t.set(ModulationType::QPSK, CodingRate::R12);
-        }
     };
 }
 

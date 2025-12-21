@@ -23,7 +23,10 @@ namespace openldacs::phy::link::fl {
         std::cout << input;
     }
 
-    void FLDataHandler::compose_frame(const PhyFl::FLConfig &config, FrameInfo& frame_info) {
+    void FLDataHandler::compose_frame() {
+
+        FrameInfo &frame_info = params_.frame_info_;
+
         Eigen::MatrixXi& pattern = frame_info.frame_pattern;
 
         pattern = Eigen::MatrixXi::Ones(n_fft, n_fl_ofdm_symb_);
@@ -44,7 +47,7 @@ namespace openldacs::phy::link::fl {
 
         // pilots 2-53
         for (int i = 0 ; i < n_fl_ofdm_symb_ - 4; i++) {
-            for (const int s : config.pilot_sets[i % 5]) {
+            for (const int s : pilot_sets[i % 5]) {
                 pattern(s, i+3) = static_cast<int>(SymbolValue::PILOT);
             }
         }
@@ -78,7 +81,9 @@ namespace openldacs::phy::link::fl {
         frame_info.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
     }
 
-    void FLDataHandler::set_pilots_sync_symbol(const PhyFl::FLConfig &config, FrameInfo &frame_info) {
+    void FLDataHandler::set_pilots_sync_symbol() {
+        FrameInfo &frame_info = params_.frame_info_;
+
         std::vector<cd>& seed = frame_info.pilot_seeds;
         std::vector<std::vector<cd>>& sync_symbols = frame_info.sync_symbols;
         // 估个上限容量，尽量减少扩容次数
@@ -91,7 +96,7 @@ namespace openldacs::phy::link::fl {
                                  pilot_seed0.begin(), pilot_seed0.end());
 
         for (int i = 0; i < n_fl_ofdm_symb_ - 4; i++) {
-            seed.insert(seed.end(), config.pilot_seeds[i % 5].begin(), config.pilot_seeds[i % 5].end());
+            seed.insert(seed.end(), pilot_seeds[i % 5].begin(), pilot_seeds[i % 5].end());
         }
 
         seed.insert(seed.end(),
@@ -137,30 +142,45 @@ namespace openldacs::phy::link::fl {
 
     }
 
-    void FLDataHandler::build_frame_info(const PhyFl::FLConfig &config, FrameInfo& frame_info) {
-        compose_frame(config, frame_info);
-        set_pilots_sync_symbol(config, frame_info);
+    void FLChannelHandler::build_frame_info() {
+        compose_frame();
+        set_pilots_sync_symbol();
     }
 
-    ParamStruct FLDataHandler::build_params(const PhyFl::FLConfig &config)  {
-        ParamStruct params;
-        build_frame_info(config, params.frame_info_);
-
-        return params;
+    void FLChannelHandler::build_params()  {
+        build_frame_info();
     }
 
-    FLChannelHandler& PhyFl::get_handler(const ChannelType type) const {
-        switch (type) {
-            case ChannelType::BC1_3:   return *bc13_;
-            case ChannelType::BC2:     return *bc2_;
-            case ChannelType::FL_DATA: return *data_;
-            default: throw std::runtime_error("Unknown FLType");
-        }
-    }
-
+    // template<typename T>
+    // FLChannelHandler<T>& PhyFl::get_handler(const ChannelType type) const {
+    //     switch (type) {
+    //         case ChannelType::BC1_3:   return *bc13_;
+    //         case ChannelType::BC2:     return *bc2_;
+    //         case ChannelType::FL_DATA: return *data_;
+    //         default: throw std::runtime_error("Unknown FLType");
+    //     }
+    // }
+    //
     void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
-        const auto& handler = get_handler(type);
-        handler.handle(input);
+        switch (type) {
+            case ChannelType::BC1_3: {
+                auto& handler = *bc13_;
+                handler.handle(input);
+                break;
+            }
+            case ChannelType::BC2: {
+                auto& handler = *bc2_;
+                handler.handle(input);
+                break;
+            }
+            case ChannelType::FL_DATA: {
+                auto& handler = *data_;
+                handler.handle(input);
+                break;
+            }
+            default:
+                throw std::runtime_error("Unknown FLType");
+        }
     }
 
 }

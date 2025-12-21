@@ -20,6 +20,7 @@
 #include <itpp/base/mat.h>
 #include <map>
 #include <eigen3/Eigen/Dense>
+#include <span>
 
 
 #endif //OPENLDACS_OPENLDACS_H
