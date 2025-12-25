@@ -200,7 +200,7 @@ namespace openldacs::phy::link::fl {
         const ParamStruct& params() const noexcept { return params_; }
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config)
-            : config_(config){
+            : config_(config), coding_table_(params_) {
         }
 
         const PhyFl::FLConfig& config_;
@@ -209,6 +209,7 @@ namespace openldacs::phy::link::fl {
 
         void build_params();
         void build_frame_info();
+        virtual void init_coding_table() = 0;
         virtual void compose_frame() = 0;
         virtual void set_pilots_sync_symbol() = 0;
     };
@@ -220,6 +221,7 @@ namespace openldacs::phy::link::fl {
     private:
          void compose_frame() override {};
          void set_pilots_sync_symbol() override{};
+         void init_coding_table() override{};
     };
 
     class BC2Handler final:public FLChannelHandler {
@@ -229,21 +231,31 @@ namespace openldacs::phy::link::fl {
     private:
         void compose_frame() override {};
         void set_pilots_sync_symbol() override{};
+        void init_coding_table() override{};
     };
 
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
             build_params();
+            init_coding_table();
         }
         void handle(const std::vector<uint8_t>&input) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         static constexpr std::size_t n_frames_ = 9;
+        static constexpr std::array<CodingKey, 1> coding_keys = {
+        };
 
         void compose_frame() override;
         void set_pilots_sync_symbol() override;
+        void init_coding_table() override {
+            coding_table_.init_coding_table({
+                {ModulationType::QPSK, CodingRate::R12, 2},
+                {ModulationType::QPSK, CodingRate::R12, 3},
+            });
+        }
     };
 }
 

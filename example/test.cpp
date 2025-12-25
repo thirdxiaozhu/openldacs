@@ -13,10 +13,10 @@
 using  namespace  openldacs::phy;
 
 int main() {
-    std::cout << "!!!!!!!!!" << std::endl;
     using namespace openldacs::phy::config;
     using namespace openldacs::phy::link::fl;
     using namespace openldacs;
+
 
     std::cout << "n_fft = " << n_fft << std::endl;
     std::cout << "n_cp = " << n_cp << std::endl;

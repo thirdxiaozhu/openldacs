@@ -3,12 +3,30 @@
 //
 
 #include "phy/fl.h"
-#include "phy/fl.h"
 #include "util/util.h"
 
 
 namespace openldacs::phy::link::fl {
     using namespace openldacs::util;
+
+
+    void FLChannelHandler::build_frame_info() {
+        compose_frame();
+        set_pilots_sync_symbol();
+    }
+
+    void FLChannelHandler::build_params()  {
+        build_frame_info();
+    }
+
+    FLChannelHandler& PhyFl::get_handler(const ChannelType type) const {
+        switch (type) {
+            case ChannelType::BC1_3:   return *bc13_;
+            case ChannelType::BC2:     return *bc2_;
+            case ChannelType::FL_DATA: return *data_;
+            default: throw std::runtime_error("Unknown FLType");
+        }
+    }
 
     void BC1_3Handler::handle(const std::vector<uint8_t> &input) const {
         std::cout << input;
@@ -142,45 +160,10 @@ namespace openldacs::phy::link::fl {
 
     }
 
-    void FLChannelHandler::build_frame_info() {
-        compose_frame();
-        set_pilots_sync_symbol();
-    }
 
-    void FLChannelHandler::build_params()  {
-        build_frame_info();
-    }
-
-    // template<typename T>
-    // FLChannelHandler<T>& PhyFl::get_handler(const ChannelType type) const {
-    //     switch (type) {
-    //         case ChannelType::BC1_3:   return *bc13_;
-    //         case ChannelType::BC2:     return *bc2_;
-    //         case ChannelType::FL_DATA: return *data_;
-    //         default: throw std::runtime_error("Unknown FLType");
-    //     }
-    // }
-    //
     void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
-        switch (type) {
-            case ChannelType::BC1_3: {
-                auto& handler = *bc13_;
-                handler.handle(input);
-                break;
-            }
-            case ChannelType::BC2: {
-                auto& handler = *bc2_;
-                handler.handle(input);
-                break;
-            }
-            case ChannelType::FL_DATA: {
-                auto& handler = *data_;
-                handler.handle(input);
-                break;
-            }
-            default:
-                throw std::runtime_error("Unknown FLType");
-        }
+        FLChannelHandler& handler = get_handler(type);
+        handler.handle(input);
     }
 
 }
