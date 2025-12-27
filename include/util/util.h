@@ -74,8 +74,6 @@ namespace openldacs::util {
                 const std::size_t inner_mod = (3 * n + l) % a;
                 const std::size_t mk = b * inner_mod + n;
 
-                std::cout << mk << " " << N << " " << k << std::endl;
-
                 if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
                 perm[k] = mk;
             }

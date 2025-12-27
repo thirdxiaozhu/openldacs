@@ -5,35 +5,10 @@
 #include "phy/params.h"
 
 namespace openldacs::phy::params {
-
-    CodingParams CodingTable::set_coding_params(CodingKey key) {
-        const CodingParams& initial_param = get_initial_coding_param(key);
-        CodingParams params = initial_param;
+    void CodingTable::set_coding_params(CodingKey key, CodingParams &params) const {
+        get_initial_coding_param(key, params);
 
         auto [modulation_type, coding_rate, joint_frame] = key;
-        params.modulation_type = modulation_type;
-
-        if (coding_rate == CodingRate::R12) {
-            params.a = 1;
-            params.b = 2;
-            params.coding_rate = 0.5;
-            params.puncpat = {1,1};
-            params.bits_per_symb = 2;
-        }else if (coding_rate == CodingRate::R23) {
-            params.a = 2;
-            params.b = 3;
-            params.coding_rate = 0.67;
-            params.puncpat = {1,1,0,1};
-            params.bits_per_symb = 4;
-        }else if (coding_rate == CodingRate::R34) {
-            params.a = 3;
-            params.b = 4;
-            params.coding_rate = 0.75;
-            params.puncpat = {1,1,0,1,1,0};
-            params.bits_per_symb = 6;
-        }else {
-            throw std::invalid_argument("Unsupported rate_cc");
-        }
 
         // constrain length is 7
         itpp::ivec gen(2);
@@ -59,25 +34,35 @@ namespace openldacs::phy::params {
         SPDLOG_INFO("N_bits_with_term: {}; term_bits: {}", bits_with_term, params.term_bits);
         int bits_before_cc = bits_with_term - params.term_bits;
         int bits_before_cc_frame = bits_before_cc * params.cc_cod;
-        SPDLOG_INFO("N_bits_before_cc_frame: {}", bits_before_cc_frame);
 
         // interleaver
         params.int_size = bits_with_pad * params.interleaver;
         SPDLOG_INFO("int size: {}; N_int: {}", params.int_size, params.interleaver);
-
         params.h_inter_params.pattern = util::interleave_helical(params.int_size, params.h_inter_params.a, params.h_inter_params.b);
 
+        // rs params
+        SPDLOG_INFO("N_bits_before_cc_frame: {}; N_bits_after_RS: {}", bits_before_cc_frame, params.rs_params.bits_after_rs);
 
+        //conv coding params
+        params.conv_params.bits_before_cc = params.rs_params.bits_after_rs * 3 * joint_frame;
+        double bits_coded_double = static_cast<double>((params.conv_params.bits_before_cc + params.term_bits)) / (static_cast<double>(params.a) / (static_cast<double>(params.b)));
+        params.conv_params.bits_coded = std::ceil(bits_coded_double);
+        SPDLOG_INFO("N_bits_before_cc: {}; N_pad_coded: {}", params.conv_params.bits_before_cc, params.conv_params.bits_coded);
+        params.conv_params.pad_bits_after_rs = 0;
+        params.conv_params.pad_bits_after_cc = bits_with_pad - params.conv_params.bits_coded;
+        SPDLOG_INFO("N_pad_bits_after_rs: {}; N_pad_bits_after_cc: {}", params.conv_params.pad_bits_after_rs, params.conv_params.pad_bits_after_cc);
 
+        params.rate_cod = (static_cast<double>(params.a) / (static_cast<double>(params.b))
 
         SPDLOG_WARN("\n==================================\n");
 
-        return params;
     }
 
     void CodingTable::init_coding_table(const std::initializer_list<CodingKey> keys) {
         for (const auto& key : keys) {
-            coding_table[key] = set_coding_params(key);
+            CodingParams params;
+            set_coding_params(key, params);
+            coding_table[key] = params;
         }
     }
 
