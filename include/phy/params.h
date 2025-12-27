@@ -60,14 +60,15 @@ namespace openldacs::phy::params {
 
     struct CodingParams {
         ModulationType modulation_type;
-        double coding_rate;                     //0.5 / 0.67 / 0.75
+        double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
+        int rs_per_pdu = 1;
 
         int bits_per_symb = 2;
+        int bits_per_pdu = 0;
         itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
         int int_size = 1;
-
-        double rate_cod;
+        double rate_cod = 0;
 
         // 固定参数
         int L = 7;                              // constraint length
@@ -99,10 +100,32 @@ namespace openldacs::phy::params {
         void init_coding_table(std::initializer_list<CodingKey> keys);
     };
 
-    static const std::array<std::pair<CodingKey, CodingParams>, 2> init_coding_param_pairs = {
+    static const std::array<std::pair<CodingKey, CodingParams>, 6> init_coding_param_pairs = {
         {
-            {{ModulationType::QPSK, CodingRate::R12, 2}, CodingParams{.h_inter_params = {132, 74}, .rs_params = {101, 91}}},
-            {{ModulationType::QPSK, CodingRate::R12, 3}, CodingParams{.h_inter_params = {111, 132}, .rs_params = {101, 91}}}
+            {
+                {ModulationType::QPSK, CodingRate::R12, 2},
+                CodingParams{.h_inter_params = {132, 74}, .rs_params = {101, 91}}
+            },
+            {
+                {ModulationType::QPSK, CodingRate::R12, 3},
+                CodingParams{.h_inter_params = {111, 132}, .rs_params = {101, 91}},
+            },
+            {
+                {ModulationType::QPSK, CodingRate::R23, 2},
+                CodingParams{.h_inter_params = {132, 74}, .rs_params = {134, 120}},
+            },
+            {
+                {ModulationType::QPSK, CodingRate::R23, 3},
+                CodingParams{.h_inter_params = {111, 132}, .rs_params = {134, 120}},
+            },
+            {
+                {ModulationType::QPSK, CodingRate::R34, 2},
+                CodingParams{.h_inter_params = {132, 74}, .rs_params = {151, 135}},
+            },
+            {
+                {ModulationType::QPSK, CodingRate::R34, 3},
+                CodingParams{.h_inter_params = {111, 132}, .rs_params = {151, 135}},
+            }
         }
     };
 
@@ -123,24 +146,40 @@ namespace openldacs::phy::params {
         auto [modulation_type, coding_rate, joint_frame] = key;
         params.modulation_type = modulation_type;
 
+        switch (modulation_type) {
+            case ModulationType::QPSK:
+                params.rs_per_pdu = 1;
+                params.bits_per_symb = 2;
+                break;
+            case ModulationType::QAM16:
+                if (coding_rate == CodingRate::R12) params.bits_per_symb = 1;
+                else if (coding_rate == CodingRate::R23) params.bits_per_symb = 2;
+                else {
+                    throw std::invalid_argument("Unsupported modulation type 'QAM16' and coding rate '0.75'");
+                }
+                params.bits_per_symb = 4;
+                break;
+            case ModulationType::QAM64:
+                params.rs_per_pdu = 2;
+                params.bits_per_symb = 6;
+                break;
+        }
+
         if (coding_rate == CodingRate::R12) {
             params.a = 1;
             params.b = 2;
             params.coding_rate = 0.5;
             params.puncpat = {1,1};
-            params.bits_per_symb = 2;
         }else if (coding_rate == CodingRate::R23) {
             params.a = 2;
             params.b = 3;
             params.coding_rate = 0.67;
             params.puncpat = {1,1,0,1};
-            params.bits_per_symb = 4;
         }else if (coding_rate == CodingRate::R34) {
             params.a = 3;
             params.b = 4;
             params.coding_rate = 0.75;
             params.puncpat = {1,1,0,1,1,0};
-            params.bits_per_symb = 6;
         }else {
             throw std::invalid_argument("Unsupported rate_cc");
         }

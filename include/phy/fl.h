@@ -194,7 +194,7 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void handle(const std::vector<uint8_t>&input) const = 0;
+        virtual void transmit(const std::vector<uint8_t>&input) const = 0;
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
@@ -217,7 +217,7 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void handle(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input) const override;
     private:
          void compose_frame() override {};
          void set_pilots_sync_symbol() override{};
@@ -227,7 +227,7 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void handle(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input) const override;
     private:
         void compose_frame() override {};
         void set_pilots_sync_symbol() override{};
@@ -240,7 +240,7 @@ namespace openldacs::phy::link::fl {
             build_params();
             init_coding_table();
         }
-        void handle(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
@@ -254,6 +254,10 @@ namespace openldacs::phy::link::fl {
             coding_table_.init_coding_table({
                 {ModulationType::QPSK, CodingRate::R12, 2},
                 {ModulationType::QPSK, CodingRate::R12, 3},
+                {ModulationType::QPSK, CodingRate::R23, 2},
+                {ModulationType::QPSK, CodingRate::R23, 3},
+                {ModulationType::QPSK, CodingRate::R34, 2},
+                {ModulationType::QPSK, CodingRate::R34, 3},
             });
         }
     };

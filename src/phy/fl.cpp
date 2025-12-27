@@ -28,16 +28,16 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void BC1_3Handler::handle(const std::vector<uint8_t> &input) const {
+    void BC1_3Handler::transmit(const std::vector<uint8_t> &input) const {
         std::cout << input;
     }
 
 
-    void BC2Handler::handle(const std::vector<uint8_t> &input) const {
+    void BC2Handler::transmit(const std::vector<uint8_t> &input) const {
         std::cout << input;
     }
 
-    void FLDataHandler::handle(const std::vector<uint8_t> &input) const {
+    void FLDataHandler::transmit(const std::vector<uint8_t> &input) const {
         std::cout << input;
     }
 
@@ -163,7 +163,7 @@ namespace openldacs::phy::link::fl {
 
     void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
         FLChannelHandler& handler = get_handler(type);
-        handler.handle(input);
+        handler.transmit(input);
     }
 
 }

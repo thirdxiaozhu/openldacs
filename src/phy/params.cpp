@@ -10,6 +10,8 @@ namespace openldacs::phy::params {
 
         auto [modulation_type, coding_rate, joint_frame] = key;
 
+        SPDLOG_WARN("\n\n========= {} = {} = {} ==========", static_cast<int>(modulation_type), static_cast<int>(coding_rate), joint_frame);
+
         // constrain length is 7
         itpp::ivec gen(2);
         gen(0) = 0171; // G1 = 171oct
@@ -45,16 +47,17 @@ namespace openldacs::phy::params {
 
         //conv coding params
         params.conv_params.bits_before_cc = params.rs_params.bits_after_rs * 3 * joint_frame;
-        double bits_coded_double = static_cast<double>((params.conv_params.bits_before_cc + params.term_bits)) / (static_cast<double>(params.a) / (static_cast<double>(params.b)));
+        const double bits_coded_double = static_cast<double>((params.conv_params.bits_before_cc + params.term_bits)) / (static_cast<double>(params.a) / (static_cast<double>(params.b)));
         params.conv_params.bits_coded = std::ceil(bits_coded_double);
         SPDLOG_INFO("N_bits_before_cc: {}; N_pad_coded: {}", params.conv_params.bits_before_cc, params.conv_params.bits_coded);
         params.conv_params.pad_bits_after_rs = 0;
         params.conv_params.pad_bits_after_cc = bits_with_pad - params.conv_params.bits_coded;
         SPDLOG_INFO("N_pad_bits_after_rs: {}; N_pad_bits_after_cc: {}", params.conv_params.pad_bits_after_rs, params.conv_params.pad_bits_after_cc);
 
-        params.rate_cod = (static_cast<double>(params.a) / (static_cast<double>(params.b))
+        params.rate_cod = (static_cast<double>(params.a) / (static_cast<double>(params.b)) * (static_cast<double>(params.rs_params.k) / (static_cast<double>(params.rs_params.n))));
+        params.bits_per_pdu = params.rs_params.bits_uncoded * params.rs_per_pdu;
+        SPDLOG_INFO("rate_cod: {}; bits_per_pdu: {}", params.rate_cod, params.bits_per_pdu);
 
-        SPDLOG_WARN("\n==================================\n");
 
     }
 
