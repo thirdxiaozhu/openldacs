@@ -39,10 +39,10 @@ namespace openldacs::phy::link::fl {
 
     void FLDataHandler::transmit(const std::vector<uint8_t> &input) const {
         std::cout << input;
+
     }
 
     void FLDataHandler::compose_frame() {
-
         FrameInfo &frame_info = params_.frame_info_;
 
         Eigen::MatrixXi& pattern = frame_info.frame_pattern;

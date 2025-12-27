@@ -212,6 +212,8 @@ namespace openldacs::phy::link::fl {
         virtual void init_coding_table() = 0;
         virtual void compose_frame() = 0;
         virtual void set_pilots_sync_symbol() = 0;
+
+        void randomizer();
     };
 
     class BC1_3Handler final:public FLChannelHandler {

@@ -22,5 +22,18 @@
 #include <eigen3/Eigen/Dense>
 #include <span>
 
+namespace openldacs {
+    enum class CMS : int {
+        QPSK_R12 = 0,
+        QPSK_R23,
+        QPSK_R34,
+        QAM16_R12,
+        QAM16_R23,
+        QAM64_R12,
+        QAM64_R23,
+        QAM64_R34,
+    };
+}
+
 
 #endif //OPENLDACS_OPENLDACS_H
