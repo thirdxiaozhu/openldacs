@@ -59,6 +59,53 @@ namespace openldacs::util {
         }
         return P;
     }
+
+    static std::vector<std::size_t> make_helical_perm(std::size_t a, std::size_t b) {
+        if (a == 0 || b == 0) throw std::invalid_argument("a and b must be > 0");
+        const std::size_t N = a * b;
+
+        std::vector<std::size_t> perm(N, 0);
+
+        for (std::size_t l = 0; l < a; ++l) {
+            for (std::size_t n = 0; n < b; ++n) {
+                // 交织前索引 k：通常就是按行展开
+                const std::size_t k = l * b + n;
+
+                const std::size_t inner_mod = (3 * n + l) % a;
+                const std::size_t mk = b * inner_mod + n;
+
+                std::cout << mk << " " << N << " " << k << std::endl;
+
+                if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
+                perm[k] = mk;
+            }
+        }
+
+        // 可选：检查是否为真置换（0..N-1 各一次）
+        std::vector<std::size_t> chk = perm;
+        std::sort(chk.begin(), chk.end());
+        for (std::size_t i = 0; i < N; ++i) {
+            if (chk[i] != i) throw std::runtime_error("perm is not a permutation; check formula");
+        }
+        return perm;
+    }
+
+
+    static std::vector<int> interleave_helical(int int_size, std::size_t a, std::size_t b) {
+
+        std::vector<int> in(int_size);
+        std::iota(in.begin(), in.end(), 1);  // 从1开始填充
+
+        const std::size_t N = a * b;
+        if (in.size() != N) throw std::invalid_argument("input size must be a*b");
+        const auto perm = make_helical_perm(a, b);
+
+        std::vector<int> out(N);
+        for (std::size_t k = 0; k < N; ++k) {
+            out[perm[k]] = in[k];
+        }
+        return out;
+    }
 }
 
 #endif //OPENLDACS_UTIL_H

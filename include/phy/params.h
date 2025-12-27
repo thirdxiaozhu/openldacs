@@ -35,6 +35,7 @@ namespace openldacs::phy::params {
     enum class CodingRate : int { R12, R23, R34 };
     struct HelicalInterleaver {
         int a, b = 0;
+        std::vector<int> pattern;
     };
 
     struct CodingParams {
@@ -74,15 +75,15 @@ namespace openldacs::phy::params {
         void init_coding_table(std::initializer_list<CodingKey> keys);
     };
 
-    static const std::array<std::pair<CodingKey, CodingParams>, 2> coding_params = {
+    static const std::array<std::pair<CodingKey, CodingParams>, 2> init_coding_param_pairs = {
         {
-            {{ModulationType::QPSK, CodingRate::R12, 2}, CodingParams{.h_inter_params = {132, 74}, .a=1, .b=2}},
-            {{ModulationType::QPSK, CodingRate::R12, 3}, CodingParams{.h_inter_params = {111, 132}, .a=1, .b=2}}
+            {{ModulationType::QPSK, CodingRate::R12, 2}, CodingParams{.h_inter_params = {132, 74}}},
+            {{ModulationType::QPSK, CodingRate::R12, 3}, CodingParams{.h_inter_params = {111, 132}}}
         }
     };
 
-    inline const CodingParams &get_specific_coding_params(const CodingKey &key) {
-        for (const auto &[fst, snd] : coding_params) {
+    inline const CodingParams &get_initial_coding_param(const CodingKey &key) {
+        for (const auto &[fst, snd] : init_coding_param_pairs) {
             if (fst == key) {
                 return snd;
             }

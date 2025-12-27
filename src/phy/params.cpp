@@ -7,10 +7,9 @@
 namespace openldacs::phy::params {
 
     CodingParams CodingTable::set_coding_params(CodingKey key) {
+        const CodingParams& initial_param = get_initial_coding_param(key);
+        CodingParams params = initial_param;
 
-        const CodingParams& pre_params = get_specific_coding_params(key);
-
-        CodingParams params = pre_params;
         auto [modulation_type, coding_rate, joint_frame] = key;
         params.modulation_type = modulation_type;
 
@@ -65,6 +64,8 @@ namespace openldacs::phy::params {
         // interleaver
         params.int_size = bits_with_pad * params.interleaver;
         SPDLOG_INFO("int size: {}; N_int: {}", params.int_size, params.interleaver);
+
+        params.h_inter_params.pattern = util::interleave_helical(params.int_size, params.h_inter_params.a, params.h_inter_params.b);
 
 
 
