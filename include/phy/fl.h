@@ -206,6 +206,9 @@ namespace openldacs::phy::link::fl {
         void set_cms(const CMS cms) {
             default_cms_ = cms;
         }
+
+
+
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config)
             : config_(config), coding_table_(params_) {

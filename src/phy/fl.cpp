@@ -48,6 +48,7 @@ namespace openldacs::phy::link::fl {
 
     void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
+
     }
 
     void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
