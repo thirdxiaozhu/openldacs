@@ -32,7 +32,7 @@ int main() {
 
     const phy_service::PhyService PhySer;
 
-    PhySer.send_fl_data(link::ChannelType::FL_DATA, util::generateRandomBytes(50));
+    PhySer.sendFlData(FL_DCH, util::generateRandomBytes(50));
 
     return 0;
 }

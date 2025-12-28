@@ -33,6 +33,13 @@ namespace openldacs {
         QAM64_R23,
         QAM64_R34,
     };
+
+    enum CHANNEL: int {
+        BCCH1_3 = 0,
+        BCCH2,
+        CCCH,
+        FL_DCH,
+    };
 }
 
 

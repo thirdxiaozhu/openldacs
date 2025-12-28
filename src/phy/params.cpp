@@ -5,12 +5,12 @@
 #include "phy/params.h"
 
 namespace openldacs::phy::params {
-    void CodingTable::set_coding_params(CodingKey key, CodingParams &params) const {
+    void CodingTable::setCodingParams(CodingKey key, CodingParams &params) const {
         get_initial_coding_param(key, params);
 
-        auto [modulation_type, coding_rate, joint_frame] = key;
+        auto [cms, joint_frame] = key;
 
-        SPDLOG_WARN("\n\n========= {} = {} = {} ==========", static_cast<int>(modulation_type), static_cast<int>(coding_rate), joint_frame);
+        SPDLOG_WARN("\n\n========= {} = {} ==========", static_cast<int>(cms), joint_frame);
 
         // constrain length is 7
         itpp::ivec gen(2);
@@ -19,7 +19,7 @@ namespace openldacs::phy::params {
 
         params.cc.set_generator_polynomials(gen, params.L);                                 // 相当于 poly2trellis 的“码定义”部分
         params.cc.set_method(itpp::Trunc);                                                   // 不自动加尾
-        params.cc.set_puncture_matrix(util::puncpat_to_matrix_2output(params.puncpat));
+        params.cc.set_puncture_matrix(util::puncpatToMatrix2output(params.puncpat));
 
         // bits_bef_cod：你 MATLAB 的输入（已包含手动补的 K-1 个 0）
         // itpp::bvec bits_bef_cod = "1 0 1 1 0 0 1 0 0 0 0 0 0 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
@@ -40,7 +40,7 @@ namespace openldacs::phy::params {
         // interleaver
         params.int_size = bits_with_pad * params.interleaver;
         SPDLOG_INFO("int size: {}; N_int: {}", params.int_size, params.interleaver);
-        params.h_inter_params.pattern = util::interleave_helical(params.int_size, params.h_inter_params.a, params.h_inter_params.b);
+        params.h_inter_params.pattern = util::interleaveHelical(params.int_size, params.h_inter_params.a, params.h_inter_params.b);
 
         // rs params
         SPDLOG_INFO("N_bits_before_cc_frame: {}; N_bits_after_RS: {}", bits_before_cc_frame, params.rs_params.bits_after_rs);
@@ -61,10 +61,10 @@ namespace openldacs::phy::params {
 
     }
 
-    void CodingTable::init_coding_table(const std::initializer_list<CodingKey> keys) {
+    void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys) {
         for (const auto& key : keys) {
             CodingParams params;
-            set_coding_params(key, params);
+            setCodingParams(key, params);
             coding_table[key] = params;
         }
     }

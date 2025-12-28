@@ -87,7 +87,7 @@ namespace openldacs::phy::params {
     };
 
 
-    using CodingKey = std::tuple<ModulationType, CodingRate, int>;
+    using CodingKey = std::tuple<CMS, int>;
 
 
     struct CodingTable {
@@ -96,34 +96,34 @@ namespace openldacs::phy::params {
 
         CodingTable(ParamStruct &frame_info) : frame_info(frame_info) {}
 
-        void set_coding_params(CodingKey key, CodingParams &params) const;
-        void init_coding_table(std::initializer_list<CodingKey> keys);
+        void setCodingParams(CodingKey key, CodingParams &params) const;
+        void initCodingTable(std::initializer_list<CodingKey> keys);
     };
 
     static const std::array<std::pair<CodingKey, CodingParams>, 6> init_coding_param_pairs = {
         {
             {
-                {ModulationType::QPSK, CodingRate::R12, 2},
+                {CMS::QPSK_R12, 2},
                 CodingParams{.h_inter_params = {132, 74}, .rs_params = {101, 91}}
             },
             {
-                {ModulationType::QPSK, CodingRate::R12, 3},
+                {CMS::QPSK_R12, 3},
                 CodingParams{.h_inter_params = {111, 132}, .rs_params = {101, 91}},
             },
             {
-                {ModulationType::QPSK, CodingRate::R23, 2},
+                {CMS::QPSK_R23, 2},
                 CodingParams{.h_inter_params = {132, 74}, .rs_params = {134, 120}},
             },
             {
-                {ModulationType::QPSK, CodingRate::R23, 3},
+                {CMS::QPSK_R23, 3},
                 CodingParams{.h_inter_params = {111, 132}, .rs_params = {134, 120}},
             },
             {
-                {ModulationType::QPSK, CodingRate::R34, 2},
+                {CMS::QPSK_R34, 2},
                 CodingParams{.h_inter_params = {132, 74}, .rs_params = {151, 135}},
             },
             {
-                {ModulationType::QPSK, CodingRate::R34, 3},
+                {CMS::QPSK_R34,  3},
                 CodingParams{.h_inter_params = {111, 132}, .rs_params = {151, 135}},
             }
         }
@@ -143,46 +143,97 @@ namespace openldacs::phy::params {
             throw std::runtime_error("No such coding params");
         }
 
-        auto [modulation_type, coding_rate, joint_frame] = key;
-        params.modulation_type = modulation_type;
+        auto [cms, joint_frame] = key;
+        // params.modulation_type = modulation_type;
 
-        switch (modulation_type) {
-            case ModulationType::QPSK:
+        switch (cms) {
+            case CMS::QPSK_R12:
                 params.rs_per_pdu = 1;
                 params.bits_per_symb = 2;
+                params.a = 1;
+                params.b = 2;
+                params.coding_rate = 0.5;
+                params.puncpat = {1,1};
                 break;
-            case ModulationType::QAM16:
-                if (coding_rate == CodingRate::R12) params.bits_per_symb = 1;
-                else if (coding_rate == CodingRate::R23) params.bits_per_symb = 2;
-                else {
-                    throw std::invalid_argument("Unsupported modulation type 'QAM16' and coding rate '0.75'");
-                }
+            case CMS::QPSK_R23:
+                params.rs_per_pdu = 1;
+                params.bits_per_symb = 2;
+                params.a = 2;
+                params.b = 3;
+                params.coding_rate = 0.67;
+                params.puncpat = {1,1,0,1};
+                break;
+            case CMS::QPSK_R34:
+                params.rs_per_pdu = 1;
+                params.bits_per_symb = 2;
+                params.a = 3;
+                params.b = 4;
+                params.coding_rate = 0.75;
+                params.puncpat = {1,1,0,1,1,0};
+                break;
+            case CMS::QAM16_R12:
+                params.bits_per_symb = 1;
                 params.bits_per_symb = 4;
+                params.a = 1;
+                params.b = 2;
+                params.coding_rate = 0.5;
+                params.puncpat = {1,1};
                 break;
-            case ModulationType::QAM64:
+            case CMS::QAM16_R23:
+                params.bits_per_symb = 2;
+                params.bits_per_symb = 4;
+                params.a = 2;
+                params.b = 3;
+                params.coding_rate = 0.67;
+                params.puncpat = {1,1,0,1};
+                break;
+            case CMS::QAM64_R12:
                 params.rs_per_pdu = 2;
                 params.bits_per_symb = 6;
+                params.a = 1;
+                params.b = 2;
+                params.coding_rate = 0.5;
+                params.puncpat = {1,1};
+                break;
+            case CMS::QAM64_R23:
+                params.rs_per_pdu = 2;
+                params.bits_per_symb = 6;
+                params.a = 2;
+                params.b = 3;
+                params.coding_rate = 0.67;
+                params.puncpat = {1,1,0,1};
+                break;
+            case CMS::QAM64_R34:
+                params.rs_per_pdu = 2;
+                params.bits_per_symb = 6;
+                params.a = 3;
+                params.b = 4;
+                params.coding_rate = 0.75;
+                params.puncpat = {1,1,0,1,1,0};
                 break;
         }
 
-        if (coding_rate == CodingRate::R12) {
-            params.a = 1;
-            params.b = 2;
-            params.coding_rate = 0.5;
-            params.puncpat = {1,1};
-        }else if (coding_rate == CodingRate::R23) {
-            params.a = 2;
-            params.b = 3;
-            params.coding_rate = 0.67;
-            params.puncpat = {1,1,0,1};
-        }else if (coding_rate == CodingRate::R34) {
-            params.a = 3;
-            params.b = 4;
-            params.coding_rate = 0.75;
-            params.puncpat = {1,1,0,1,1,0};
-        }else {
-            throw std::invalid_argument("Unsupported rate_cc");
-        }
+        // switch (modulation_type) {
+        //     case ModulationType::QPSK:
+        //         break;
+        //     case ModulationType::QAM16:
+        //         if (coding_rate == CodingRate::R12)
+        //         else if (coding_rate == CodingRate::R23) params.bits_per_symb = 2;
+        //         else {
+        //             throw std::invalid_argument("Unsupported modulation type 'QAM16' and coding rate '0.75'");
+        //         }
+        //
+        //         break;
+        //     case ModulationType::QAM64:
+        //         break;
+        // }
+        //
+        // if (coding_rate == CodingRate::R12) {
+        // }else if (coding_rate == CodingRate::R23) {
+        // }else if (coding_rate == CodingRate::R34) {
+        // }else {
+        //     throw std::invalid_argument("Unsupported rate_cc");
+        // }
     }
 
 

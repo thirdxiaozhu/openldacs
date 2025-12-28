@@ -10,39 +10,60 @@ namespace openldacs::phy::link::fl {
     using namespace openldacs::util;
 
 
-    void FLChannelHandler::build_frame_info() {
-        compose_frame();
-        set_pilots_sync_symbol();
+    void FLChannelHandler::buildFrameInfo() {
+        composeFrame();
+        setPilotsSyncSymbol();
     }
 
-    void FLChannelHandler::build_params()  {
-        build_frame_info();
+    void FLChannelHandler::buildParams()  {
+        buildFrameInfo();
     }
 
-    FLChannelHandler& PhyFl::get_handler(const ChannelType type) const {
+    FLChannelHandler& PhyFl::getHandler(const CHANNEL type) const {
         switch (type) {
-            case ChannelType::BC1_3:   return *bc13_;
-            case ChannelType::BC2:     return *bc2_;
-            case ChannelType::FL_DATA: return *data_;
+            case BCCH1_3:   return *bc13_;
+            case BCCH2:     return *bc2_;
+            case CCCH: return *data_;
+            case FL_DCH: return *data_;
             default: throw std::runtime_error("Unknown FLType");
         }
     }
 
-    void BC1_3Handler::transmit(const std::vector<uint8_t> &input) const {
+    void BC1_3Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
+        std::cout << input;
+    }
+
+    void BC1_3Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
         std::cout << input;
     }
 
 
-    void BC2Handler::transmit(const std::vector<uint8_t> &input) const {
+    void BC2Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
     }
 
-    void FLDataHandler::transmit(const std::vector<uint8_t> &input) const {
+    void BC2Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
         std::cout << input;
-
     }
 
-    void FLDataHandler::compose_frame() {
+    void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
+        std::cout << input;
+    }
+
+    void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
+        std::cout << input;
+        switch (ch) {
+            case CCCH:
+                transmit(input, FL_DCH, CMS::QPSK_R12);
+            case FL_DCH:
+                transmit(input, FL_DCH, default_cms_);
+                break;
+            default:
+                throw std::runtime_error("Unsupported channel type in FLDATAHandlr");
+        }
+    }
+
+    void FLDataHandler::composeFrame() {
         FrameInfo &frame_info = params_.frame_info_;
 
         Eigen::MatrixXi& pattern = frame_info.frame_pattern;
@@ -99,7 +120,7 @@ namespace openldacs::phy::link::fl {
         frame_info.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
     }
 
-    void FLDataHandler::set_pilots_sync_symbol() {
+    void FLDataHandler::setPilotsSyncSymbol() {
         FrameInfo &frame_info = params_.frame_info_;
 
         std::vector<cd>& seed = frame_info.pilot_seeds;
@@ -161,9 +182,10 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void PhyFl::process_packet(const ChannelType type, const std::vector<uint8_t> &input) const {
-        FLChannelHandler& handler = get_handler(type);
-        handler.transmit(input);
+    void PhyFl::processPacket(CHANNEL ch, const std::vector<uint8_t> &input) const {
+        FLChannelHandler& handler = getHandler(ch);
+
+        handler.transmit(input, ch);
     }
 
 }

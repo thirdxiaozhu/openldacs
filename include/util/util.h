@@ -45,7 +45,7 @@ namespace openldacs::util {
         return os;
     }
 
-    static itpp::bmat puncpat_to_matrix_2output(const std::vector<int>& punc_pat_serial)
+    static itpp::bmat puncpatToMatrix2output(const std::vector<int>& punc_pat_serial)
     {
         // 只处理 n=2 的母码（1/2卷积码）最常见情况
         // punc_pat_serial 是对序列 [X1_1, X2_1, X1_2, X2_2, ...] 的 0/1 模式
@@ -60,7 +60,7 @@ namespace openldacs::util {
         return P;
     }
 
-    static std::vector<std::size_t> make_helical_perm(std::size_t a, std::size_t b) {
+    static std::vector<std::size_t> makeHelicalPerm(std::size_t a, std::size_t b) {
         if (a == 0 || b == 0) throw std::invalid_argument("a and b must be > 0");
         const std::size_t N = a * b;
 
@@ -89,14 +89,14 @@ namespace openldacs::util {
     }
 
 
-    static std::vector<int> interleave_helical(int int_size, std::size_t a, std::size_t b) {
+    static std::vector<int> interleaveHelical(int int_size, std::size_t a, std::size_t b) {
 
         std::vector<int> in(int_size);
         std::iota(in.begin(), in.end(), 1);  // 从1开始填充
 
         const std::size_t N = a * b;
         if (in.size() != N) throw std::invalid_argument("input size must be a*b");
-        const auto perm = make_helical_perm(a, b);
+        const auto perm = makeHelicalPerm(a, b);
 
         std::vector<int> out(N);
         for (std::size_t k = 0; k < N; ++k) {

@@ -179,7 +179,7 @@ namespace openldacs::phy::link::fl {
              data_(std::make_unique<FLDataHandler>(config_)) {
         }
 
-        void process_packet(ChannelType type, const std::vector<uint8_t> &input) const override;
+        void processPacket(CHANNEL ch, const std::vector<uint8_t> &input) const override;
 
     private:
         FLConfig config_;
@@ -187,17 +187,25 @@ namespace openldacs::phy::link::fl {
         std::unique_ptr<BC2Handler> bc2_;
         std::unique_ptr<FLDataHandler> data_;
 
-        FLChannelHandler &get_handler(ChannelType type) const;
+        FLChannelHandler &getHandler(CHANNEL type) const;
     };
 
 
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void transmit(const std::vector<uint8_t>&input) const = 0;
+        virtual void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const = 0;  // user-specific
+        virtual void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
+
+        CMS get_cms() const {
+            return default_cms_;
+        }
+        void set_cms(const CMS cms) {
+            default_cms_ = cms;
+        }
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config)
             : config_(config), coding_table_(params_) {
@@ -206,12 +214,13 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
         CodingTable coding_table_;
+        CMS default_cms_ = CMS::QPSK_R12;
 
-        void build_params();
-        void build_frame_info();
-        virtual void init_coding_table() = 0;
-        virtual void compose_frame() = 0;
-        virtual void set_pilots_sync_symbol() = 0;
+        void buildParams();
+        void buildFrameInfo();
+        virtual void initCodingTable() = 0;
+        virtual void composeFrame() = 0;
+        virtual void setPilotsSyncSymbol() = 0;
 
         void randomizer();
     };
@@ -219,47 +228,48 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void transmit(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
     private:
-         void compose_frame() override {};
-         void set_pilots_sync_symbol() override{};
-         void init_coding_table() override{};
+         void composeFrame() override {};
+         void setPilotsSyncSymbol() override{};
+         void initCodingTable() override{};
     };
 
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void transmit(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
     private:
-        void compose_frame() override {};
-        void set_pilots_sync_symbol() override{};
-        void init_coding_table() override{};
+        void composeFrame() override {};
+        void setPilotsSyncSymbol() override{};
+        void initCodingTable() override{};
     };
 
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
-            build_params();
-            init_coding_table();
+            buildParams();
+            initCodingTable();
         }
-        void transmit(const std::vector<uint8_t>&input) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         static constexpr std::size_t n_frames_ = 9;
-        static constexpr std::array<CodingKey, 1> coding_keys = {
-        };
 
-        void compose_frame() override;
-        void set_pilots_sync_symbol() override;
-        void init_coding_table() override {
-            coding_table_.init_coding_table({
-                {ModulationType::QPSK, CodingRate::R12, 2},
-                {ModulationType::QPSK, CodingRate::R12, 3},
-                {ModulationType::QPSK, CodingRate::R23, 2},
-                {ModulationType::QPSK, CodingRate::R23, 3},
-                {ModulationType::QPSK, CodingRate::R34, 2},
-                {ModulationType::QPSK, CodingRate::R34, 3},
+        void composeFrame() override;
+        void setPilotsSyncSymbol() override;
+        void initCodingTable() override {
+            coding_table_.initCodingTable({
+                {CMS::QPSK_R12, 2},
+                {CMS::QPSK_R12, 3},
+                {CMS::QPSK_R23, 2},
+                {CMS::QPSK_R23, 3},
+                {CMS::QPSK_R34, 2},
+                {CMS::QPSK_R34, 3},
             });
         }
     };

@@ -14,7 +14,7 @@ namespace openldacs::phy::phy_service {
             fl::PhyFl PhyFL;
         };
         explicit PhyService ();
-        void send_fl_data(ChannelType type, const std::vector<uint8_t>& input ) const;
+        void sendFlData(CHANNEL type, const std::vector<uint8_t>& input) const;
 
     private:
         PhyConfig config_;
