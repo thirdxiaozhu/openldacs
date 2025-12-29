@@ -29,35 +29,40 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void BC1_3Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
+    void BC1_3Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
     }
 
-    void BC1_3Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
+    void BC1_3Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch) const {
         std::cout << input;
     }
 
 
-    void BC2Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
+    void BC2Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
     }
 
-    void BC2Handler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
+    void BC2Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch) const {
         std::cout << input;
     }
 
-    void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
+    void FLDataHandler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
+
+        const CodingParams &coding_params = coding_table_.getCodingParams({cms, 3});
+        randomizer();
+
+
 
     }
 
-    void FLDataHandler::transmit(const std::vector<uint8_t> &input, CHANNEL ch) const {
+    void FLDataHandler::submit(const std::vector<uint8_t> &input, const CHANNEL ch) const {
         std::cout << input;
         switch (ch) {
             case CCCH:
-                transmit(input, FL_DCH, CMS::QPSK_R12);
+                submit(input, FL_DCH, CMS::QPSK_R12);
             case FL_DCH:
-                transmit(input, FL_DCH, default_cms_);
+                submit(input, FL_DCH, default_cms_);
                 break;
             default:
                 throw std::runtime_error("Unsupported channel type in FLDATAHandlr");
@@ -186,7 +191,7 @@ namespace openldacs::phy::link::fl {
     void PhyFl::processPacket(CHANNEL ch, const std::vector<uint8_t> &input) const {
         FLChannelHandler& handler = getHandler(ch);
 
-        handler.transmit(input, ch);
+        handler.submit(input, ch);
     }
 
 }

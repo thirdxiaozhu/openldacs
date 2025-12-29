@@ -64,7 +64,7 @@ namespace openldacs::phy::params {
         int rs_per_pdu = 1;
 
         int bits_per_symb = 2;
-        int bits_per_pdu = 0;
+        int bits_per_sdu = 0;
         itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
         int int_size = 1;
@@ -98,6 +98,10 @@ namespace openldacs::phy::params {
 
         void setCodingParams(CodingKey key, CodingParams &params) const;
         void initCodingTable(std::initializer_list<CodingKey> keys);
+
+        const CodingParams &getCodingParams(const CodingKey &key) const {
+            return coding_table.at(key);
+        }
     };
 
     static const std::array<std::pair<CodingKey, CodingParams>, 6> init_coding_param_pairs = {

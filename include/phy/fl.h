@@ -194,8 +194,8 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const = 0;  // user-specific
-        virtual void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const = 0;  // cell-specific
+        virtual void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const = 0;  // user-specific
+        virtual void submit(const std::vector<uint8_t>&input, CHANNEL ch) const = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
@@ -206,8 +206,6 @@ namespace openldacs::phy::link::fl {
         void set_cms(const CMS cms) {
             default_cms_ = cms;
         }
-
-
 
     protected:
         FLChannelHandler(const PhyFl::FLConfig& config)
@@ -231,8 +229,8 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
     private:
          void composeFrame() override {};
          void setPilotsSyncSymbol() override{};
@@ -242,8 +240,8 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
     private:
         void composeFrame() override {};
         void setPilotsSyncSymbol() override{};
@@ -256,8 +254,8 @@ namespace openldacs::phy::link::fl {
             buildParams();
             initCodingTable();
         }
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void transmit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
+        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
