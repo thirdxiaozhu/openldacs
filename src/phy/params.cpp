@@ -4,6 +4,8 @@
 
 #include "phy/params.h"
 
+#include "phy/fl.h"
+
 namespace openldacs::phy::params {
     void CodingTable::setCodingParams(CodingKey key, CodingParams &params) const {
         get_initial_coding_param(key, params);
@@ -55,10 +57,11 @@ namespace openldacs::phy::params {
         SPDLOG_INFO("N_pad_bits_after_rs: {}; N_pad_bits_after_cc: {}", params.conv_params.pad_bits_after_rs, params.conv_params.pad_bits_after_cc);
 
         params.rate_cod = (static_cast<double>(params.a) / (static_cast<double>(params.b)) * (static_cast<double>(params.rs_params.k) / (static_cast<double>(params.rs_params.n))));
-        params.bits_per_sdu = params.rs_params.bits_uncoded * params.rs_per_pdu;
-        SPDLOG_INFO("rate_cod: {}; bits_per_sdu: {}", params.rate_cod, params.bits_per_sdu);
+        params.bits_per_pdu = params.rs_params.bits_uncoded * params.rs_per_pdu;
+        params.bytes_per_pdu = params.bits_per_pdu >> 3;
+        SPDLOG_INFO("rate_cod: {}; bits_per_sdu: {}; bytes_per_pdu: {}", params.rate_cod, params.bits_per_pdu, params.bytes_per_pdu);
 
-
+        params.randomize_matrix = Eigen::Map<const Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>>(fl::random_output.data(), params.bytes_per_pdu, params.joint_frame);
     }
 
     void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys) {

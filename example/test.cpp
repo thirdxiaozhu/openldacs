@@ -32,7 +32,12 @@ int main() {
 
     const phy_service::PhyService PhySer;
 
-    PhySer.sendFlData(FL_DCH, util::generateRandomBytes(50));
+    std::vector<uint8_t> input(273);
+    for (int i = 0; i < input.size(); i++) {
+        input[i] = i % 256;
+    }
+
+    PhySer.sendFlData(FL_DCH, input);
 
     return 0;
 }

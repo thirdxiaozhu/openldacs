@@ -40,6 +40,8 @@ namespace openldacs {
         CCCH,
         FL_DCH,
     };
+
+    using MatrixXu8 = Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>;
 }
 
 

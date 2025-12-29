@@ -59,16 +59,17 @@ namespace openldacs::phy::params {
     };
 
     struct CodingParams {
-        ModulationType modulation_type;
         double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
         int rs_per_pdu = 1;
 
         int bits_per_symb = 2;
-        int bits_per_sdu = 0;
+        int bits_per_pdu = 0;
+        int bytes_per_pdu = 0;
         itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
         int int_size = 1;
         double rate_cod = 0;
+        MatrixXu8 randomize_matrix;
 
         // 固定参数
         int L = 7;                              // constraint length
@@ -77,6 +78,7 @@ namespace openldacs::phy::params {
 
         // 初始参数
         int a = 0, b = 0;                       // a / b
+        int joint_frame;
         HelicalInterleaverParams h_inter_params;
         RSCoderParams rs_params;
         ConvCodingParams conv_params;
@@ -148,7 +150,7 @@ namespace openldacs::phy::params {
         }
 
         auto [cms, joint_frame] = key;
-        // params.modulation_type = modulation_type;
+        params.joint_frame = joint_frame;
 
         switch (cms) {
             case CMS::QPSK_R12:

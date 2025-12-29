@@ -23,11 +23,29 @@ namespace openldacs::phy::link::fl {
         switch (type) {
             case BCCH1_3:   return *bc13_;
             case BCCH2:     return *bc2_;
-            case CCCH: return *data_;
+            case CCCH:
             case FL_DCH: return *data_;
             default: throw std::runtime_error("Unknown FLType");
         }
     }
+
+    void FLChannelHandler::randomizer(MatrixXu8 &to_process, const CodingParams &coding_params) {
+        const long rows = to_process.rows();
+        const long cols = to_process.cols();
+
+        std::cout << to_process(1,1) << "  " << coding_params.randomize_matrix(1,1) << std::endl;
+
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                to_process(i, j) ^= coding_params.randomize_matrix(i, j);
+            }
+        }
+    }
+
+    void FLChannelHandler::channelCoding() {
+
+    }
+
 
     void BC1_3Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
         std::cout << input;
@@ -47,13 +65,15 @@ namespace openldacs::phy::link::fl {
     }
 
     void FLDataHandler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
-        std::cout << input;
-
         const CodingParams &coding_params = coding_table_.getCodingParams({cms, 3});
-        randomizer();
+        if (input.size() != coding_params.bytes_per_pdu * coding_params.joint_frame) {
+            throw std::runtime_error("Input size does not match coding params");
+        }
 
+        MatrixXu8 vec_input =  Eigen::Map<const MatrixXu8>(input.data(), coding_params.bytes_per_pdu, coding_params.joint_frame);
 
-
+        randomizer(vec_input, coding_params);
+        channelCoding();
     }
 
     void FLDataHandler::submit(const std::vector<uint8_t> &input, const CHANNEL ch) const {
@@ -188,7 +208,7 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void PhyFl::processPacket(CHANNEL ch, const std::vector<uint8_t> &input) const {
+    void PhyFl::processPacket(const CHANNEL ch, const std::vector<uint8_t> &input) const {
         FLChannelHandler& handler = getHandler(ch);
 
         handler.submit(input, ch);
