@@ -5,6 +5,7 @@
 #include "phy/fl.h"
 #include "util/util.h"
 
+#include <itpp/itcomm.h>
 
 namespace openldacs::phy::link::fl {
     using namespace openldacs::util;
@@ -42,8 +43,8 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void FLChannelHandler::channelCoding() {
-
+    void FLChannelHandler::rsEncoder(MatrixXu8 &input, const CodingParams &coding_params) {
+        itpp::Reed_Solomon
     }
 
 
@@ -73,7 +74,7 @@ namespace openldacs::phy::link::fl {
         MatrixXu8 vec_input =  Eigen::Map<const MatrixXu8>(input.data(), coding_params.bytes_per_pdu, coding_params.joint_frame);
 
         randomizer(vec_input, coding_params);
-        channelCoding();
+        rsEncoder();
     }
 
     void FLDataHandler::submit(const std::vector<uint8_t> &input, const CHANNEL ch) const {

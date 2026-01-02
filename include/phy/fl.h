@@ -250,7 +250,7 @@ namespace openldacs::phy::link::fl {
         virtual void setPilotsSyncSymbol() = 0;
 
         static void randomizer(MatrixXu8 &to_process, const CodingParams &coding_params) ;
-        static void channelCoding();
+        static void rsEncoder(MatrixXu8 &input, const CodingParams &coding_params);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
