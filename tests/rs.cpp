@@ -1,27 +1,15 @@
 #include <iostream>
-
-// extern "C" {
-//     // 声明 C 语言的函数，防止名称修饰
-//     // correct_reed_solomon *correct_reed_solomon_create(
-//     //     uint16_t, uint8_t, uint8_t, size_t);
-//
-//     void correct_reed_solomon_encode(correct_reed_solomon *rs, uint8_t *msg_raw, size_t message_length, uint8_t *msg_encode);
-//
-//     void correct_reed_solomon_decode(correct_reed_solomon *rs, uint8_t *msg_encode, size_t message_length, uint8_t *msg_decode);
-// }
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <correct.h>
-    // correct_convolutional *correct_convolutional_create(size_t inv_rate, size_t order,
-    //                                                     const correct_convolutional_polynomial_t *poly);
-    // void correct_reed_solomon_encode(correct_reed_solomon *rs, uint8_t *msg_raw, size_t message_length, uint8_t *msg_encode);
-    // void correct_reed_solomon_decode(correct_reed_solomon *rs, uint8_t *msg_encode, size_t message_length, uint8_t *msg_decode);
 
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+//
+// #include <correct.h>
+//
+// #ifdef __cplusplus
+// }
+// #endif
 
 int main() {
     srand(time(NULL));

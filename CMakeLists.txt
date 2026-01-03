@@ -13,7 +13,7 @@ find_package(Eigen3 REQUIRED)
 add_subdirectory(${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct)
 
 add_library(openldacs OBJECT)
-target_include_directories(openldacs PRIVATE include)
+include_directories(include ${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct/include)
 target_link_libraries(openldacs LINK_PUBLIC spdlog::spdlog itpp correct)
 add_subdirectory(src)
 add_subdirectory(example)
