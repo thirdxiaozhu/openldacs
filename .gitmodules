@@ -1,0 +1,3 @@
+[submodule "thirdparty/openldacs-correct"]
+	path = thirdparty/openldacs-correct
+	url = https://github.com/thirdxiaozhu/openldacs-correct.git
