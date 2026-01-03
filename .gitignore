@@ -1,6 +1,5 @@
 cmake-build-debug/
 bin/
-lib/
 .idea/
 build/
 *.build
