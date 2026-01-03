@@ -5,8 +5,11 @@
 #ifndef OPENLDACS_PARAMS_H
 #define OPENLDACS_PARAMS_H
 
+#include <utility>
+
 #include "openldacs.h"
 #include  "link.h"
+#include "util/reed_solomon.h"
 #include  "util/util.h"
 
 namespace openldacs::phy::params {
@@ -36,16 +39,17 @@ namespace openldacs::phy::params {
     struct HelicalInterleaverParams {
         int a, b = 0;
         std::vector<int> pattern;
+        HelicalInterleaverParams(const int a, const int b) : a(a), b(b) {
+        }
     };
 
     struct RSCoderParams {
         int n, k;
         int bits_uncoded;
         int bits_after_rs;
+        ReedSolomon rs;
 
-        // 添加构造函数
-        RSCoderParams() = default;
-        RSCoderParams(const int n_val, const int k_val) : n(n_val), k(k_val) {
+        RSCoderParams(const int n_val, const int k_val) : n(n_val), k(k_val), rs(n_val, k_val) {
             bits_uncoded = k_val * 8;      // 假设每个符号8位
             bits_after_rs = n_val * 8;
         }
@@ -78,14 +82,17 @@ namespace openldacs::phy::params {
 
         // 初始参数
         int a = 0, b = 0;                       // a / b
-        int joint_frame;
+        int joint_frame = 0;
         HelicalInterleaverParams h_inter_params;
         RSCoderParams rs_params;
-        ConvCodingParams conv_params;
+        ConvCodingParams conv_params{};
 
         // 当前是否有意义？
         int cc_cod = 1;
         int interleaver = 1;
+
+        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)) {
+        }
     };
 
 
@@ -98,7 +105,7 @@ namespace openldacs::phy::params {
 
         CodingTable(ParamStruct &frame_info) : frame_info(frame_info) {}
 
-        void setCodingParams(CodingKey key, CodingParams &params) const;
+        CodingParams setCodingParams(CodingKey key) const;
         void initCodingTable(std::initializer_list<CodingKey> keys);
 
         const CodingParams &getCodingParams(const CodingKey &key) const {
@@ -110,44 +117,47 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R12, 2},
-                CodingParams{.h_inter_params = {132, 74}, .rs_params = {101, 91}}
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(101, 91)}
             },
             {
                 {CMS::QPSK_R12, 3},
-                CodingParams{.h_inter_params = {111, 132}, .rs_params = {101, 91}},
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(101, 91)}
             },
             {
                 {CMS::QPSK_R23, 2},
-                CodingParams{.h_inter_params = {132, 74}, .rs_params = {134, 120}},
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(134, 120)}
             },
             {
                 {CMS::QPSK_R23, 3},
-                CodingParams{.h_inter_params = {111, 132}, .rs_params = {134, 120}},
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(134, 120)}
             },
             {
                 {CMS::QPSK_R34, 2},
-                CodingParams{.h_inter_params = {132, 74}, .rs_params = {151, 135}},
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(151, 135)}
             },
             {
                 {CMS::QPSK_R34,  3},
-                CodingParams{.h_inter_params = {111, 132}, .rs_params = {151, 135}},
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(151, 135)}
             }
         }
     };
 
-    inline void get_initial_coding_param(const CodingKey &key, CodingParams& params) {
+    inline CodingParams get_initial_coding_param(const CodingKey &key) {
         bool is_found = false;
+        const CodingParams *params_ptr = nullptr;
         for (const auto &[fst, snd] : init_coding_param_pairs) {
             if (fst == key) {
-                params = {snd};
+                params_ptr = &snd;
                 is_found = true;
                 break;
-
             }
         }
+
         if (!is_found) {
             throw std::runtime_error("No such coding params");
         }
+
+        CodingParams params = *params_ptr; //拷贝构造
 
         auto [cms, joint_frame] = key;
         params.joint_frame = joint_frame;
@@ -178,7 +188,7 @@ namespace openldacs::phy::params {
                 params.puncpat = {1,1,0,1,1,0};
                 break;
             case CMS::QAM16_R12:
-                params.bits_per_symb = 1;
+                params.rs_per_pdu = 1;
                 params.bits_per_symb = 4;
                 params.a = 1;
                 params.b = 2;
@@ -186,7 +196,7 @@ namespace openldacs::phy::params {
                 params.puncpat = {1,1};
                 break;
             case CMS::QAM16_R23:
-                params.bits_per_symb = 2;
+                params.rs_per_pdu = 2;
                 params.bits_per_symb = 4;
                 params.a = 2;
                 params.b = 3;
@@ -219,27 +229,7 @@ namespace openldacs::phy::params {
                 break;
         }
 
-        // switch (modulation_type) {
-        //     case ModulationType::QPSK:
-        //         break;
-        //     case ModulationType::QAM16:
-        //         if (coding_rate == CodingRate::R12)
-        //         else if (coding_rate == CodingRate::R23) params.bits_per_symb = 2;
-        //         else {
-        //             throw std::invalid_argument("Unsupported modulation type 'QAM16' and coding rate '0.75'");
-        //         }
-        //
-        //         break;
-        //     case ModulationType::QAM64:
-        //         break;
-        // }
-        //
-        // if (coding_rate == CodingRate::R12) {
-        // }else if (coding_rate == CodingRate::R23) {
-        // }else if (coding_rate == CodingRate::R34) {
-        // }else {
-        //     throw std::invalid_argument("Unsupported rate_cc");
-        // }
+        return params;
     }
 
 
