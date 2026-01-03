@@ -52,5 +52,7 @@ int main() {
     }
     printf("\n\n");
 
+    correct_reed_solomon_destroy(rs);
+
     return 0;
 }
