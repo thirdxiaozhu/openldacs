@@ -10,6 +10,8 @@
 // #ifdef __cplusplus
 // }
 // #endif
+#include <spdlog/spdlog.h>
+#include <util/reed_solomon.h>
 
 int main() {
     srand(time(NULL));
@@ -53,6 +55,29 @@ int main() {
     printf("\n\n");
 
     correct_reed_solomon_destroy(rs);
+
+
+    std::vector<uint8_t> input2(message_length);
+    std::vector<uint8_t> output2(message_length);
+    std::vector<uint8_t> encoded(block_length);
+    for (int i = 0; i < input2.size(); i++) {
+        input2[i] = i;
+    }
+
+    const ReedSolomon rs2(block_length, message_length);
+    rs2.rsEncode(input2, encoded);
+
+    for (const unsigned int i : encoded) {
+        std::cout << i << " ";
+    }
+
+    std::cout << std::endl << std::endl;
+
+    rs2.rsDecode(encoded, output2);
+
+    for (const unsigned int i : output2) {
+        std::cout << i << " ";
+    }
 
     return 0;
 }
