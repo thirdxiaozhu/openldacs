@@ -86,6 +86,9 @@ namespace openldacs::phy::link::fl {
         randomizer(to_process, coding_params);
         rsEncoder(to_process, coding_params);
 
+        {
+            std::lock_guard<std::mutex> lk(buffers_m_);
+        }
 
     }
 
@@ -94,7 +97,11 @@ namespace openldacs::phy::link::fl {
             case CCCH:
                 submit(sdu, CMS::QPSK_R12);
             case FL_DCH:
-                submit(sdu, default_cms_);
+                if (sdu.acm_id == 0) {
+                    submit(sdu, default_cms_);
+                }else {
+                    // user
+                }
                 break;
             default:
                 throw std::runtime_error("Unsupported channel type in FLDATAHandlr");

@@ -193,6 +193,35 @@ namespace openldacs::phy::link::fl {
         {pilot_seed5.begin(), pilot_seed5.end()},
     };
 
+    struct BlockKey {
+        DirectionType direction;
+        uint32_t sf_id;
+        uint16_t mf_id;
+
+        // FL specific
+        uint8_t acm_id;
+        uint8_t fl_block_id;
+
+        // // RL specific
+        // uint16_t as_id;
+        // uint16_t rl_block_seq;   // 0,1,2... within MF if split by Nlim/10 limit
+
+        bool operator==(const BlockKey & o) const {
+            return direction == o.direction &&
+               sf_id == o.sf_id &&
+               mf_id == o.mf_id &&
+               acm_id == o.acm_id &&
+               fl_block_id == o.fl_block_id;
+        }
+    };
+
+    // interleaver
+    struct BlockBuffer {
+        size_t target_count;
+        bool is_cc;
+        MVecU8 rs_encodes;
+    };
+
     class PhyFl final : public LinkBase {
     public:
         struct FLConfig {
@@ -216,6 +245,21 @@ namespace openldacs::phy::link::fl {
         FLChannelHandler &getHandler(CHANNEL type) const;
     };
 
+    struct BlockKeyHash {
+        size_t operator()(const BlockKey& k) const noexcept {
+            // crude hash, refine in real code
+            size_t h = 14695981039346656037ull;
+            auto mix = [&](uint64_t v){
+                h ^= v + 0x9e3779b97f4a7c15ull + (h<<6) + (h>>2);
+            };
+            mix(static_cast<uint64_t>(k.direction));
+            mix(k.sf_id);
+            mix(k.mf_id);
+            mix(k.acm_id);
+            mix(k.fl_block_id);
+            return h;
+        }
+    };
 
     class FLChannelHandler {
     public:
@@ -234,14 +278,16 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        FLChannelHandler(const PhyFl::FLConfig& config)
+        explicit FLChannelHandler(const PhyFl::FLConfig& config)
             : config_(config), coding_table_(params_) {
         }
 
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
         CodingTable coding_table_;
+        std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> map_;
         CMS default_cms_ = CMS::QPSK_R12;
+        std::mutex buffers_m_;
 
         void buildParams();
         void buildFrameInfo();
