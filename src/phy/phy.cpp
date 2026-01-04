@@ -3,17 +3,17 @@
 //
 
 #include "phy/phy.h"
-
 #include "util/util.h"
+#include "phy/fl.h"
 
-namespace openldacs::phy::phy_service {
+namespace openldacs::phy {
     using namespace openldacs::util;
-    using namespace openldacs::phy::link;
     PhyService::PhyService(): config_() {
+        config_.PhyFL = std::make_unique<link::fl::PhyFl>();
     }
 
-    void PhyService::sendFlData(const CHANNEL type, const std::vector<uint8_t>& input) const {
-        config_.PhyFL.processPacket(type, input);
+    void PhyService::sendFlData(const PhySdu &sdu) const {
+        config_.PhyFL->processPacket(sdu);
     }
 
 }

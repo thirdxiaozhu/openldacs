@@ -30,14 +30,27 @@ int main() {
     std::cout << "t_u = " << t_u << std::endl;
     std::cout << "t_symb = " << t_symb << std::endl;
 
-    const phy_service::PhyService PhySer;
+    const PhyService PhySer;
 
-    std::vector<uint8_t> input(273);
-    for (int i = 0; i < input.size(); i++) {
-        input[i] = i % 256;
+    // std::vector<uint8_t> input(91);
+    // for (int i = 0; i < input.size(); i++) {
+    //     input[i] = i % 256;
+    // }
+
+    PhySdu sdu = {
+        .direction = DirectionType::FL,
+        .sf_id = 1,
+        .mf_id = 1,
+        .sdu_index = 1,
+        .acm_id = 0,
+        .channel = FL_DCH,
+    };
+    sdu.payload.resize(91);
+    for (int i = 0; i < sdu.payload.size(); i++) {
+        sdu.payload[i] = i % 256;
     }
 
-    PhySer.sendFlData(FL_DCH, input);
+    PhySer.sendFlData(sdu);
 
     return 0;
 }

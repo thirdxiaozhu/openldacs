@@ -205,7 +205,7 @@ namespace openldacs::phy::link::fl {
              data_(std::make_unique<FLDataHandler>(config_)) {
         }
 
-        void processPacket(CHANNEL ch, const std::vector<uint8_t> &input) const override;
+        void processPacket(const PhySdu &sdu) const override;
 
     private:
         FLConfig config_;
@@ -220,8 +220,8 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const = 0;  // user-specific
-        virtual void submit(const std::vector<uint8_t>&input, CHANNEL ch) const = 0;  // cell-specific
+        virtual void submit(PhySdu sdu, CMS cms) const = 0;  // user-specific
+        virtual void submit(PhySdu sdu) const = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
@@ -249,15 +249,16 @@ namespace openldacs::phy::link::fl {
         virtual void composeFrame() = 0;
         virtual void setPilotsSyncSymbol() = 0;
 
-        static void randomizer(MVecU8 &to_process, const CodingParams &coding_params) ;
-        static void rsEncoder(MVecU8 &to_process, const CodingParams &coding_params);
+        static void randomizer(VecU8 &to_process, const CodingParams &coding_params) ;
+        static void rsEncoder(VecU8 &to_process, const CodingParams &coding_params);
+        static void blockInterleaver(MVecU8 &to_process, const CodingParams &coding_params);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(PhySdu sdu, CMS cms) const override;
+        void submit(PhySdu sdu) const override;
     private:
          void composeFrame() override {};
          void setPilotsSyncSymbol() override{};
@@ -267,8 +268,8 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(PhySdu sdu, CMS cms) const override;
+        void submit(PhySdu sdu) const override;
     private:
         void composeFrame() override {};
         void setPilotsSyncSymbol() override{};
@@ -281,8 +282,8 @@ namespace openldacs::phy::link::fl {
             buildParams();
             initCodingTable();
         }
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch, CMS cms) const override;
-        void submit(const std::vector<uint8_t>&input, CHANNEL ch) const override;
+        void submit(PhySdu sdu, CMS cms) const override;
+        void submit(PhySdu sdu) const override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;

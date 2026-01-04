@@ -6,13 +6,9 @@
 #define OPENLDACS_LINK_H
 
 #include "openldacs.h"
+#include "phy.h"
 
 namespace openldacs::phy::link {
-
-    enum class LinkType {
-        FL = 0,
-        RL = 1,
-    };
 
     class LinkBase {
     public:
@@ -20,9 +16,9 @@ namespace openldacs::phy::link {
         virtual ~LinkBase() = default;
         explicit LinkBase() = default;
 
-        virtual void processPacket(CHANNEL type, const std::vector<uint8_t> &input) const = 0;
+        virtual void processPacket(const PhySdu &sdu) const = 0;
     protected:
-        LinkType type_;
+        // LinkType type_;
     private:
     };
 }

@@ -31,75 +31,70 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void FLChannelHandler::randomizer(MVecU8 &to_process, const CodingParams &coding_params) {
-        for (int i = 0; i < to_process.size(); ++i) {
-            for (int j = 0; j < to_process[i].size(); ++j) {
-                to_process[i][j] ^= coding_params.randomize_mvec[i][j];
-            }
-        }
-    }
+    void FLChannelHandler::randomizer(VecU8 &to_process, const CodingParams &coding_params) {
 
-    void FLChannelHandler::rsEncoder(MVecU8 &to_process, const CodingParams &coding_params) {
-        for (int i = 0; i < to_process.size(); ++i) {
-            std::vector<uint8_t> output(coding_params.rs_params.n);
-            coding_params.rs_params.rs.rsEncode(to_process[i], output);
-            to_process[i].assign(output.begin(), output.end());
-
-            // for (int j = 0; j < to_process[i].size(); ++j) {
-            //     std::cout << to_process[i][j] << " ";
-            // }
-            // std::cout << std::endl;
-        }
-    }
-
-
-    void BC1_3Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
-        std::cout << input;
-    }
-
-    void BC1_3Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch) const {
-        std::cout << input;
-    }
-
-
-    void BC2Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
-        std::cout << input;
-    }
-
-    void BC2Handler::submit(const std::vector<uint8_t> &input, CHANNEL ch) const {
-        std::cout << input;
-    }
-
-    void FLDataHandler::submit(const std::vector<uint8_t> &input, CHANNEL ch, CMS cms) const {
-        const CodingParams &coding_params = coding_table_.getCodingParams({cms, 3});
-        if (input.size() != coding_params.bytes_per_pdu * coding_params.joint_frame) {
+        if (to_process.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
 
-        MVecU8 mvec_input;
-        mvec_input.resize(coding_params.joint_frame);
-        for (int i = 0; i < coding_params.joint_frame; i++) {
-            mvec_input[i].assign(input.begin() + i * coding_params.bytes_per_pdu, input.begin() + (i + 1) * coding_params.bytes_per_pdu);
+        for (int i = 0; i < to_process.size(); ++i) {
+            to_process[i] ^= coding_params.randomize_vec[i];
         }
-
-
-        // for (const auto& row : vec_input2) {
-        //     for (const auto& val : row) {
-        //         std::cout << static_cast<int>(val) << " ";
-        //     }
-        //     std::cout << std::endl;
-        // }
-
-        randomizer(mvec_input, coding_params);
-        rsEncoder(mvec_input, coding_params);
     }
 
-    void FLDataHandler::submit(const std::vector<uint8_t> &input, const CHANNEL ch) const {
-        switch (ch) {
+    void FLChannelHandler::rsEncoder(VecU8 &to_process, const CodingParams &coding_params) {
+
+        if (to_process.size() != coding_params.rs_params.k) {
+            throw std::runtime_error("Input size does not match reed-solomon params");
+        }
+
+        std::vector<uint8_t> output(coding_params.rs_params.n);
+        coding_params.rs_params.rs.rsEncode(to_process, output);
+        to_process.assign(output.begin(), output.end());
+    }
+
+    void FLChannelHandler::blockInterleaver(MVecU8 &to_process, const CodingParams &coding_params) {
+
+    }
+
+
+    void BC1_3Handler::submit(const PhySdu sdu, CMS cms) const {
+        std::cout << sdu.payload;
+    }
+
+    void BC1_3Handler::submit(const PhySdu sdu) const {
+        std::cout << sdu.payload;
+    }
+
+
+    void BC2Handler::submit(const PhySdu sdu, CMS cms) const {
+        std::cout << sdu.payload;
+    }
+
+    void BC2Handler::submit(const PhySdu sdu) const {
+        std::cout << sdu.payload;
+    }
+
+    void FLDataHandler::submit(const PhySdu sdu, CMS cms) const {
+        const CodingParams &coding_params = coding_table_.getCodingParams({cms, 3});
+        if (sdu.payload.size() != coding_params.bytes_per_pdu) {
+            throw std::runtime_error("Input size does not match coding params");
+        }
+
+        VecU8 to_process = sdu.payload;
+
+        randomizer(to_process, coding_params);
+        rsEncoder(to_process, coding_params);
+
+
+    }
+
+    void FLDataHandler::submit(const PhySdu sdu) const {
+        switch (sdu.channel) {
             case CCCH:
-                submit(input, FL_DCH, CMS::QPSK_R12);
+                submit(sdu, CMS::QPSK_R12);
             case FL_DCH:
-                submit(input, FL_DCH, default_cms_);
+                submit(sdu, default_cms_);
                 break;
             default:
                 throw std::runtime_error("Unsupported channel type in FLDATAHandlr");
@@ -225,10 +220,10 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void PhyFl::processPacket(const CHANNEL ch, const std::vector<uint8_t> &input) const {
-        FLChannelHandler& handler = getHandler(ch);
+    void PhyFl::processPacket(const PhySdu &sdu) const {
+        FLChannelHandler& handler = getHandler(sdu.channel);
 
-        handler.submit(input, ch);
+        handler.submit(sdu);
     }
 
 }

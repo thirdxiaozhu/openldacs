@@ -42,6 +42,7 @@ namespace openldacs {
     };
 
     using MVecU8 = std::vector<std::vector<uint8_t>>;
+    using VecU8 = std::vector<uint8_t>;
 }
 
 
