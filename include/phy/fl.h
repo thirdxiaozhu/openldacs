@@ -334,7 +334,7 @@ namespace openldacs::phy::link::fl {
         static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                       const CodingParams &coding_params);
 
-        static void convCode();
+        static void convCode(const CodingParams &coding_params);
 
     };
 

@@ -75,8 +75,13 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    void FLChannelHandler::convCode() {
+    void FLChannelHandler::convCode(const CodingParams &coding_params) {
 
+        // bits_bef_cod：你 MATLAB 的输入（已包含手动补的 K-1 个 0）
+        // itpp::bvec bits_bef_cod = "1 0 1 1 0 0 1 0 0 0 0 0 0 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
+        // itpp::bvec bits_cod;
+        // coding_params.cc.encode_trunc(bits_bef_cod, bits_cod);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
+        // std::cout << bits_cod <<std::endl;
     }
 
 
@@ -167,7 +172,7 @@ namespace openldacs::phy::link::fl {
 
         VecU8 after_int = blockInterleaver(block.units, coding_params);
 
-        convCode();
+        convCode(coding_params);
 
     }
 
