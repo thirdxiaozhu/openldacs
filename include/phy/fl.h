@@ -193,6 +193,14 @@ namespace openldacs::phy::link::fl {
         {pilot_seed5.begin(), pilot_seed5.end()},
     };
 
+    // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
+    struct RsEncodedUnit {
+        // store RS-coded bytes (systematic + parity), whatever your RS encoder outputs
+        std::vector<uint8_t> rs_bytes;
+        // Keep original metadata for ordering
+        uint16_t sdu_index;
+    };
+
     struct BlockKey {
         DirectionType direction;
         uint32_t sf_id;
@@ -203,7 +211,7 @@ namespace openldacs::phy::link::fl {
         uint8_t fl_block_id;
 
         // // RL specific
-        // uint16_t as_id;
+        // uint16_t as_i;
         // uint16_t rl_block_seq;   // 0,1,2... within MF if split by Nlim/10 limit
 
         bool operator==(const BlockKey & o) const {
@@ -213,13 +221,28 @@ namespace openldacs::phy::link::fl {
                acm_id == o.acm_id &&
                fl_block_id == o.fl_block_id;
         }
+
+        explicit BlockKey(const PhySdu &sdu): direction(sdu.direction),
+                                              sf_id(sdu.sf_id),
+                                              mf_id(sdu.mf_id),
+                                              acm_id(sdu.acm_id)
+                                              {
+            if (direction == DirectionType::FL) {
+                if (sdu.sdu_index >= 1 && sdu.sdu_index <= 6) fl_block_id = 0;
+                else if (sdu.sdu_index >= 7 && sdu.sdu_index <= 12) fl_block_id = 1;
+                else if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) fl_block_id = 2;
+                else fl_block_id = 3;
+            }else {
+                // RL
+            }
+        }
     };
 
     // interleaver
     struct BlockBuffer {
-        size_t target_count;
+        size_t interleaver_count;
         bool is_cc;
-        MVecU8 rs_encodes;
+        std::vector<RsEncodedUnit> units;
     };
 
     class PhyFl final : public LinkBase {
@@ -264,8 +287,8 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void submit(PhySdu sdu, CMS cms) const = 0;  // user-specific
-        virtual void submit(PhySdu sdu) const = 0;  // cell-specific
+        virtual void submit(PhySdu sdu, CMS cms) = 0;  // user-specific
+        virtual void submit(PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const ParamStruct& params() const noexcept { return params_; }
@@ -285,41 +308,58 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config_;
         ParamStruct params_;
         CodingTable coding_table_;
-        std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> map_;
+        std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
-        std::mutex buffers_m_;
+        std::mutex block_m_;
+
+        static size_t getInterleaverCount(const PhySdu &sdu) {
+            if (sdu.direction == DirectionType::FL) {
+                if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) return 9;
+                return 6;
+            }else {
+                // RL
+                return 0;
+            }
+        }
 
         void buildParams();
         void buildFrameInfo();
         virtual void initCodingTable() = 0;
         virtual void composeFrame() = 0;
         virtual void setPilotsSyncSymbol() = 0;
+        virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
 
-        static void randomizer(VecU8 &to_process, const CodingParams &coding_params) ;
-        static void rsEncoder(VecU8 &to_process, const CodingParams &coding_params);
-        static void blockInterleaver(MVecU8 &to_process, const CodingParams &coding_params);
+        static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
+        static RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params);
+        static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
+                                      const CodingParams &coding_params);
+
+        static void convCode();
+
     };
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void submit(PhySdu sdu, CMS cms) const override;
-        void submit(PhySdu sdu) const override;
+        void submit(PhySdu sdu, CMS cms) override;
+        void submit(PhySdu sdu) override;
     private:
          void composeFrame() override {};
          void setPilotsSyncSymbol() override{};
          void initCodingTable() override{};
+        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
     };
 
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
-        void submit(PhySdu sdu, CMS cms) const override;
-        void submit(PhySdu sdu) const override;
+        void submit(PhySdu sdu, CMS cms) override;
+        void submit(PhySdu sdu) override;
     private:
         void composeFrame() override {};
         void setPilotsSyncSymbol() override{};
         void initCodingTable() override{};
+        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
     };
 
     class FLDataHandler final:public FLChannelHandler {
@@ -328,8 +368,8 @@ namespace openldacs::phy::link::fl {
             buildParams();
             initCodingTable();
         }
-        void submit(PhySdu sdu, CMS cms) const override;
-        void submit(PhySdu sdu) const override;
+        void submit(PhySdu sdu, CMS cms) override;
+        void submit(PhySdu sdu) override;
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
@@ -347,6 +387,7 @@ namespace openldacs::phy::link::fl {
                 {CMS::QPSK_R34, 3},
             });
         }
+        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
     };
 }
 

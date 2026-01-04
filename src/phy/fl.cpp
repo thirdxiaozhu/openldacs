@@ -42,7 +42,10 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void FLChannelHandler::rsEncoder(VecU8 &to_process, const CodingParams &coding_params) {
+    RsEncodedUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
+
+        RsEncodedUnit unit;
+        unit.sdu_index = index;
 
         if (to_process.size() != coding_params.rs_params.k) {
             throw std::runtime_error("Input size does not match reed-solomon params");
@@ -50,33 +53,52 @@ namespace openldacs::phy::link::fl {
 
         std::vector<uint8_t> output(coding_params.rs_params.n);
         coding_params.rs_params.rs.rsEncode(to_process, output);
-        to_process.assign(output.begin(), output.end());
+        unit.rs_bytes.assign(output.begin(), output.end());
+
+        return unit;
     }
 
-    void FLChannelHandler::blockInterleaver(MVecU8 &to_process, const CodingParams &coding_params) {
+    VecU8 FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,
+                                             const CodingParams &coding_params) {
+        const size_t rows = coding_params.joint_frame * coding_params.pdu_per_frame;
+        const size_t cols = units[0].rs_bytes.size();
+
+        std::vector<uint8_t> out;
+        out.reserve(rows * cols);
+
+        for (int i = 0; i < cols; ++i) {
+            for (int j = 0; j < rows; ++j) {
+                out.push_back(units[j].rs_bytes[i]);
+            }
+        }
+
+        return out;
+    }
+
+    void FLChannelHandler::convCode() {
 
     }
 
 
-    void BC1_3Handler::submit(const PhySdu sdu, CMS cms) const {
+    void BC1_3Handler::submit(const PhySdu sdu, CMS cms) {
         std::cout << sdu.payload;
     }
 
-    void BC1_3Handler::submit(const PhySdu sdu) const {
+    void BC1_3Handler::submit(const PhySdu sdu) {
         std::cout << sdu.payload;
     }
 
 
-    void BC2Handler::submit(const PhySdu sdu, CMS cms) const {
+    void BC2Handler::submit(const PhySdu sdu, CMS cms) {
         std::cout << sdu.payload;
     }
 
-    void BC2Handler::submit(const PhySdu sdu) const {
+    void BC2Handler::submit(const PhySdu sdu) {
         std::cout << sdu.payload;
     }
 
-    void FLDataHandler::submit(const PhySdu sdu, CMS cms) const {
-        const CodingParams &coding_params = coding_table_.getCodingParams({cms, 3});
+    void FLDataHandler::submit(const PhySdu sdu, CMS cms) {
+        const CodingParams &coding_params = coding_table_.getCodingParams({cms, sdu.channel==CCCH ? 3 : 2});
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -84,15 +106,39 @@ namespace openldacs::phy::link::fl {
         VecU8 to_process = sdu.payload;
 
         randomizer(to_process, coding_params);
-        rsEncoder(to_process, coding_params);
+        RsEncodedUnit unit = rsEncoder(to_process, sdu.sdu_index, coding_params);
 
         {
-            std::lock_guard<std::mutex> lk(buffers_m_);
-        }
+            // lock
+            std::lock_guard<std::mutex> lk(block_m_);
 
+            const BlockKey key(sdu);
+
+            const size_t int_count = getInterleaverCount(sdu);
+            auto &buf = block_map_[key];
+            if (buf.units.empty()) {
+                buf.interleaver_count = int_count;
+                buf.is_cc = sdu.channel == CCCH;
+            }
+
+            if (buf.interleaver_count != int_count) {
+                throw std::runtime_error("Interleaver count does not match");
+            }
+
+            buf.units.push_back(std::move(unit));
+
+            if (buf.units.size() == buf.interleaver_count) {
+                BlockBuffer ready = std::move(buf);
+                block_map_.erase(key);
+
+                channelCoding(ready, coding_params);
+            }
+
+            // unlock
+        }
     }
 
-    void FLDataHandler::submit(const PhySdu sdu) const {
+    void FLDataHandler::submit(const PhySdu sdu) {
         switch (sdu.channel) {
             case CCCH:
                 submit(sdu, CMS::QPSK_R12);
@@ -100,13 +146,31 @@ namespace openldacs::phy::link::fl {
                 if (sdu.acm_id == 0) {
                     submit(sdu, default_cms_);
                 }else {
-                    // user
+                    // user-specific channel coding
                 }
                 break;
             default:
                 throw std::runtime_error("Unsupported channel type in FLDATAHandlr");
         }
     }
+
+    void FLDataHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) {
+
+        std::sort(block.units.begin(), block.units.end(),
+          [](const RsEncodedUnit& a, const RsEncodedUnit& b){
+            return a.sdu_index < b.sdu_index;
+          });
+
+        for (RsEncodedUnit u: block.units) {
+            std::cout << u.rs_bytes  << std::endl;
+        }
+
+        VecU8 after_int = blockInterleaver(block.units, coding_params);
+
+        convCode();
+
+    }
+
 
     void FLDataHandler::composeFrame() {
         FrameInfo &frame_info = params_.frame_info_;

@@ -66,6 +66,7 @@ namespace openldacs::phy::params {
         double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
         int rs_per_pdu = 1;
 
+        int pdu_per_frame = 3;
         int bits_per_symb = 2;
         int bits_per_pdu = 0;
         int bytes_per_pdu = 0;

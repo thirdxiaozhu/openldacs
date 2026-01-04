@@ -32,25 +32,22 @@ int main() {
 
     const PhyService PhySer;
 
-    // std::vector<uint8_t> input(91);
-    // for (int i = 0; i < input.size(); i++) {
-    //     input[i] = i % 256;
-    // }
+    for (uint8_t i = 1; i <= 6; i++) {
+        PhySdu sdu = {
+            .direction = DirectionType::FL,
+            .sf_id = 1,
+            .mf_id = 1,
+            .sdu_index = i,
+            .acm_id = 0,
+            .channel = FL_DCH,
+        };
+        sdu.payload.resize(91);
+        for (int j = 0; j < sdu.payload.size(); j++) {
+            sdu.payload[j] = j % 256;
+        }
 
-    PhySdu sdu = {
-        .direction = DirectionType::FL,
-        .sf_id = 1,
-        .mf_id = 1,
-        .sdu_index = 1,
-        .acm_id = 0,
-        .channel = FL_DCH,
-    };
-    sdu.payload.resize(91);
-    for (int i = 0; i < sdu.payload.size(); i++) {
-        sdu.payload[i] = i % 256;
+        PhySer.sendFlData(sdu);
     }
-
-    PhySer.sendFlData(sdu);
 
     return 0;
 }

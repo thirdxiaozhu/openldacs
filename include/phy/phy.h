@@ -21,7 +21,7 @@ namespace openldacs::phy {
         DirectionType direction;
         uint32_t sf_id;
         uint16_t mf_id;
-        uint8_t sdu_index;              // FL: 1-27
+        uint8_t sdu_index;              // FL: 1-27             从 1 开始！！！！！
         uint8_t acm_id;                 // 0 for cell-spec
         CHANNEL channel;
         std::vector<uint8_t> payload;
