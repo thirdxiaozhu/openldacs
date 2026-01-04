@@ -73,7 +73,8 @@ namespace openldacs::phy::params {
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
         int int_size = 1;
         double rate_cod = 0;
-        MatrixXu8 randomize_matrix;
+        // MatrixXu8 randomize_matrix;
+        MVecU8 randomize_mvec;
 
         // 固定参数
         int L = 7;                              // constraint length

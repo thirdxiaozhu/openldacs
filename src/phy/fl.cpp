@@ -31,20 +31,25 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void FLChannelHandler::randomizer(MatrixXu8 &to_process, const CodingParams &coding_params) {
-        const long rows = to_process.rows();
-        const long cols = to_process.cols();
-
-        std::cout << to_process(1,1) << "  " << coding_params.randomize_matrix(1,1) << std::endl;
-
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                to_process(i, j) ^= coding_params.randomize_matrix(i, j);
+    void FLChannelHandler::randomizer(MVecU8 &to_process, const CodingParams &coding_params) {
+        for (int i = 0; i < to_process.size(); ++i) {
+            for (int j = 0; j < to_process[i].size(); ++j) {
+                to_process[i][j] ^= coding_params.randomize_mvec[i][j];
             }
         }
     }
 
-    void FLChannelHandler::rsEncoder() {
+    void FLChannelHandler::rsEncoder(MVecU8 &to_process, const CodingParams &coding_params) {
+        for (int i = 0; i < to_process.size(); ++i) {
+            std::vector<uint8_t> output(coding_params.rs_params.n);
+            coding_params.rs_params.rs.rsEncode(to_process[i], output);
+            to_process[i].assign(output.begin(), output.end());
+
+            // for (int j = 0; j < to_process[i].size(); ++j) {
+            //     std::cout << to_process[i][j] << " ";
+            // }
+            // std::cout << std::endl;
+        }
     }
 
 
@@ -71,13 +76,25 @@ namespace openldacs::phy::link::fl {
             throw std::runtime_error("Input size does not match coding params");
         }
 
-        MatrixXu8 vec_input =  Eigen::Map<const MatrixXu8>(input.data(), coding_params.bytes_per_pdu, coding_params.joint_frame);
-        randomizer(vec_input, coding_params);
-        rsEncoder();
+        MVecU8 mvec_input;
+        mvec_input.resize(coding_params.joint_frame);
+        for (int i = 0; i < coding_params.joint_frame; i++) {
+            mvec_input[i].assign(input.begin() + i * coding_params.bytes_per_pdu, input.begin() + (i + 1) * coding_params.bytes_per_pdu);
+        }
+
+
+        // for (const auto& row : vec_input2) {
+        //     for (const auto& val : row) {
+        //         std::cout << static_cast<int>(val) << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
+
+        randomizer(mvec_input, coding_params);
+        rsEncoder(mvec_input, coding_params);
     }
 
     void FLDataHandler::submit(const std::vector<uint8_t> &input, const CHANNEL ch) const {
-        std::cout << input;
         switch (ch) {
             case CCCH:
                 submit(input, FL_DCH, CMS::QPSK_R12);

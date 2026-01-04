@@ -61,8 +61,16 @@ namespace openldacs::phy::params {
         params.bytes_per_pdu = params.bits_per_pdu >> 3;
         SPDLOG_INFO("rate_cod: {}; bits_per_sdu: {}; bytes_per_pdu: {}", params.rate_cod, params.bits_per_pdu, params.bytes_per_pdu);
 
-        params.randomize_matrix = Eigen::Map<const Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>>(fl::random_output.data(), params.bytes_per_pdu, params.joint_frame);
+        // params.randomize_matrix = Eigen::Map<const Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>>(fl::random_output.data(), params.bytes_per_pdu, params.joint_frame);
+        params.randomize_mvec.resize(params.joint_frame);
 
+        const uint8_t* src = fl::random_output.data();
+        for (size_t j = 0; j < params.joint_frame; ++j) {
+            params.randomize_mvec[j].assign(
+                src + j * params.bytes_per_pdu,
+                src + (j + 1) * params.bytes_per_pdu
+            );
+        }
         return params;
     }
 

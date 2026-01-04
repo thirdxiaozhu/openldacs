@@ -18,6 +18,7 @@ public:
     }
 
     void rsEncode(const std::vector<uint8_t> &input, std::vector<uint8_t> &output) const {
+
         if (correct_reed_solomon_encode(reed_solomon_, input.data(), k_, output.data()) == -1) {
             throw std::runtime_error("reed solomon encode failed");
         }

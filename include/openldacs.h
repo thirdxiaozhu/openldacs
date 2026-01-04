@@ -41,7 +41,7 @@ namespace openldacs {
         FL_DCH,
     };
 
-    using MatrixXu8 = Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic>;
+    using MVecU8 = std::vector<std::vector<uint8_t>>;
 }
 
 
