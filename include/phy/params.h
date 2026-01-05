@@ -35,7 +35,7 @@ namespace openldacs::phy::params {
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };
     enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
-    enum class CodingRate : int { R12, R23, R34 };
+    // enum class CodingRate : int { R12, R23, R34 };
     struct HelicalInterleaverParams {
         int a, b = 0;
         std::vector<int> pattern;
@@ -63,6 +63,7 @@ namespace openldacs::phy::params {
     };
 
     struct CodingParams {
+        ModulationType mod_type = ModulationType::QPSK;
         double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
         int rs_per_pdu = 1;
 
@@ -70,7 +71,7 @@ namespace openldacs::phy::params {
         int bits_per_symb = 2;
         int bits_per_pdu = 0;
         int bytes_per_pdu = 0;
-        itpp::Punctured_Convolutional_Code cc;
+        mutable itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
         int int_size = 1;
         double rate_cod = 0;
@@ -167,6 +168,7 @@ namespace openldacs::phy::params {
             case CMS::QPSK_R12:
                 params.rs_per_pdu = 1;
                 params.bits_per_symb = 2;
+                params.mod_type = ModulationType::QPSK;
                 params.a = 1;
                 params.b = 2;
                 params.coding_rate = 0.5;
@@ -175,6 +177,7 @@ namespace openldacs::phy::params {
             case CMS::QPSK_R23:
                 params.rs_per_pdu = 1;
                 params.bits_per_symb = 2;
+                params.mod_type = ModulationType::QPSK;
                 params.a = 2;
                 params.b = 3;
                 params.coding_rate = 0.67;
@@ -183,6 +186,7 @@ namespace openldacs::phy::params {
             case CMS::QPSK_R34:
                 params.rs_per_pdu = 1;
                 params.bits_per_symb = 2;
+                params.mod_type = ModulationType::QPSK;
                 params.a = 3;
                 params.b = 4;
                 params.coding_rate = 0.75;
@@ -191,6 +195,7 @@ namespace openldacs::phy::params {
             case CMS::QAM16_R12:
                 params.rs_per_pdu = 1;
                 params.bits_per_symb = 4;
+                params.mod_type = ModulationType::QAM16;
                 params.a = 1;
                 params.b = 2;
                 params.coding_rate = 0.5;
@@ -199,6 +204,7 @@ namespace openldacs::phy::params {
             case CMS::QAM16_R23:
                 params.rs_per_pdu = 2;
                 params.bits_per_symb = 4;
+                params.mod_type = ModulationType::QAM16;
                 params.a = 2;
                 params.b = 3;
                 params.coding_rate = 0.67;
@@ -207,6 +213,7 @@ namespace openldacs::phy::params {
             case CMS::QAM64_R12:
                 params.rs_per_pdu = 2;
                 params.bits_per_symb = 6;
+                params.mod_type = ModulationType::QAM64;
                 params.a = 1;
                 params.b = 2;
                 params.coding_rate = 0.5;
@@ -215,6 +222,7 @@ namespace openldacs::phy::params {
             case CMS::QAM64_R23:
                 params.rs_per_pdu = 2;
                 params.bits_per_symb = 6;
+                params.mod_type = ModulationType::QAM64;
                 params.a = 2;
                 params.b = 3;
                 params.coding_rate = 0.67;
@@ -223,6 +231,7 @@ namespace openldacs::phy::params {
             case CMS::QAM64_R34:
                 params.rs_per_pdu = 2;
                 params.bits_per_symb = 6;
+                params.mod_type = ModulationType::QAM64;
                 params.a = 3;
                 params.b = 4;
                 params.coding_rate = 0.75;

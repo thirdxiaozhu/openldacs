@@ -75,13 +75,43 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    void FLChannelHandler::convCode(const CodingParams &coding_params) {
+    itpp::bvec FLChannelHandler::convCode(const VecU8 &input, const CodingParams &coding_params) {
+        const itpp::bvec bits_vec = bytesToBitsMSB(input);
+        itpp::bvec bits_output;
+        coding_params.cc.encode_tail(bits_vec, bits_output);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
 
-        // bits_bef_cod：你 MATLAB 的输入（已包含手动补的 K-1 个 0）
-        // itpp::bvec bits_bef_cod = "1 0 1 1 0 0 1 0 0 0 0 0 0 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
-        // itpp::bvec bits_cod;
-        // coding_params.cc.encode_trunc(bits_bef_cod, bits_cod);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
-        // std::cout << bits_cod <<std::endl;
+        // std::cout << bits_vec.size() << " " << bits_output.size() <<std::endl; // 原始bit长度 + 6个0
+        return bits_output;
+    }
+
+    itpp::bvec FLChannelHandler::helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params) {
+        int a = coding_params.h_inter_params.a;
+        int b = coding_params.h_inter_params.b;
+
+        if (a <= 0 || b <= 0) {
+            throw std::runtime_error("Invalid interleaver parameters");
+        }
+        const int N = a * b;
+        if (input.size() != N) {
+            throw std::runtime_error("Input size does not match helical interleaver parameters");
+        }
+
+        itpp::bvec out(N);
+
+        for (int l = 0; l < a; ++l) {
+            for (int n = 0; n < b; ++n) {
+                const int k = l * b + n;                       // input index
+                const int m = b * ((3 * n + l) % a) + n;       // output index
+                out[m] = input[k];
+            }
+        }
+
+        return out;
+    }
+
+    itpp::bvec FLChannelHandler::modulate(BlockBuffer &block, const CodingParams &coding_params) {
+        if (coding_params.)
+
     }
 
 
@@ -137,6 +167,7 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
+                modulate(ready, coding_params);
             }
 
             // unlock
@@ -161,19 +192,23 @@ namespace openldacs::phy::link::fl {
 
     void FLDataHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) {
 
-        std::sort(block.units.begin(), block.units.end(),
-          [](const RsEncodedUnit& a, const RsEncodedUnit& b){
-            return a.sdu_index < b.sdu_index;
-          });
+        std::ranges::sort(block.units,
+                          [](const RsEncodedUnit& a, const RsEncodedUnit& b){
+                              return a.sdu_index < b.sdu_index;
+                          });
 
-        for (RsEncodedUnit u: block.units) {
-            std::cout << u.rs_bytes  << std::endl;
-        }
+        // for (RsEncodedUnit u: block.units) {
+        //     std::cout << u.rs_bytes  << std::endl;
+        // }
 
-        VecU8 after_int = blockInterleaver(block.units, coding_params);
+        const VecU8 after_int = blockInterleaver(block.units, coding_params);
 
-        convCode(coding_params);
+        // 字节层面转为bit层面
+        const itpp::bvec conv_bits = convCode(after_int, coding_params);
 
+        const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
+
+        block.coded_bits = helical_bits;
     }
 
 

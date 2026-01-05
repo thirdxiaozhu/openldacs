@@ -70,9 +70,7 @@ namespace openldacs::util {
             for (std::size_t n = 0; n < b; ++n) {
                 // 交织前索引 k：通常就是按行展开
                 const std::size_t k = l * b + n;
-
-                const std::size_t inner_mod = (3 * n + l) % a;
-                const std::size_t mk = b * inner_mod + n;
+                const std::size_t mk = b * ((3 * n + l) % a) + n;
 
                 if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
                 perm[k] = mk;
@@ -104,6 +102,19 @@ namespace openldacs::util {
         }
         return out;
     }
+
+    static itpp::bvec bytesToBitsMSB(const VecU8 &input) {
+        itpp::bvec b(8 * input.size());
+        int k = 0;
+        for (const uint8_t x : input) {
+            for (int i = 7; i >= 0; --i) {      // MSB -> LSB
+                b(k++) = (x >> i) & 0x01;
+            }
+        }
+        return b;
+    }
+
+
 }
 
 #endif //OPENLDACS_UTIL_H

@@ -23,17 +23,6 @@ namespace openldacs::phy::params {
         params.cc.set_method(itpp::Trunc);                                                   // 不自动加尾
         params.cc.set_puncture_matrix(util::puncpatToMatrix2output(params.puncpat));
 
-        // bits_bef_cod：你 MATLAB 的输入 10110010（已包含手动补的 K-1 个 0）
-        itpp::bvec bits_bef_cod = "1 0 1 1 0 0 1 0 0 0 0 0 0 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
-        itpp::bvec bits_bef_cod2 = "1 0 1 1 0 0 1 0"; // 示例：最后是否含 K-1 个 0 取决于你上游
-        itpp::bvec bits_cod;
-        itpp::bvec bits_cod2;
-
-        params.cc.encode_trunc(bits_bef_cod, bits_cod);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
-        params.cc.encode_tail(bits_bef_cod2, bits_cod2);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
-        std::cout << bits_cod <<std::endl;
-        std::cout << bits_cod2 <<std::endl;
-
 
         SPDLOG_INFO("N_symbols: {}; N_bits_per_symbol: {}； N_frame_tile_joint: {}", frame_info.frame_info_.n_data, params.bits_per_symb,joint_frame);
         int bits_coded_frame = frame_info.frame_info_.n_data * params.bits_per_symb * joint_frame;

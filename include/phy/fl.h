@@ -243,6 +243,7 @@ namespace openldacs::phy::link::fl {
         size_t interleaver_count;
         bool is_cc;
         std::vector<RsEncodedUnit> units;
+        itpp::bvec coded_bits;
     };
 
     class PhyFl final : public LinkBase {
@@ -334,7 +335,11 @@ namespace openldacs::phy::link::fl {
         static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                       const CodingParams &coding_params);
 
-        static void convCode(const CodingParams &coding_params);
+        static itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params);
+
+        static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
+
+        static itpp::bvec modulate(BlockBuffer &block, const CodingParams &coding_params);
 
     };
 
@@ -387,6 +392,7 @@ namespace openldacs::phy::link::fl {
                 {CMS::QPSK_R34, 3},
             });
         }
+
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
     };
 }
