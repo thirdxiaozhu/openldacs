@@ -92,6 +92,8 @@ namespace openldacs::phy::link::fl {
             throw std::runtime_error("Invalid interleaver parameters");
         }
         const int N = a * b;
+
+        std::cout << input.size() << " " << a  << " " << b << std::endl;
         if (input.size() != N) {
             throw std::runtime_error("Input size does not match helical interleaver parameters");
         }
@@ -109,9 +111,23 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    itpp::bvec FLChannelHandler::modulate(BlockBuffer &block, const CodingParams &coding_params) {
-        if (coding_params.)
+    itpp::cvec FLChannelHandler::modulate(BlockBuffer &block, const CodingParams &coding_params) {
+        switch (coding_params.mod_type) {
+            case ModulationType::QPSK: {
+                itpp::QPSK qpsk;
+                return qpsk.modulate_bits(block.coded_bits);
+            }
+            case ModulationType::QAM16: {
+                itpp::QAM qam16(16);
+                return qam16.modulate_bits(block.coded_bits);
+            }
+            case ModulationType::QAM64: {
+                itpp::QAM qam64(64);
+                return qam64.modulate_bits(block.coded_bits);
+            }
+        }
 
+        throw std::runtime_error("Unknown ModulationType");
     }
 
 
@@ -167,7 +183,7 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                modulate(ready, coding_params);
+                itpp::cvec mod = modulate(ready, coding_params);
             }
 
             // unlock

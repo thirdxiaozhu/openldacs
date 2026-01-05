@@ -336,10 +336,8 @@ namespace openldacs::phy::link::fl {
                                       const CodingParams &coding_params);
 
         static itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params);
-
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
-
-        static itpp::bvec modulate(BlockBuffer &block, const CodingParams &coding_params);
+        static itpp::cvec modulate(BlockBuffer &block, const CodingParams &coding_params);
 
     };
 
