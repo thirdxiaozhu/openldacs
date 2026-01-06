@@ -21,6 +21,7 @@
 #include <map>
 #include <eigen3/Eigen/Dense>
 #include <span>
+#include <fstream>
 
 namespace openldacs {
     enum class CMS : int {

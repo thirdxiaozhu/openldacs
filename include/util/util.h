@@ -115,6 +115,30 @@ namespace openldacs::util {
     }
 
 
+    static void dump_constellation(const itpp::cvec &x, const std::string &path) {
+        std::ofstream f(path);
+        for (int i = 0; i < x.size(); ++i) {
+            f << std::real(x[i]) << " " << std::imag(x[i]) << "\n";
+        }
+    }
+
+    static void dump_ofdm_mag_per_symbol(const itpp::cmat& frames_freq,
+                                     const std::string& prefix)
+    {
+        int N = frames_freq.rows();   // FFT size
+        int M = frames_freq.cols();   // OFDM symbols
+
+        for (int s = 0; s < M; ++s) {
+            std::string fn = prefix + "_sym" + itpp::to_str(s) + ".dat";
+            std::ofstream ofs(fn.c_str());
+            ofs << std::setprecision(17);
+
+            for (int k = 0; k < N; ++k) {
+                double mag = std::abs(frames_freq(k, s));
+                ofs << k << " " << mag << "\n";
+            }
+        }
+    }
 }
 
 #endif //OPENLDACS_UTIL_H

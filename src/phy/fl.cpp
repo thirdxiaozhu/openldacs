@@ -128,28 +128,49 @@ namespace openldacs::phy::link::fl {
         throw std::runtime_error("Unknown ModulationType");
     }
 
-    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) {
+    itpp::cmat FLChannelHandler::matrix_ifft(const itpp::cmat &to_process) {
+        itpp::cmat result(to_process.rows(), to_process.cols());
+
+        for (int i = 0; i < result.cols(); ++i) {
+            itpp::cvec col = to_process.get_col(i);
+            result.set_col(i, itpp::ifft(col));
+        }
+
+        return result;
+    }
+
+    itpp::cmat FLChannelHandler::matrix_fft(const itpp::cmat &to_process) {
+        itpp::cmat result(to_process.rows(), to_process.cols());
+
+        for (int i = 0; i < result.cols(); ++i) {
+            itpp::cvec col = to_process.get_col(i);
+            result.set_col(i, itpp::fft(col));
+        }
+
+        return result;
+    }
+
+
+    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const int joint_frame) {
         int input_ind = 0;
 
-        if (input.size() != frame_info_.n_data * coding_params.joint_frame) {
+        if (input.size() != frame_info_.n_data * joint_frame) {
             throw std::runtime_error("Input size does not match frame info in subcarrier allocation");
         }
 
         // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
-        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * coding_params.joint_frame);
+        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
         result_matrix.zeros();
 
-        for (int i = 0; i < coding_params.joint_frame; ++i) {
-            itpp::cmat frame_matrix =  frame_info_.frame;
+        for (int i = 0; i < joint_frame; ++i) {
+            itpp::cmat frame_matrix = frame_info_.frame;
             for (int j = 0; j < frame_info_.n_data; j++) {
                 frame_matrix(frame_info_.data_ind[j]) = input(input_ind++);
             }
 
             // 将当前帧矩阵复制到结果矩阵的对应列范围内
-            result_matrix.set_cols(i * frame_info_.frame.cols(), frame_matrix);
+            result_matrix.set_cols(i * frame_matrix.cols(), frame_matrix);
         }
-        std::cout << result_matrix.cols() << std::endl;
-        std::cout << result_matrix << std::endl;
         return result_matrix;
     }
 
@@ -206,9 +227,19 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                itpp::cvec mod = modulate(ready, coding_params); // 长度应该是一个ofdm frame的data symbol长度的两倍
-                itpp::cmat tx_frames = subcarrier_allocation(mod, coding_params);
+                const itpp::cvec mod = modulate(ready, coding_params); // 长度应该是一个ofdm frame的data symbol长度的两倍
+                // dump_constellation(mod, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
+                itpp::cmat frames_freq = subcarrier_allocation(mod, coding_params.joint_frame);
+                itpp::cmat frames_time = matrix_ifft(frames_freq);
+                dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
+
+                // itpp::cmat frames_freq2 = matrix_fft(frames_time);
+                // itpp::cmat diff = frames_freq2 - frames_freq;
+                // // 最大绝对误差（看最坏点）
+                // double max_err = max(max(abs(diff)));
+                // std::cout << "max_err = " << max_err << "\n";
+                // std::cout << std::endl;
             }
             // unlock
         }
@@ -362,6 +393,7 @@ namespace openldacs::phy::link::fl {
         for (int i = 0; i < sync_ind2.size(); i++) {
             frame(sync_ind2[i]) = frame_info_.sync_symbols2[i];
         }
+
     }
 
 

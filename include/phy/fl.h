@@ -343,7 +343,12 @@ namespace openldacs::phy::link::fl {
 
         // modulation
         static itpp::cvec modulate(BlockBuffer &block, const CodingParams &coding_params);
-        virtual itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) = 0;
+        virtual itpp::cmat subcarrier_allocation(const itpp::cvec &input, int joint_frame) = 0;
+
+        static itpp::cmat matrix_ifft(const itpp::cmat &to_process);
+
+
+        static itpp::cmat matrix_fft(const itpp::cmat &to_process);
 
     };
 
@@ -358,7 +363,7 @@ namespace openldacs::phy::link::fl {
         void calcSequences() override{};
         void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override {
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const int joint_frame) override {
             return nullptr;
         }
     };
@@ -374,7 +379,7 @@ namespace openldacs::phy::link::fl {
         void calcSequences() override{};
         void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override {
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const int joint_frame) override {
             return nullptr;
         }
     };
@@ -408,7 +413,7 @@ namespace openldacs::phy::link::fl {
         void composeFrame() override;
 
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override;
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, int joint_frame) override;
     };
 }
 
