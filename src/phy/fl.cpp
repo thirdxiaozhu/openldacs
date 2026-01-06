@@ -75,25 +75,26 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    itpp::bvec FLChannelHandler::convCode(const VecU8 &input, const CodingParams &coding_params) {
+    itpp::bvec FLChannelHandler::convCode(const VecU8 &input, const CodingParams &coding_params) const {
         const itpp::bvec bits_vec = bytesToBitsMSB(input);
         itpp::bvec bits_output;
         coding_params.cc.encode_tail(bits_vec, bits_output);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
+
+        bits_output.set_size(frame_info_.n_data * coding_params.bits_per_symb * coding_params.joint_frame, true);
 
         // std::cout << bits_vec.size() << " " << bits_output.size() <<std::endl; // 原始bit长度 + 6个0
         return bits_output;
     }
 
     itpp::bvec FLChannelHandler::helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params) {
-        int a = coding_params.h_inter_params.a;
-        int b = coding_params.h_inter_params.b;
+        const int a = coding_params.h_inter_params.a;
+        const int b = coding_params.h_inter_params.b;
 
         if (a <= 0 || b <= 0) {
             throw std::runtime_error("Invalid interleaver parameters");
         }
         const int N = a * b;
 
-        std::cout << input.size() << " " << a  << " " << b << std::endl;
         if (input.size() != N) {
             throw std::runtime_error("Input size does not match helical interleaver parameters");
         }
@@ -128,6 +129,12 @@ namespace openldacs::phy::link::fl {
         }
 
         throw std::runtime_error("Unknown ModulationType");
+    }
+
+    itpp::cmat FLChannelHandler::subcarrier_allocation() {
+        itpp::cmat data_matrix;
+
+        return data_matrix;
     }
 
 
@@ -183,9 +190,12 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                itpp::cvec mod = modulate(ready, coding_params);
-            }
+                // SPDLOG_WARN("{}", ready.coded_bits.length());
+                itpp::cvec mod = modulate(ready, coding_params); // 长度应该是一个ofdm frame的data symbol长度的两倍
+                itpp::cmat tx_frames = subcarrier_allocation();
 
+                // SPDLOG_WARN("{}", mod.length());
+            }
             // unlock
         }
     }
@@ -229,9 +239,7 @@ namespace openldacs::phy::link::fl {
 
 
     void FLDataHandler::composeFrame() {
-        FrameInfo &frame_info = params_.frame_info_;
-
-        Eigen::MatrixXi& pattern = frame_info.frame_pattern;
+        Eigen::MatrixXi& pattern = frame_info_.frame_pattern;
 
         pattern = Eigen::MatrixXi::Ones(n_fft, n_fl_ofdm_symb_);
         pattern.col(pos_sync1).setZero();
@@ -261,20 +269,20 @@ namespace openldacs::phy::link::fl {
             pattern(i, n_fl_ofdm_symb_ - 1) = static_cast<int>(SymbolValue::PILOT);
         }
 
-        find_Xi(frame_info.data_ind, pattern, static_cast<int>(SymbolValue::DATA));
-        find_Xi(frame_info.pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
-        frame_info.n_data = frame_info.data_ind.size();
-        frame_info.n_pilot = frame_info.pilot_ind.size();
+        find_Xi(frame_info_.data_ind, pattern, static_cast<int>(SymbolValue::DATA));
+        find_Xi(frame_info_.pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
+        frame_info_.n_data = frame_info_.data_ind.size();
+        frame_info_.n_pilot = frame_info_.pilot_ind.size();
 
         //  indices for whole packages
         // for data
-        Eigen::Map<const Eigen::VectorXi> data_ind_eigen(frame_info.data_ind.data(), static_cast<int>(frame_info.n_data));
+        Eigen::Map<const Eigen::VectorXi> data_ind_eigen(frame_info_.data_ind.data(), static_cast<int>(frame_info_.n_data));
         Eigen::RowVectorXi frame_offset = n_fft * n_fl_ofdm_symb_ * Eigen::RowVectorXi::LinSpaced(n_frames_, 0, n_frames_ - 1);
-        frame_info.data_ind_packet = data_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
+        frame_info_.data_ind_packet = data_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
 
         // for pilot
-        Eigen::Map<const Eigen::VectorXi> pilot_ind_eigen(frame_info.pilot_ind.data(), static_cast<int>(frame_info.n_pilot));
-        frame_info.pilot_ind_packet = pilot_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
+        Eigen::Map<const Eigen::VectorXi> pilot_ind_eigen(frame_info_.pilot_ind.data(), static_cast<int>(frame_info_.n_pilot));
+        frame_info_.pilot_ind_packet = pilot_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
 
         // for sync
         const int n_sync = sync_ind1.size() + sync_ind2.size();
@@ -282,30 +290,30 @@ namespace openldacs::phy::link::fl {
         sync_combined.insert(sync_combined.end(), sync_ind1.begin(), sync_ind1.end());
         sync_combined.insert(sync_combined.end(), sync_ind2.begin(), sync_ind2.end());
         Eigen::Map<const Eigen::VectorXi> sync_ind_eigen(sync_combined.data(), n_sync);
-        frame_info.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
+        frame_info_.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
     }
 
     void FLDataHandler::setPilotsSyncSymbol() {
-        FrameInfo &frame_info = params_.frame_info_;
+        {
+            std::vector<cd>& seed = frame_info_.pilot_seeds;
+            // 估个上限容量，尽量减少扩容次数
+            // 最粗略的上界：seed1 + (N_ofdm_symb-4)*4 + seed7
+            seed.clear();
+            seed.reserve(4 + (std::max(0, static_cast<int>(n_fl_ofdm_symb_) - 4) * 4) + 14);
 
-        std::vector<cd>& seed = frame_info.pilot_seeds;
-        std::vector<std::vector<cd>>& sync_symbols = frame_info.sync_symbols;
-        // 估个上限容量，尽量减少扩容次数
-        // 最粗略的上界：seed1 + (N_ofdm_symb-4)*4 + seed7
-        seed.clear();
-        seed.reserve(4 + (std::max(0, static_cast<int>(n_fl_ofdm_symb_) - 4) * 4) + 14);
+            // seed1
+            seed.insert(seed.end(),
+                                     pilot_seed0.begin(), pilot_seed0.end());
 
-        // seed1
-        seed.insert(seed.end(),
-                                 pilot_seed0.begin(), pilot_seed0.end());
+            for (int i = 0; i < n_fl_ofdm_symb_ - 4; i++) {
+                seed.insert(seed.end(), pilot_seeds[i % 5].begin(), pilot_seeds[i % 5].end());
+            }
 
-        for (int i = 0; i < n_fl_ofdm_symb_ - 4; i++) {
-            seed.insert(seed.end(), pilot_seeds[i % 5].begin(), pilot_seeds[i % 5].end());
+            seed.insert(seed.end(),
+                                     pilot_seed6.begin(), pilot_seed6.end());
         }
 
-        seed.insert(seed.end(),
-                                 pilot_seed6.begin(), pilot_seed6.end());
-
+        std::vector<std::vector<cd>>& sync_symbols = frame_info_.sync_symbols;
         {
             constexpr int N2 = 12;
             constexpr int M2 = 5;

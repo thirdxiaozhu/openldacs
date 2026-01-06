@@ -292,7 +292,7 @@ namespace openldacs::phy::link::fl {
         virtual void submit(PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
-        const ParamStruct& params() const noexcept { return params_; }
+        const FrameInfo& frame() const noexcept { return frame_info_; }
 
         CMS get_cms() const {
             return default_cms_;
@@ -303,11 +303,11 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(const PhyFl::FLConfig& config)
-            : config_(config), coding_table_(params_) {
+            : config_(config), coding_table_(frame_info_) {
         }
 
         const PhyFl::FLConfig& config_;
-        ParamStruct params_;
+        FrameInfo frame_info_;
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
@@ -335,9 +335,11 @@ namespace openldacs::phy::link::fl {
         static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                       const CodingParams &coding_params);
 
-        static itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params);
+        itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params) const;
+
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
         static itpp::cvec modulate(BlockBuffer &block, const CodingParams &coding_params);
+        static itpp::cmat subcarrier_allocation();
 
     };
 

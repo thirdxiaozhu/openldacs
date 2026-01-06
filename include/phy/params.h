@@ -29,9 +29,6 @@ namespace openldacs::phy::params {
         std::vector<std::vector<cd>> sync_symbols;
     };
 
-    struct ParamStruct {
-        FrameInfo frame_info_;
-    };
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };
     enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
@@ -103,9 +100,9 @@ namespace openldacs::phy::params {
 
     struct CodingTable {
         std::map<CodingKey, CodingParams> coding_table;
-        ParamStruct& frame_info;
+        FrameInfo& frame_info;
 
-        CodingTable(ParamStruct &frame_info) : frame_info(frame_info) {}
+        CodingTable(FrameInfo &frame_info) : frame_info(frame_info) {}
 
         CodingParams setCodingParams(CodingKey key) const;
         void initCodingTable(std::initializer_list<CodingKey> keys);
