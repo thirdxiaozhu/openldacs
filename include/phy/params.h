@@ -18,15 +18,18 @@ namespace openldacs::phy::params {
     struct FrameInfo {
         std::vector<int> data_ind;
         std::vector<int> pilot_ind;
+        std::vector<int> sync_ind;
         Eigen::MatrixXi frame_pattern;
         size_t n_data = 0;
         size_t n_pilot = 0;
-        Eigen::MatrixXi data_ind_packet;
-        Eigen::MatrixXi pilot_ind_packet;
-        Eigen::MatrixXi sync_ind_packet;
+        size_t n_sync1 = 12;
+        size_t n_sync2 = 24;
 
-        std::vector<cd> pilot_seeds;
-        std::vector<std::vector<cd>> sync_symbols;
+        itpp::cvec pilot_seeds;
+        itpp::cvec sync_symbols1;
+        itpp::cvec sync_symbols2;
+
+        itpp::cmat frame;
     };
 
 

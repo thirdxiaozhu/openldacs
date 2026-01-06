@@ -12,13 +12,10 @@ namespace openldacs::phy::link::fl {
     using namespace openldacs::util;
 
 
-    void FLChannelHandler::buildFrameInfo() {
+    void FLChannelHandler::buildFrame()  {
+        getFrameIndices();
+        calcSequences();
         composeFrame();
-        setPilotsSyncSymbol();
-    }
-
-    void FLChannelHandler::buildParams()  {
-        buildFrameInfo();
     }
 
     FLChannelHandler& PhyFl::getHandler(const CHANNEL type) const {
@@ -131,10 +128,29 @@ namespace openldacs::phy::link::fl {
         throw std::runtime_error("Unknown ModulationType");
     }
 
-    itpp::cmat FLChannelHandler::subcarrier_allocation() {
-        itpp::cmat data_matrix;
+    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) {
+        int input_ind = 0;
 
-        return data_matrix;
+        if (input.size() != frame_info_.n_data * coding_params.joint_frame) {
+            throw std::runtime_error("Input size does not match frame info in subcarrier allocation");
+        }
+
+        // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
+        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * coding_params.joint_frame);
+        result_matrix.zeros();
+
+        for (int i = 0; i < coding_params.joint_frame; ++i) {
+            itpp::cmat frame_matrix =  frame_info_.frame;
+            for (int j = 0; j < frame_info_.n_data; j++) {
+                frame_matrix(frame_info_.data_ind[j]) = input(input_ind++);
+            }
+
+            // 将当前帧矩阵复制到结果矩阵的对应列范围内
+            result_matrix.set_cols(i * frame_info_.frame.cols(), frame_matrix);
+        }
+        std::cout << result_matrix.cols() << std::endl;
+        std::cout << result_matrix << std::endl;
+        return result_matrix;
     }
 
 
@@ -190,11 +206,9 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                // SPDLOG_WARN("{}", ready.coded_bits.length());
                 itpp::cvec mod = modulate(ready, coding_params); // 长度应该是一个ofdm frame的data symbol长度的两倍
-                itpp::cmat tx_frames = subcarrier_allocation();
+                itpp::cmat tx_frames = subcarrier_allocation(mod, coding_params);
 
-                // SPDLOG_WARN("{}", mod.length());
             }
             // unlock
         }
@@ -238,7 +252,7 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void FLDataHandler::composeFrame() {
+    void FLDataHandler::getFrameIndices() {
         Eigen::MatrixXi& pattern = frame_info_.frame_pattern;
 
         pattern = Eigen::MatrixXi::Ones(n_fft, n_fl_ofdm_symb_);
@@ -248,7 +262,6 @@ namespace openldacs::phy::link::fl {
         // guards
         pattern.block(0, pos_sync1, guard_left, n_fl_ofdm_symb_).setZero();
         pattern.block(n_fft - guard_right, 0, guard_right, n_fl_ofdm_symb_).setZero();
-
         // middle
         pattern.row(n_fft/2).setZero();
 
@@ -274,84 +287,81 @@ namespace openldacs::phy::link::fl {
         frame_info_.n_data = frame_info_.data_ind.size();
         frame_info_.n_pilot = frame_info_.pilot_ind.size();
 
-        //  indices for whole packages
-        // for data
-        Eigen::Map<const Eigen::VectorXi> data_ind_eigen(frame_info_.data_ind.data(), static_cast<int>(frame_info_.n_data));
-        Eigen::RowVectorXi frame_offset = n_fft * n_fl_ofdm_symb_ * Eigen::RowVectorXi::LinSpaced(n_frames_, 0, n_frames_ - 1);
-        frame_info_.data_ind_packet = data_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
-
-        // for pilot
-        Eigen::Map<const Eigen::VectorXi> pilot_ind_eigen(frame_info_.pilot_ind.data(), static_cast<int>(frame_info_.n_pilot));
-        frame_info_.pilot_ind_packet = pilot_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
-
         // for sync
-        const int n_sync = sync_ind1.size() + sync_ind2.size();
-        std::vector<int> sync_combined;
-        sync_combined.insert(sync_combined.end(), sync_ind1.begin(), sync_ind1.end());
-        sync_combined.insert(sync_combined.end(), sync_ind2.begin(), sync_ind2.end());
-        Eigen::Map<const Eigen::VectorXi> sync_ind_eigen(sync_combined.data(), n_sync);
-        frame_info_.sync_ind_packet = sync_ind_eigen.replicate(1, n_frames_).rowwise() + frame_offset;
+        frame_info_.sync_ind.insert(frame_info_.sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
+        frame_info_.sync_ind.insert(frame_info_.sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
     }
 
-    void FLDataHandler::setPilotsSyncSymbol() {
+    void FLDataHandler::calcSequences() {
+        // pilot symbol
         {
-            std::vector<cd>& seed = frame_info_.pilot_seeds;
-            // 估个上限容量，尽量减少扩容次数
-            // 最粗略的上界：seed1 + (N_ofdm_symb-4)*4 + seed7
-            seed.clear();
-            seed.reserve(4 + (std::max(0, static_cast<int>(n_fl_ofdm_symb_) - 4) * 4) + 14);
+            itpp::cvec& seed = frame_info_.pilot_seeds;
+            seed.set_size(static_cast<int>(frame_info_.n_pilot));
 
-            // seed1
-            seed.insert(seed.end(),
-                                     pilot_seed0.begin(), pilot_seed0.end());
+            int idx = 0;
+
+            // seed1 - pilot_seed0
+            for (const auto current_pilot_seed : pilot_seed0) {
+                seed(idx++) = current_pilot_seed;
+            }
 
             for (int i = 0; i < n_fl_ofdm_symb_ - 4; i++) {
-                seed.insert(seed.end(), pilot_seeds[i % 5].begin(), pilot_seeds[i % 5].end());
+                const std::vector<cd>& current_pilot_seeds = pilot_seeds[i % 5];
+                for (auto current_pilot_seed : current_pilot_seeds) {
+                    seed(idx++) = current_pilot_seed;
+                }
             }
 
-            seed.insert(seed.end(),
-                                     pilot_seed6.begin(), pilot_seed6.end());
+            // seed7 - pilot_seed6
+            for (const auto current_pilot_seed : pilot_seed6) {
+                seed(idx++) = current_pilot_seed;
+            }
         }
 
-        std::vector<std::vector<cd>>& sync_symbols = frame_info_.sync_symbols;
+        // sync symbol2
         {
-            constexpr int N2 = 12;
-            constexpr int M2 = 5;
-            const double boost_factor2 = std::sqrt(4);
-            const std::complex<double> W_N2 = std::exp(std::complex<double>(0, 2 * M2 * M_PI / N2));
 
-            std::vector<double>pow2;
-            for (int i = 0; i < N2; i++) {
-                pow2.push_back(std::pow(i, 2) / 2.0);
+            const int N1 = static_cast<int>(frame_info_.n_sync1);
+            itpp::cvec &sync_symbols1 = frame_info_.sync_symbols1;
+            sync_symbols1.set_size(N1);
+
+            for (int k = 0; k < N1; ++k) {
+                const std::complex<double> W_N1 = std::exp(std::complex<double>(0.0, 5 * M_PI * k * k / N1));
+                sync_symbols1(k) = std::sqrt(4) * W_N1;
             }
-
-            // Initialize s2 as the boost_factor times W_N raised to the power of 'pow'
-            std::vector<cd> s2;
-            for (int i = 0; i < N2; ++i) {
-                s2.push_back(boost_factor2 * std::pow(W_N2, pow2.at(i)));
-            }
-
-            sync_symbols.push_back(s2);
         }
 
+        // sync symbol1
         {
-            constexpr int N1 = 24;
-            constexpr int M1 = 1;
-            const double boost_factor1 = std::sqrt(2);
-            const std::complex<double> W_N1 = std::exp(std::complex<double>(0, 2 * M1 * M_PI / N1));
-            std::vector<double>pow1;
-            for (int i = 0; i < N1; i++) {
-                pow1.push_back(std::pow(i, 2) / 2.0);
-            }
+            const int N2 = static_cast<int>(frame_info_.n_sync2);
+            itpp::cvec &sync_symbols2 = frame_info_.sync_symbols2;
+            sync_symbols2.set_size(N2);
 
-            std::vector<cd> s1;
-            for (int i = 0; i < N1; ++i) {
-                s1.push_back(boost_factor1 * std::pow(W_N1, pow1.at(i)));
+            for (int k = 0; k < N2; ++k) {
+                const std::complex<double> W_N2 = std::exp(std::complex<double>(0.0,  M_PI * k * k / N2));
+                sync_symbols2(k) = std::sqrt(2) * W_N2;
             }
-
-            sync_symbols.push_back(s1);
         }
 
+    }
+
+    void FLDataHandler::composeFrame() {
+        itpp::cmat &frame = frame_info_.frame;
+
+        frame.set_size(n_fft, n_fl_ofdm_symb_);
+        frame.zeros();
+
+        for (int i = 0; i < frame_info_.pilot_ind.size(); i++) {
+            frame(frame_info_.pilot_ind[i]) = frame_info_.pilot_seeds[i];
+        }
+
+        for (int i = 0; i < sync_ind1.size(); i++) {
+            frame(sync_ind1[i]) = frame_info_.sync_symbols1[i];
+        }
+
+        for (int i = 0; i < sync_ind2.size(); i++) {
+            frame(sync_ind2[i]) = frame_info_.sync_symbols2[i];
+        }
     }
 
 

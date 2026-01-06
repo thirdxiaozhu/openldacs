@@ -323,23 +323,27 @@ namespace openldacs::phy::link::fl {
             }
         }
 
-        void buildParams();
-        void buildFrameInfo();
         virtual void initCodingTable() = 0;
+
+        // frames
+        void buildFrame();
+        virtual void getFrameIndices() = 0;
+        virtual void calcSequences() = 0;
         virtual void composeFrame() = 0;
-        virtual void setPilotsSyncSymbol() = 0;
+
+        // channel coding
         virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
 
         static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
         static RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params);
         static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                       const CodingParams &coding_params);
-
         itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params) const;
-
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
+
+        // modulation
         static itpp::cvec modulate(BlockBuffer &block, const CodingParams &coding_params);
-        static itpp::cmat subcarrier_allocation();
+        virtual itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) = 0;
 
     };
 
@@ -349,10 +353,14 @@ namespace openldacs::phy::link::fl {
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-         void composeFrame() override {};
-         void setPilotsSyncSymbol() override{};
-         void initCodingTable() override{};
+        void initCodingTable() override{};
+        void getFrameIndices() override {};
+        void calcSequences() override{};
+        void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override {
+            return nullptr;
+        }
     };
 
     class BC2Handler final:public FLChannelHandler {
@@ -361,16 +369,20 @@ namespace openldacs::phy::link::fl {
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-        void composeFrame() override {};
-        void setPilotsSyncSymbol() override{};
         void initCodingTable() override{};
+        void getFrameIndices() override {};
+        void calcSequences() override{};
+        void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override {
+            return nullptr;
+        }
     };
 
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
-            buildParams();
+            buildFrame();
             initCodingTable();
         }
         void submit(PhySdu sdu, CMS cms) override;
@@ -380,8 +392,6 @@ namespace openldacs::phy::link::fl {
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         static constexpr std::size_t n_frames_ = 9;
 
-        void composeFrame() override;
-        void setPilotsSyncSymbol() override;
         void initCodingTable() override {
             coding_table_.initCodingTable({
                 {CMS::QPSK_R12, 2},
@@ -393,7 +403,12 @@ namespace openldacs::phy::link::fl {
             });
         }
 
+        void getFrameIndices() override;
+        void calcSequences() override;
+        void composeFrame() override;
+
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
+        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const CodingParams &coding_params) override;
     };
 }
 
