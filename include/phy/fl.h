@@ -342,12 +342,12 @@ namespace openldacs::phy::link::fl {
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
 
         // modulation
-        static itpp::cvec modulate(BlockBuffer &block, const CodingParams &coding_params);
+        static itpp::cvec modulate(BlockBuffer &block, ModulationType mod_type);
         virtual itpp::cmat subcarrier_allocation(const itpp::cvec &input, int joint_frame) = 0;
-
         static itpp::cmat matrix_ifft(const itpp::cmat &to_process);
+        static itpp::cvec windowing(const itpp::cmat &to_process, int joint_frame);
 
-
+        // demod
         static itpp::cmat matrix_fft(const itpp::cmat &to_process);
 
     };

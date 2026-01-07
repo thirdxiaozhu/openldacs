@@ -11,7 +11,7 @@ namespace openldacs::phy::config {
     inline constexpr int n_fft = 64;                 // FFT size
     inline constexpr int n_cp = 11;                     // number of cyclic prefix samples
     inline constexpr int n_ws = 8;                      // number of window samples
-    inline constexpr int n_g = n_cp - n_ws;             // number of guard samples
+    inline constexpr int n_g = n_cp - n_ws;             // number of guard samples  3
     inline constexpr int bw_fft = 625e3;                // FFT bandwidth
     inline constexpr double t_sample = 1.0/bw_fft;         // sample duration
     inline constexpr double delta_f = static_cast<double>(bw_fft) / n_fft; // subcarrier-spacing

@@ -139,6 +139,15 @@ namespace openldacs::util {
             }
         }
     }
+
+    static itpp::vec fliplr_rowvec(const itpp::vec &v_row) {
+        itpp::vec out(v_row.size());
+        for (int i = 0; i < v_row.size(); ++i) {
+            out(i) = v_row(v_row.size() - 1 - i);
+        }
+        return out;
+    }
+
 }
 
 #endif //OPENLDACS_UTIL_H

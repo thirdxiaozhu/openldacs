@@ -109,8 +109,8 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    itpp::cvec FLChannelHandler::modulate(BlockBuffer &block, const CodingParams &coding_params) {
-        switch (coding_params.mod_type) {
+    itpp::cvec FLChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) {
+        switch (mod_type) {
             case ModulationType::QPSK: {
                 itpp::QPSK qpsk;
                 return qpsk.modulate_bits(block.coded_bits);
@@ -146,6 +146,81 @@ namespace openldacs::phy::link::fl {
             itpp::cvec col = to_process.get_col(i);
             result.set_col(i, itpp::fft(col));
         }
+
+        return result;
+    }
+
+    itpp::cvec FLChannelHandler::windowing(const itpp::cmat &to_process, const int joint_frame) {
+        itpp::cvec result;
+
+        const int mat_cols = to_process.cols();
+
+        if (mat_cols % joint_frame != 0) {
+            throw std::runtime_error("Matrix cols must be divisible by joint_frame");
+        }
+
+
+        if constexpr (n_g <= 0 || n_cp <= 0 || n_ws <= 0) {
+            throw std::runtime_error("OFDM params must be positive");
+        }
+
+        if constexpr (n_g > n_fft) {
+            throw std::runtime_error("N_g (CP length) must be <= Nfft");
+        }
+
+        if constexpr (n_cp > n_fft) {
+            throw std::runtime_error("N_cp must be <= Nfft.");
+        }
+
+
+        // 循环前缀的，guard symbol
+        itpp::cmat mat_with_cp(n_fft + n_g, mat_cols);
+        {
+            itpp::cmat tail_g = to_process.get_rows(n_fft - n_g, n_fft-1);
+            mat_with_cp.set_rows(0, tail_g);
+            mat_with_cp.set_rows(n_g, to_process);
+        }
+        // std::cout << mat_with_cp << std::endl;
+
+        // window 前缀
+        itpp::cmat window_prefix = to_process.get_rows(n_fft - n_cp, n_fft - n_g -1);
+        itpp::cmat window_postfix = to_process.get_rows(0, n_ws-1);
+        std::cout << window_prefix.rows() << " " << window_prefix.cols() << std::endl;
+        std::cout << window_postfix.rows() << " " << window_postfix.cols() << std::endl;
+
+        itpp::vec ramp_up(n_ws);
+        for (int i = 0; i < n_ws; ++i) {
+            ramp_up(i) = 0.5 + 0.5 * std::cos(M_PI + (M_PI * i) / static_cast<double>(n_ws) );
+        }
+        itpp::vec ramp_down = fliplr_rowvec(ramp_up);
+
+
+        std::cout << ramp_up << std::endl;
+        std::cout << ramp_down << std::endl;
+
+        for (int c = 0; c < window_prefix.cols(); ++c) {
+            for (int r = 0; r < window_postfix.rows(); ++r) {
+                window_prefix(r, c) *= ramp_up(r);
+                window_postfix(r, c) *= ramp_down(r);
+            }
+        }
+
+        for (int i = 0; i < joint_frame; i++) {
+
+        }
+
+        // itpp::cmat window_part(n_ws, );
+        // {
+        //     // 第1列：仅prefix
+        //     window_part.set_col(0, window_prefix.get_col(0));
+        //
+        //     // 其余列：postfix(上一符号) + prefix(当前符号)
+        //     for (int col = 1; col < N_ofdm; ++col) {
+        //         itpp::cvec sum = window_postfix.get_col(col - 1) + window_prefix.get_col(col);
+        //         window_part.set_col(col, sum);
+        //     }
+        //     // 注意：最后一个符号的 postfix 没有输出（与MATLAB一致）
+        // }
 
         return result;
     }
@@ -227,12 +302,14 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                const itpp::cvec mod = modulate(ready, coding_params); // 长度应该是一个ofdm frame的data symbol长度的两倍
+                const itpp::cvec mod = modulate(ready, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
                 // dump_constellation(mod, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
                 itpp::cmat frames_freq = subcarrier_allocation(mod, coding_params.joint_frame);
                 itpp::cmat frames_time = matrix_ifft(frames_freq);
-                dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
+                // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
+
+                itpp::cvec tx_vec = windowing(frames_time, coding_params.joint_frame);
 
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;
@@ -267,10 +344,6 @@ namespace openldacs::phy::link::fl {
                           [](const RsEncodedUnit& a, const RsEncodedUnit& b){
                               return a.sdu_index < b.sdu_index;
                           });
-
-        // for (RsEncodedUnit u: block.units) {
-        //     std::cout << u.rs_bytes  << std::endl;
-        // }
 
         const VecU8 after_int = blockInterleaver(block.units, coding_params);
 
