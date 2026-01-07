@@ -151,14 +151,14 @@ namespace openldacs::phy::link::fl {
     }
 
     itpp::cvec FLChannelHandler::windowing(const itpp::cmat &to_process, const int joint_frame) {
-        itpp::cvec result;
-
         const int mat_cols = to_process.cols();
+        const int frame_symbols = mat_cols / joint_frame;
+
+        itpp::cvec result((n_fft + n_cp) * mat_cols);
 
         if (mat_cols % joint_frame != 0) {
             throw std::runtime_error("Matrix cols must be divisible by joint_frame");
         }
-
 
         if constexpr (n_g <= 0 || n_cp <= 0 || n_ws <= 0) {
             throw std::runtime_error("OFDM params must be positive");
@@ -172,7 +172,6 @@ namespace openldacs::phy::link::fl {
             throw std::runtime_error("N_cp must be <= Nfft.");
         }
 
-
         // 循环前缀的，guard symbol
         itpp::cmat mat_with_cp(n_fft + n_g, mat_cols);
         {
@@ -180,23 +179,18 @@ namespace openldacs::phy::link::fl {
             mat_with_cp.set_rows(0, tail_g);
             mat_with_cp.set_rows(n_g, to_process);
         }
-        // std::cout << mat_with_cp << std::endl;
 
-        // window 前缀
+        // window 前缀 后缀
         itpp::cmat window_prefix = to_process.get_rows(n_fft - n_cp, n_fft - n_g -1);
         itpp::cmat window_postfix = to_process.get_rows(0, n_ws-1);
-        std::cout << window_prefix.rows() << " " << window_prefix.cols() << std::endl;
-        std::cout << window_postfix.rows() << " " << window_postfix.cols() << std::endl;
 
+        // 前缀乘数
         itpp::vec ramp_up(n_ws);
         for (int i = 0; i < n_ws; ++i) {
             ramp_up(i) = 0.5 + 0.5 * std::cos(M_PI + (M_PI * i) / static_cast<double>(n_ws) );
         }
+        // 后缀乘数
         itpp::vec ramp_down = fliplr_rowvec(ramp_up);
-
-
-        std::cout << ramp_up << std::endl;
-        std::cout << ramp_down << std::endl;
 
         for (int c = 0; c < window_prefix.cols(); ++c) {
             for (int r = 0; r < window_postfix.rows(); ++r) {
@@ -206,21 +200,25 @@ namespace openldacs::phy::link::fl {
         }
 
         for (int i = 0; i < joint_frame; i++) {
+            const int offset = i * frame_symbols;
+            itpp::cmat window_part(n_ws, frame_symbols);
 
+            window_part.set_col(0, window_prefix.get_col(0 + offset ));
+            for (int col = 1; col < frame_symbols; ++col) {
+                itpp::cvec sum = window_postfix.get_col((col - 1) + offset) + window_prefix.get_col(col + offset);
+                window_part.set_col(col, sum);
+            }
+
+
+            itpp::cmat frame_matrix(n_fft + n_cp, frame_symbols);
+            frame_matrix.set_rows(0, window_part);
+            frame_matrix.set_rows(n_ws, mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset));
+
+            std::cout << offset << " " << mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset).rows() << "  " << mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset).cols() << std::endl << std::endl;
+            result.set_subvector(0, itpp::cvectorize(frame_matrix));
         }
 
-        // itpp::cmat window_part(n_ws, );
-        // {
-        //     // 第1列：仅prefix
-        //     window_part.set_col(0, window_prefix.get_col(0));
-        //
-        //     // 其余列：postfix(上一符号) + prefix(当前符号)
-        //     for (int col = 1; col < N_ofdm; ++col) {
-        //         itpp::cvec sum = window_postfix.get_col(col - 1) + window_prefix.get_col(col);
-        //         window_part.set_col(col, sum);
-        //     }
-        //     // 注意：最后一个符号的 postfix 没有输出（与MATLAB一致）
-        // }
+        std::cout << result.size() << std::endl;
 
         return result;
     }
