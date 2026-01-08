@@ -12,9 +12,11 @@ find_package(Eigen3 REQUIRED)
 
 add_subdirectory(${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct)
 
-add_library(openldacs OBJECT)
+add_library(openldacs OBJECT
+        src/phy/device.cpp
+        include/phy/device.h)
 include_directories(include ${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct/include)
-target_link_libraries(openldacs LINK_PUBLIC spdlog::spdlog itpp correct)
+target_link_libraries(openldacs LINK_PUBLIC spdlog::spdlog itpp correct uhd)
 add_subdirectory(src)
 add_subdirectory(example)
 add_subdirectory(tests)
