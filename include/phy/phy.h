@@ -5,6 +5,7 @@
 #ifndef OPENLDACS_PHY_H
 #define OPENLDACS_PHY_H
 #include "openldacs.h"
+#include "phy/device.h"
 
 namespace openldacs::phy {
 
@@ -12,7 +13,12 @@ namespace openldacs::phy {
         class PhyFl;
     }
 
-    enum class DirectionType {
+    namespace device {
+        class Device;
+        class USRP;
+    }
+
+    enum  DirectionType {
         FL = 0,
         RL = 1,
     };
@@ -31,8 +37,9 @@ namespace openldacs::phy {
     public:
         struct PhyConfig {
             std::unique_ptr<link::fl::PhyFl> PhyFL;
+            std::unique_ptr<device::Device> Device;
         };
-        explicit PhyService ();
+        explicit PhyService (device::DeviceType dev_type);
         void sendFlData(const PhySdu &sdu) const;
 
     private:

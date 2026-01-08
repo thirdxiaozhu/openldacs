@@ -30,7 +30,7 @@ int main() {
     std::cout << "t_u = " << t_u << std::endl;
     std::cout << "t_symb = " << t_symb << std::endl;
 
-    const PhyService PhySer;
+    const PhyService PhySer(device::DeviceType::USRP);
 
     for (uint8_t i = 1; i <= 6; i++) {
         PhySdu sdu = {

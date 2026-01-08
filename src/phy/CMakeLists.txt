@@ -5,4 +5,5 @@ target_sources(openldacs PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/phy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/link.cpp
   ${CMAKE_CURRENT_LIST_DIR}/params.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/device.cpp
 )

@@ -11,7 +11,6 @@
 namespace openldacs::phy::link::fl {
     using namespace openldacs::util;
 
-
     void FLChannelHandler::buildFrame()  {
         getFrameIndices();
         calcSequences();
