@@ -47,7 +47,7 @@ namespace openldacs::phy::params {
         int n, k;
         int bits_uncoded;
         int bits_after_rs;
-        ReedSolomon rs;
+        util::ReedSolomon rs;
 
         RSCoderParams(const int n_val, const int k_val) : n(n_val), k(k_val), rs(n_val, k_val) {
             bits_uncoded = k_val * 8;      // 假设每个符号8位

@@ -41,7 +41,9 @@ namespace openldacs::phy {
         };
         explicit PhyService (device::DeviceType dev_type);
         void sendFlData(const PhySdu &sdu) const;
-
+        std::unique_ptr<device::Device>& getDevice() {
+            return config_.Device;
+        }
     private:
         PhyConfig config_;
     };

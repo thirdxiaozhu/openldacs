@@ -8,9 +8,9 @@
 
 namespace openldacs::phy {
     using namespace openldacs::util;
-    PhyService::PhyService(device::DeviceType dev_type): config_() {
-        config_.PhyFL = std::make_unique<link::fl::PhyFl>();
+    PhyService::PhyService(const device::DeviceType dev_type): config_() {
         config_.Device = device::DeviceFactory::createDevice(dev_type, FL | RL);
+        config_.PhyFL = std::make_unique<link::fl::PhyFl>(config_.Device);
     }
 
     void PhyService::sendFlData(const PhySdu &sdu) const {

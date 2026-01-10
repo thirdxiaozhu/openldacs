@@ -251,11 +251,11 @@ namespace openldacs::phy::link::fl {
         struct FLConfig {
         };
 
-        explicit PhyFl()
+        explicit PhyFl(std::unique_ptr<device::Device>& dev)
             :config_(),
-             bc13_(std::make_unique<BC1_3Handler>(config_)),
-             bc2_(std::make_unique<BC2Handler>(config_)),
-             data_(std::make_unique<FLDataHandler>(config_)) {
+             bc13_(std::make_unique<BC1_3Handler>(config_, dev)),
+             bc2_(std::make_unique<BC2Handler>(config_, dev)),
+             data_(std::make_unique<FLDataHandler>(config_, dev)) {
         }
 
         void processPacket(const PhySdu &sdu) const override;
@@ -302,8 +302,8 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        explicit FLChannelHandler(const PhyFl::FLConfig& config)
-            : config_(config), coding_table_(frame_info_) {
+        explicit FLChannelHandler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev)
+            : config_(config), coding_table_(frame_info_), device_(dev) {
         }
 
         const PhyFl::FLConfig& config_;
@@ -312,6 +312,7 @@ namespace openldacs::phy::link::fl {
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
         std::mutex block_m_;
+        std::unique_ptr<device::Device>& device_;
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
             if (sdu.direction == DirectionType::FL) {
@@ -354,7 +355,7 @@ namespace openldacs::phy::link::fl {
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
+        explicit BC1_3Handler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
@@ -370,7 +371,7 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {}
+        explicit BC2Handler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
@@ -386,7 +387,7 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(const PhyFl::FLConfig& config) : FLChannelHandler(config) {
+        explicit FLDataHandler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
             buildFrame();
             initCodingTable();
         }

@@ -308,6 +308,9 @@ namespace openldacs::phy::link::fl {
 
                 itpp::cvec tx_vec = windowing(frames_time, coding_params.joint_frame);
 
+
+                device_->sendPDU(tx_vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
+
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;
                 // // 最大绝对误差（看最坏点）

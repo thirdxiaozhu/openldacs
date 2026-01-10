@@ -47,6 +47,10 @@ namespace openldacs::phy::device {
                         usrp_->set_rx_antenna("RX2", ch);
                 }
 
-                usrp_->get_tx_stream()
+                // usrp_->get_tx_stream()
+        }
+
+        void USRP::transThread() {
+
         }
 }

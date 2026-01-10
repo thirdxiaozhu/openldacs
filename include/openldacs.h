@@ -22,6 +22,7 @@
 #include <eigen3/Eigen/Dense>
 #include <span>
 #include <fstream>
+#include <deque>
 
 namespace openldacs {
     enum class CMS : int {

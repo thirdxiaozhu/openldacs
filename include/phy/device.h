@@ -8,6 +8,8 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "openldacs.h"
+#include "util/bounded_priority_queue.h"
+#include "util/worker.h"
 
 namespace openldacs::phy::device {
 
@@ -21,15 +23,22 @@ namespace openldacs::phy::device {
         RX = 0x10,
     };
 
+    constexpr int CAP_HIGH = 512;
+    constexpr int CAP_NORM = 2048;
+
+
     class Device {
     public:
         virtual ~Device() = default;
+        void sendPDU(const itpp::cvec &pdu, const util::Priority pri) {
+            pdu_out_.push(pdu, pri);
+        }
 
     protected:
-        explicit Device(const uint8_t dir): direction_(dir) {
-
+        explicit Device(const uint8_t dir) : direction_(dir), pdu_out_(CAP_HIGH, CAP_NORM) {
         };
         virtual void setupDevice() = 0;
+        virtual void transThread() = 0;
         uint8_t direction_;
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         const double tx_gain_ = 30.0;
@@ -37,6 +46,9 @@ namespace openldacs::phy::device {
 
         const double fl_freq = 1110e6;
         const double rl_freq = 964e6;
+
+        util::BoundedPriorityQueue<itpp::cvec> pdu_out_;
+        util::Worker trans_worker_;
     private:
     };
 
@@ -44,17 +56,26 @@ namespace openldacs::phy::device {
     public:
         explicit USRP(const uint8_t dir) : Device(dir) {
             setupDevice();
+
+            trans_worker_.start([&] {
+                std::unique_lock<std::mutex> lk(trans_worker_.mutex());
+
+                while (!trans_worker_.stop_requested()) {
+
+                }
+            });
         }
-        void setupDevice() override;
     private:
         const std::string args_ = "type=b200,serial=192113";   // 也可以加 serial=xxxx
         std::shared_ptr<uhd::usrp::multi_usrp> usrp_;
+        void setupDevice() override;
+        void transThread() override;
     };
 
 
     class DeviceFactory {
     public:
-        static std::unique_ptr<Device> createDevice(DeviceType type, uint8_t direction) {
+        static std::unique_ptr<Device> createDevice(const DeviceType type, uint8_t direction) {
             switch (type) {
                 case DeviceType::USRP:
                     return std::make_unique<USRP>(direction);
