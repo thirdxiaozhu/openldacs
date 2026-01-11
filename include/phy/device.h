@@ -32,16 +32,16 @@ namespace openldacs::phy::device {
     public:
         virtual ~Device() = default;
         void sendData(const itpp::cvec &data, const util::Priority pri) {
-            vec_out_.push(util::cvecToComplexDoubleVec(data), pri);
+            fl_to_trans_.push(util::cvecToComplexDoubleVec(data), pri);
         }
 
     protected:
-        explicit Device(const uint8_t dir) : direction_(dir), vec_out_(CAP_HIGH, CAP_NORM) {
+        explicit Device(const uint8_t role) : role_(role), fl_to_trans_(CAP_HIGH, CAP_NORM) {
         };
         virtual void setupDevice() = 0;
         virtual void transThread() = 0;
         // 逻辑不对！！！ 注意这里的应该是AS或者gs,但是b210不支持 两个射频
-        uint8_t direction_;
+        uint8_t role_;
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         const double tx_gain_ = 30.0;
         const double rx_gain_ = 30.0;
@@ -49,42 +49,56 @@ namespace openldacs::phy::device {
         const double fl_freq = 1110e6;
         const double rl_freq = 964e6;
 
-        util::BoundedPriorityQueue<VecCD> vec_out_;
+        util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;
     private:
     };
 
     class USRP final: public Device {
     public:
-        explicit USRP(const uint8_t dir) : Device(dir),
-            fl_tx_args("fc32"),
-            fl_rx_args("fc32"),
-            rl_tx_args("fc32"),
-            rl_rx_args("fc32")
+        explicit USRP(const uint8_t role) : Device(role),
+            tx_args_("fc32"),
+            rx_args_("fc32")
         {
             setupDevice();
 
             trans_worker_.start([&] {
                 std::unique_lock<std::mutex> lk(trans_worker_.mutex());
+                if (!tx_stream_ || !rx_stream_) {
+                        SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
+                }
 
                 while (!trans_worker_.stop_requested()) {
-                    VecCD vec = vec_out_.pop();
-                    // std::cout << vec << std::endl;
+                    VecCD fl_vec;
+                    VecCD rl_vec;
+
+                    if (role_ & AS) {
+                    }
+                    if (role_ & GS) {
+                        fl_vec = fl_to_trans_.pop();
+                    }
+
+                    std::vector<std::complex<double> *> buffs = {
+                        fl_vec.data(),
+                        fl_vec.data()
+                    };
+
+                    uhd::tx_metadata_t md;
+                    md.start_of_burst = true;
+                    md.end_of_burst = true;
+
+                    tx_stream_->send(buffs, fl_vec.size(), md);
                 }
             });
         }
     private:
         const std::string args_ = "type=b200,serial=192113";   // 也可以加 serial=xxxx
         std::shared_ptr<uhd::usrp::multi_usrp> usrp_;
-        uhd::stream_args_t fl_tx_args;
-        uhd::stream_args_t fl_rx_args;
-        uhd::stream_args_t rl_tx_args;
-        uhd::stream_args_t rl_rx_args;
+        uhd::stream_args_t tx_args_;
+        uhd::stream_args_t rx_args_;
 
-        std::shared_ptr<uhd::tx_streamer> fl_tx_stream;
-        std::shared_ptr<uhd::rx_streamer> fl_rx_stream;
-        std::shared_ptr<uhd::tx_streamer> rl_tx_stream;
-        std::shared_ptr<uhd::rx_streamer> rl_rx_stream;
+        std::shared_ptr<uhd::tx_streamer> tx_stream_;
+        std::shared_ptr<uhd::rx_streamer> rx_stream_;
         void setupDevice() override;
         void transThread() override;
     };
@@ -92,10 +106,10 @@ namespace openldacs::phy::device {
 
     class DeviceFactory {
     public:
-        static std::unique_ptr<Device> createDevice(const DeviceType type, uint8_t direction) {
+        static std::unique_ptr<Device> createDevice(const DeviceType type, uint8_t role) {
             switch (type) {
                 case DeviceType::USRP:
-                    return std::make_unique<USRP>(direction);
+                    return std::make_unique<USRP>(role);
                 case DeviceType::HACKRF:
                     // return std::make_unique<HackRF>();
                     throw std::runtime_error("HACKRF device not implemented yet");

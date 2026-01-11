@@ -49,5 +49,9 @@ int main() {
         PhySer.sendFlData(sdu);
     }
 
+    while (1) {
+        sleep(1000);
+    }
+
     return 0;
 }

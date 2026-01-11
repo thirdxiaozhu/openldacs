@@ -43,9 +43,9 @@ namespace openldacs {
         FL_DCH,
     };
 
-    enum ROLE: int{
-        AS = 0,
-        GS = 1
+    enum ROLE: uint8_t{
+        AS = 0x01,
+        GS = 0x02,
     };
 
     using MVecU8 = std::vector<std::vector<uint8_t>>;
