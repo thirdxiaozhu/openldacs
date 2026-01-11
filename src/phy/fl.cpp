@@ -189,7 +189,7 @@ namespace openldacs::phy::link::fl {
             ramp_up(i) = 0.5 + 0.5 * std::cos(M_PI + (M_PI * i) / static_cast<double>(n_ws) );
         }
         // 后缀乘数
-        itpp::vec ramp_down = fliplr_rowvec(ramp_up);
+        itpp::vec ramp_down = fliplrRowvec(ramp_up);
 
         for (int c = 0; c < window_prefix.cols(); ++c) {
             for (int r = 0; r < window_postfix.rows(); ++r) {
@@ -213,12 +213,13 @@ namespace openldacs::phy::link::fl {
             frame_matrix.set_rows(0, window_part);
             frame_matrix.set_rows(n_ws, mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset));
 
-            std::cout << offset << " " << mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset).rows() << "  " << mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset).cols() << std::endl << std::endl;
-            result.set_subvector(0, itpp::cvectorize(frame_matrix));
+            // std::cout << frame_matrix << " " << frame_matrix.size() << std::endl << std::endl;
+            result.set_subvector(((n_fft + n_cp) * frame_symbols) * i, itpp::cvectorize(frame_matrix));
+
         }
 
         std::cout << result.size() << std::endl;
-
+        // std::cout << result << std::endl << std::endl;
         return result;
     }
 
@@ -306,10 +307,9 @@ namespace openldacs::phy::link::fl {
                 itpp::cmat frames_time = matrix_ifft(frames_freq);
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
-                itpp::cvec tx_vec = windowing(frames_time, coding_params.joint_frame);
+                const itpp::cvec tx_vec = windowing(frames_time, coding_params.joint_frame);
 
-
-                device_->sendPDU(tx_vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
+                device_->sendData(tx_vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
 
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;

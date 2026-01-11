@@ -11,7 +11,7 @@
 
 namespace openldacs::phy::device {
         void USRP::setupDevice() {
-                const std::vector channels = {FL, RL}; // FL: 通道0  RL: 通道1
+                const std::vector channels = {AS, GS}; // FL: 通道0  RL: 通道1
 
                 // ========== 2) 创建 USRP ==========
                 uhd::set_thread_priority_safe();
@@ -29,22 +29,45 @@ namespace openldacs::phy::device {
                         usrp_->set_rx_rate(rate_);
                 }
 
-                for (auto ch : channels) {
+                for (const auto ch : channels) {
                         usrp_->set_tx_gain(tx_gain_, ch);
                         usrp_->set_rx_gain(rx_gain_, ch);
-
-                        if (ch == FL) {
-                                usrp_->set_tx_freq(uhd::tune_request_t(fl_freq), ch);
-                                usrp_->set_rx_freq(uhd::tune_request_t(fl_freq), ch);
-                        }else {
-                                usrp_->set_tx_freq(uhd::tune_request_t(rl_freq), ch);
-                                usrp_->set_rx_freq(uhd::tune_request_t(rl_freq), ch);
-                        }
-
-                        // 天线口：B210 常见 RX: "RX2" 或 "TX/RX"；TX: "TX/RX"
-                        // 具体你接哪个口就设哪个（不确定先用默认也能跑）
                         usrp_->set_tx_antenna("TX/RX", ch);
                         usrp_->set_rx_antenna("RX2", ch);
+
+                        if (ch == AS) {
+                                std::cout << "!!!!!!!!1" << std::endl;
+                                usrp_->set_tx_freq(uhd::tune_request_t(rl_freq), ch);
+                                usrp_->set_rx_freq(uhd::tune_request_t(fl_freq), ch);
+
+                                rl_tx_args.channels = {static_cast<uint32_t>(ch)};
+                                fl_rx_args.channels = {static_cast<uint32_t>(ch)};
+
+                                rl_tx_stream = usrp_->get_tx_stream(rl_tx_args);
+                                fl_rx_stream = usrp_->get_rx_stream(fl_rx_args);
+
+                                if (!rl_tx_stream || !fl_rx_stream) {
+                                        std::cerr << "Failed to get streams for channel " << ch << std::endl;
+                                }
+                        }else {
+                                std::cout << "!!!!!!!!2" << std::endl;
+                                usrp_->set_tx_freq(uhd::tune_request_t(fl_freq), ch);
+                                usrp_->set_rx_freq(uhd::tune_request_t(rl_freq), ch);
+
+                                fl_tx_args.channels = {static_cast<uint32_t>(ch)};
+                                rl_rx_args.channels = {static_cast<uint32_t>(ch)};
+
+                                fl_tx_stream = usrp_->get_tx_stream(fl_tx_args);
+                                rl_rx_stream = usrp_->get_rx_stream(rl_rx_args);
+
+                                // if (!fl_tx_stream || !rl_rx_stream) {
+                                //         std::cerr << "Failed to get streams for channel " << ch << std::endl;
+                                // }
+                                //
+                                // std::cout << fl_tx_stream->get_max_num_samps() << " " << rl_rx_stream->
+                                //                 get_max_num_samps() << std::endl;
+                        }
+
                 }
 
                 // usrp_->get_tx_stream()

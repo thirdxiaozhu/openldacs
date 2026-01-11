@@ -140,13 +140,36 @@ namespace openldacs::util {
         }
     }
 
-    static itpp::vec fliplr_rowvec(const itpp::vec &v_row) {
+    static itpp::vec fliplrRowvec(const itpp::vec &v_row) {
         itpp::vec out(v_row.size());
         for (int i = 0; i < v_row.size(); ++i) {
             out(i) = v_row(v_row.size() - 1 - i);
         }
         return out;
     }
+
+
+    static void normialize_cvec(itpp::cvec &cvec) {
+        double max_val = itpp::max(abs(cvec));
+        if (max_val > 0) {
+             cvec /= max_val;
+        }
+    }
+
+
+    static VecCD cvecToComplexDoubleVec(itpp::cvec cvec) {
+        VecCD ret;
+
+        // 先归一化
+        normialize_cvec(cvec);
+
+        for (int i = 0; i < cvec.size(); ++i) {
+            ret.push_back(cvec(i));
+        }
+
+        return ret;
+    }
+
 
 }
 

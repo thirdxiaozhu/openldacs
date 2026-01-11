@@ -43,8 +43,14 @@ namespace openldacs {
         FL_DCH,
     };
 
+    enum ROLE: int{
+        AS = 0,
+        GS = 1
+    };
+
     using MVecU8 = std::vector<std::vector<uint8_t>>;
     using VecU8 = std::vector<uint8_t>;
+    using VecCD = std::vector<std::complex<double>>;
 }
 
 
