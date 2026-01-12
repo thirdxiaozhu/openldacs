@@ -67,7 +67,7 @@ namespace openldacs::phy::device {
                 if (!tx_stream_ || !rx_stream_) {
                         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
                 }
-
+                bool first_trans = true;
                 while (!trans_worker_.stop_requested()) {
                     VecCD fl_vec;
                     VecCD rl_vec;
@@ -84,11 +84,17 @@ namespace openldacs::phy::device {
                     };
 
                     uhd::tx_metadata_t md;
-                    md.start_of_burst = true;
-                    md.end_of_burst = true;
+                    md.start_of_burst = first_trans;
+                    md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
 
                     tx_stream_->send(buffs, fl_vec.size(), md);
+                    first_trans = false;
                 }
+
+                // 退出循环后，发送结束标记
+                uhd::tx_metadata_t md_end;
+                md_end.end_of_burst = true;
+                tx_stream_->send("", 0, md_end);
             });
         }
     private:
