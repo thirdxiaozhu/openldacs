@@ -10,7 +10,9 @@ namespace openldacs::util {
     class Worker {
 public:
     Worker() = default;
-    ~Worker() { stop_and_join_noexcept(); }
+    ~Worker() {
+        stop_and_join_noexcept();
+    }
 
     Worker(const Worker&) = delete;
     Worker& operator=(const Worker&) = delete;

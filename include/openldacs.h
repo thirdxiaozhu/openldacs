@@ -23,6 +23,7 @@
 #include <span>
 #include <fstream>
 #include <deque>
+#include <signal.h>
 
 namespace openldacs {
     enum class CMS : int {

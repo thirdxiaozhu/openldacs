@@ -149,11 +149,11 @@ namespace openldacs::phy::link::fl {
         return result;
     }
 
-    itpp::cvec FLChannelHandler::windowing(const itpp::cmat &to_process, const int joint_frame) {
+    std::vector<itpp::cvec> FLChannelHandler::windowing(const itpp::cmat &to_process, const int joint_frame) {
         const int mat_cols = to_process.cols();
         const int frame_symbols = mat_cols / joint_frame;
 
-        itpp::cvec result((n_fft + n_cp) * mat_cols);
+        std::vector<itpp::cvec> frames_symbol;
 
         if (mat_cols % joint_frame != 0) {
             throw std::runtime_error("Matrix cols must be divisible by joint_frame");
@@ -199,6 +199,7 @@ namespace openldacs::phy::link::fl {
         }
 
         for (int i = 0; i < joint_frame; i++) {
+
             const int offset = i * frame_symbols;
             itpp::cmat window_part(n_ws, frame_symbols);
 
@@ -209,18 +210,19 @@ namespace openldacs::phy::link::fl {
             }
 
 
-            itpp::cmat frame_matrix(n_fft + n_cp, frame_symbols);
-            frame_matrix.set_rows(0, window_part);
-            frame_matrix.set_rows(n_ws, mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset));
+            itpp::cmat frame_mat(n_fft + n_cp, frame_symbols);
+            frame_mat.set_rows(0, window_part);
+            frame_mat.set_rows(n_ws, mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset));
 
+            itpp::cvec frame_vec((n_fft + n_cp) * frame_symbols);
             // std::cout << frame_matrix << " " << frame_matrix.size() << std::endl << std::endl;
-            result.set_subvector(((n_fft + n_cp) * frame_symbols) * i, itpp::cvectorize(frame_matrix));
+            frame_vec.set_subvector(0, itpp::cvectorize(frame_mat));
 
+            frames_symbol.push_back(frame_vec);
+        // std::cout << frame_vec << std::endl << std::endl;
         }
 
-        std::cout << result.size() << std::endl;
-        // std::cout << result << std::endl << std::endl;
-        return result;
+        return frames_symbol;
     }
 
 
@@ -307,9 +309,11 @@ namespace openldacs::phy::link::fl {
                 itpp::cmat frames_time = matrix_ifft(frames_freq);
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
-                const itpp::cvec tx_vec = windowing(frames_time, coding_params.joint_frame);
+                const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);
 
-                device_->sendData(tx_vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
+                for (const auto &vec : tx_vecs) {
+                    device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
+                }
 
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;

@@ -3,8 +3,8 @@
 //
 
 
+#include  "openldacs.h"
 #include "phy/config.h"
-#include <iostream>
 
 #include "phy/fl.h"
 #include "phy/phy.h"
@@ -16,6 +16,14 @@ int main() {
     using namespace openldacs::phy::config;
     using namespace openldacs::phy::link::fl;
     using namespace openldacs;
+
+    // 接管信号
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGTERM);
+
+    pthread_sigmask(SIG_BLOCK, &set, nullptr);
 
 
     std::cout << "n_fft = " << n_fft << std::endl;
@@ -32,7 +40,7 @@ int main() {
 
     const PhyService PhySer(device::DeviceType::USRP);
 
-    // while (1) {
+    for (int i = 0; i < 1000; i++) {
         for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
             PhySdu sdu = {
                 .direction = DirectionType::FL,
@@ -49,11 +57,19 @@ int main() {
 
             PhySer.sendFlData(sdu);
         }
-    // }
-
-    while (1) {
-        sleep(1000);
     }
+
+    // 3) 主线程阻塞等待信号
+    std::cout << "Press Ctrl+C to exit...\n";
+    int sig = 0;
+    if (sigwait(&set, &sig) != 0) {
+        std::cerr << "sigwait failed\n";
+        return 1;
+    }
+
+    SPDLOG_WARN("[signal] received: {}", sig);
+
+    // 4) 收到信号后，执行清理并优雅退出
 
     return 0;
 }
