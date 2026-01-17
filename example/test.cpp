@@ -40,7 +40,7 @@ int main() {
 
     const PhyService PhySer(device::DeviceType::USRP);
 
-    for (int i = 0; i < 1000; i++) {
+    // for (int i = 0; i < 1000; i++) {
         for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
             PhySdu sdu = {
                 .direction = DirectionType::FL,
@@ -57,7 +57,7 @@ int main() {
 
             PhySer.sendFlData(sdu);
         }
-    }
+    // }
 
     // 3) 主线程阻塞等待信号
     std::cout << "Press Ctrl+C to exit...\n";

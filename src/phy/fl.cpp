@@ -199,7 +199,6 @@ namespace openldacs::phy::link::fl {
         }
 
         for (int i = 0; i < joint_frame; i++) {
-
             const int offset = i * frame_symbols;
             itpp::cmat window_part(n_ws, frame_symbols);
 
@@ -208,7 +207,6 @@ namespace openldacs::phy::link::fl {
                 itpp::cvec sum = window_postfix.get_col((col - 1) + offset) + window_prefix.get_col(col + offset);
                 window_part.set_col(col, sum);
             }
-
 
             itpp::cmat frame_mat(n_fft + n_cp, frame_symbols);
             frame_mat.set_rows(0, window_part);
@@ -225,28 +223,8 @@ namespace openldacs::phy::link::fl {
         return frames_symbol;
     }
 
-
-    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const int joint_frame) {
-        int input_ind = 0;
-
-        if (input.size() != frame_info_.n_data * joint_frame) {
-            throw std::runtime_error("Input size does not match frame info in subcarrier allocation");
-        }
-
-        // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
-        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
-        result_matrix.zeros();
-
-        for (int i = 0; i < joint_frame; ++i) {
-            itpp::cmat frame_matrix = frame_info_.frame;
-            for (int j = 0; j < frame_info_.n_data; j++) {
-                frame_matrix(frame_info_.data_ind[j]) = input(input_ind++);
-            }
-
-            // 将当前帧矩阵复制到结果矩阵的对应列范围内
-            result_matrix.set_cols(i * frame_matrix.cols(), frame_matrix);
-        }
-        return result_matrix;
+    void FLChannelHandler::synchronisation(const itpp::cvec &input) {
+        sync_param_.coarse_sync(input);
     }
 
 
@@ -315,6 +293,12 @@ namespace openldacs::phy::link::fl {
                     device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
                 }
 
+
+
+                // 测试接收
+                itpp::cvec recv_data = tx_vecs[0]; //后面要给他扩大随机长度，所有扩大的位置用零填充
+                synchronisation(recv_data);
+
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;
                 // // 最大绝对误差（看最坏点）
@@ -330,6 +314,7 @@ namespace openldacs::phy::link::fl {
         switch (sdu.channel) {
             case CCCH:
                 submit(sdu, CMS::QPSK_R12);
+                break;
             case FL_DCH:
                 if (sdu.acm_id == 0) {
                     submit(sdu, default_cms_);
@@ -471,6 +456,29 @@ namespace openldacs::phy::link::fl {
             frame(sync_ind2[i]) = frame_info_.sync_symbols2[i];
         }
 
+    }
+
+    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const int joint_frame) {
+        int input_ind = 0;
+
+        if (input.size() != frame_info_.n_data * joint_frame) {
+            throw std::runtime_error("Input size does not match frame info in subcarrier allocation");
+        }
+
+        // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
+        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
+        result_matrix.zeros();
+
+        for (int i = 0; i < joint_frame; ++i) {
+            itpp::cmat frame_matrix = frame_info_.frame;
+            for (int j = 0; j < frame_info_.n_data; j++) {
+                frame_matrix(frame_info_.data_ind[j]) = input(input_ind++);
+            }
+
+            // 将当前帧矩阵复制到结果矩阵的对应列范围内
+            result_matrix.set_cols(i * frame_matrix.cols(), frame_matrix);
+        }
+        return result_matrix;
     }
 
 

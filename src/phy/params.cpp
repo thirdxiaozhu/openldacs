@@ -4,6 +4,8 @@
 
 #include "phy/params.h"
 
+#include <itpp/base/specmat.h>
+
 #include "phy/fl.h"
 
 namespace openldacs::phy::params {
@@ -72,5 +74,30 @@ namespace openldacs::phy::params {
         }
     }
 
+    void SyncParam::frame_sync(const itpp::cvec &input) {
+        int up_corr_len1 =  upsample_rate * corr_len1;
+        int up_corr_diff1 =  upsample_rate * corr_diff1;
+        int up_corr_len2 =  upsample_rate * corr_len2;
+        int up_corr_diff2 =  upsample_rate * corr_diff2;
+        int sync_offset = (config::n_g + config::n_ws / 4) * upsample_rate;
+        sync_correlation(input, corr_len1, corr_diff1);
+    }
 
+    void SyncParam::coarse_sync(const itpp::cvec &input) {
+        frame_sync(input);
+    }
+
+
+    void SyncParam::sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff) {
+        const int out_len = input.size() - corr_len - corr_diff;
+        itpp::cvec P = itpp::zeros_c(out_len);
+        itpp::cvec R = itpp::zeros_c(out_len);
+
+        itpp::cvec vec_1 = input.left(input.length() - corr_diff);
+        itpp::cvec vec_2 = input.right(input.length() - corr_diff);
+
+        itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
+        SPDLOG_INFO("{} {}", vec_1.length(), vec_2.length());
+
+    }
 }

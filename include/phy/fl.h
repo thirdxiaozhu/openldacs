@@ -308,6 +308,7 @@ namespace openldacs::phy::link::fl {
 
         const PhyFl::FLConfig& config_;
         FrameInfo frame_info_;
+        SyncParam sync_param_;
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
@@ -348,9 +349,11 @@ namespace openldacs::phy::link::fl {
         static itpp::cmat matrix_ifft(const itpp::cmat &to_process);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
+        // sync
+        void synchronisation(const itpp::cvec &input);
+
         // demod
         static itpp::cmat matrix_fft(const itpp::cmat &to_process);
-
     };
 
     class BC1_3Handler final:public FLChannelHandler {

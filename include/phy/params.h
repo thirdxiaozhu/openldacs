@@ -7,6 +7,7 @@
 
 #include <utility>
 
+#include "config.h"
 #include "openldacs.h"
 #include  "link.h"
 #include "util/reed_solomon.h"
@@ -30,6 +31,21 @@ namespace openldacs::phy::params {
         itpp::cvec sync_symbols2;
 
         itpp::cmat frame;
+    };
+
+    struct SyncParam {
+        int corr_len1 = config::n_fft / 2 + config::n_g + config::n_ws / 2;
+        int corr_diff1 = config::n_fft / 2;
+
+        int corr_len2 = 3 * config::n_fft / 4 + config::n_g + config::n_ws / 2;
+        int corr_diff2 = config::n_fft / 4;
+
+        int upsample_rate = 4;
+        int t_upsample = config::t_sample / upsample_rate;
+
+        void coarse_sync(const itpp::cvec &input);
+        void frame_sync(const itpp::cvec &input);
+        void sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff);
     };
 
 
