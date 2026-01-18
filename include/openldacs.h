@@ -40,7 +40,7 @@ namespace openldacs {
     enum CHANNEL: int {
         BCCH1_3 = 0,
         BCCH2,
-        CCCH,
+        CCCH_DCH,
         FL_DCH,
     };
 

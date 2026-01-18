@@ -21,7 +21,7 @@ namespace openldacs::phy::link::fl {
         switch (type) {
             case BCCH1_3:   return *bc13_;
             case BCCH2:     return *bc2_;
-            case CCCH:
+            case CCCH_DCH:
             case FL_DCH: return *data_;
             default: throw std::runtime_error("Unknown FLType");
         }
@@ -108,34 +108,36 @@ namespace openldacs::phy::link::fl {
         return out;
     }
 
-    itpp::cvec FLChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) {
+    void FLChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) {
         switch (mod_type) {
             case ModulationType::QPSK: {
                 itpp::QPSK qpsk;
-                return qpsk.modulate_bits(block.coded_bits);
+                block.mod_vec = qpsk.modulate_bits(block.coded_bits);
+                return;
             }
             case ModulationType::QAM16: {
                 itpp::QAM qam16(16);
-                return qam16.modulate_bits(block.coded_bits);
+                block.mod_vec = qam16.modulate_bits(block.coded_bits);
+                return;
             }
             case ModulationType::QAM64: {
                 itpp::QAM qam64(64);
-                return qam64.modulate_bits(block.coded_bits);
+                block.mod_vec = qam64.modulate_bits(block.coded_bits);
+                return;
             }
         }
 
         throw std::runtime_error("Unknown ModulationType");
     }
 
-    itpp::cmat FLChannelHandler::matrix_ifft(const itpp::cmat &to_process) {
-        itpp::cmat result(to_process.rows(), to_process.cols());
+    void FLChannelHandler::matrix_ifft(BlockBuffer &block) {
+        // itpp::cmat result(block.rows(), block.cols());
+        block.frame_time = itpp::cmat(block.frames_freq.rows(), block.frames_freq.cols());
 
-        for (int i = 0; i < result.cols(); ++i) {
-            itpp::cvec col = to_process.get_col(i);
-            result.set_col(i, itpp::ifft(col));
+        for (int i = 0; i < block.frame_time.cols(); ++i) {
+            itpp::cvec col = block.frames_freq.get_col(i);
+            block.frame_time.set_col(i, itpp::ifft(col));
         }
-
-        return result;
     }
 
     itpp::cmat FLChannelHandler::matrix_fft(const itpp::cmat &to_process) {
@@ -246,7 +248,7 @@ namespace openldacs::phy::link::fl {
     }
 
     void FLDataHandler::submit(const PhySdu sdu, CMS cms) {
-        const CodingParams &coding_params = coding_table_.getCodingParams({cms, sdu.channel==CCCH ? 3 : 2});
+        const CodingParams &coding_params = coding_table_.getCodingParams({cms, sdu.channel==CCCH_DCH ? 3 : 2});
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -266,9 +268,8 @@ namespace openldacs::phy::link::fl {
             auto &buf = block_map_[key];
             if (buf.units.empty()) {
                 buf.interleaver_count = int_count;
-                buf.is_cc = sdu.channel == CCCH;
+                buf.is_cc = sdu.channel == CCCH_DCH;
             }
-
             if (buf.interleaver_count != int_count) {
                 throw std::runtime_error("Interleaver count does not match");
             }
@@ -280,24 +281,24 @@ namespace openldacs::phy::link::fl {
                 block_map_.erase(key);
 
                 channelCoding(ready, coding_params);
-                const itpp::cvec mod = modulate(ready, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
+                modulate(ready, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
                 // dump_constellation(mod, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
-                itpp::cmat frames_freq = subcarrier_allocation(mod, coding_params.joint_frame);
-                itpp::cmat frames_time = matrix_ifft(frames_freq);
+                subcarrier_allocation(ready, coding_params.joint_frame);
+                matrix_ifft(ready);
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
-                const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);
+                // const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);
 
-                for (const auto &vec : tx_vecs) {
-                    device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
-                }
-
-
-
-                // 测试接收
-                itpp::cvec recv_data = tx_vecs[0]; //后面要给他扩大随机长度，所有扩大的位置用零填充
-                synchronisation(recv_data);
+                // for (const auto &vec : tx_vecs) {
+                //     device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
+                // }
+                //
+                //
+                //
+                // // 测试接收
+                // itpp::cvec recv_data = tx_vecs[0]; //后面要给他扩大随机长度，所有扩大的位置用零填充
+                // synchronisation(recv_data);
 
                 // itpp::cmat frames_freq2 = matrix_fft(frames_time);
                 // itpp::cmat diff = frames_freq2 - frames_freq;
@@ -312,7 +313,7 @@ namespace openldacs::phy::link::fl {
 
     void FLDataHandler::submit(const PhySdu sdu) {
         switch (sdu.channel) {
-            case CCCH:
+            case CCCH_DCH:
                 submit(sdu, CMS::QPSK_R12);
                 break;
             case FL_DCH:
@@ -458,27 +459,28 @@ namespace openldacs::phy::link::fl {
 
     }
 
-    itpp::cmat FLDataHandler::subcarrier_allocation(const itpp::cvec &input, const int joint_frame) {
+    void FLDataHandler::subcarrier_allocation(BlockBuffer &block, const int joint_frame) {
         int input_ind = 0;
 
-        if (input.size() != frame_info_.n_data * joint_frame) {
+        if (block.mod_vec.size() != frame_info_.n_data * joint_frame) {
             throw std::runtime_error("Input size does not match frame info in subcarrier allocation");
         }
 
         // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
-        itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
-        result_matrix.zeros();
+        // itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
+        // result_matrix.zeros();
+        block.frames_freq = itpp::cmat(n_fft, frame_info_.frame.cols() * joint_frame);
+        block.frames_freq.zeros();
 
         for (int i = 0; i < joint_frame; ++i) {
             itpp::cmat frame_matrix = frame_info_.frame;
             for (int j = 0; j < frame_info_.n_data; j++) {
-                frame_matrix(frame_info_.data_ind[j]) = input(input_ind++);
+                frame_matrix(frame_info_.data_ind[j]) = block.mod_vec(input_ind++);
             }
 
             // 将当前帧矩阵复制到结果矩阵的对应列范围内
-            result_matrix.set_cols(i * frame_matrix.cols(), frame_matrix);
+            block.frames_freq.set_cols(i * frame_matrix.cols(), frame_matrix);
         }
-        return result_matrix;
     }
 
 

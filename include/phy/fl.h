@@ -244,6 +244,9 @@ namespace openldacs::phy::link::fl {
         bool is_cc;
         std::vector<RsEncodedUnit> units;
         itpp::bvec coded_bits;
+        itpp::cvec mod_vec;
+        itpp::cmat frames_freq;
+        itpp::cmat frame_time;
     };
 
     class PhyFl final : public LinkBase {
@@ -344,9 +347,9 @@ namespace openldacs::phy::link::fl {
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
 
         // modulation
-        static itpp::cvec modulate(BlockBuffer &block, ModulationType mod_type);
-        virtual itpp::cmat subcarrier_allocation(const itpp::cvec &input, int joint_frame) = 0;
-        static itpp::cmat matrix_ifft(const itpp::cmat &to_process);
+        static void modulate(BlockBuffer &block, ModulationType mod_type);
+        virtual void subcarrier_allocation(BlockBuffer &block, int joint_frame) = 0;
+        static void matrix_ifft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
         // sync
@@ -367,8 +370,8 @@ namespace openldacs::phy::link::fl {
         void calcSequences() override{};
         void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const int joint_frame) override {
-            return nullptr;
+
+        void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
         }
     };
 
@@ -383,8 +386,8 @@ namespace openldacs::phy::link::fl {
         void calcSequences() override{};
         void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, const int joint_frame) override {
-            return nullptr;
+
+        void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
         }
     };
 
@@ -417,7 +420,8 @@ namespace openldacs::phy::link::fl {
         void composeFrame() override;
 
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
-        itpp::cmat subcarrier_allocation(const itpp::cvec &input, int joint_frame) override;
+
+        void subcarrier_allocation(BlockBuffer &block, int joint_frame) override;
     };
 }
 
