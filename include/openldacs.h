@@ -24,6 +24,7 @@
 #include <fstream>
 #include <deque>
 #include <signal.h>
+#include <queue>
 
 namespace openldacs {
     enum class CMS : int {

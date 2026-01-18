@@ -268,7 +268,7 @@ namespace openldacs::phy::link::fl {
             auto &buf = block_map_[key];
             if (buf.units.empty()) {
                 buf.interleaver_count = int_count;
-                buf.is_cc = sdu.channel == CCCH_DCH;
+            buf.is_cc = sdu.channel == CCCH_DCH;
             }
             if (buf.interleaver_count != int_count) {
                 throw std::runtime_error("Interleaver count does not match");
@@ -277,15 +277,15 @@ namespace openldacs::phy::link::fl {
             buf.units.push_back(std::move(unit));
 
             if (buf.units.size() == buf.interleaver_count) {
-                BlockBuffer ready = std::move(buf);
+                BlockBuffer block = std::move(buf);
                 block_map_.erase(key);
 
-                channelCoding(ready, coding_params);
-                modulate(ready, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
+                channelCoding(block, coding_params);
+                modulate(block, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
                 // dump_constellation(mod, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
-                subcarrier_allocation(ready, coding_params.joint_frame);
-                matrix_ifft(ready);
+                subcarrier_allocation(block, coding_params.joint_frame);
+                matrix_ifft(block);
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
                 // const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);
@@ -486,7 +486,6 @@ namespace openldacs::phy::link::fl {
 
     void PhyFl::processPacket(const PhySdu &sdu) const {
         FLChannelHandler& handler = getHandler(sdu.channel);
-
         handler.submit(sdu);
     }
 

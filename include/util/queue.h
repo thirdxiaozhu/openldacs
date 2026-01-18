@@ -33,7 +33,7 @@ namespace openldacs::util {
             return true;
         }
 
-        void push(const T& item, Priority pri) {
+        void push(const T& item, const Priority pri) {
             std::unique_lock<std::mutex> lk(m_);
             auto &q = pri == Priority::HIGH ? high_q_ : norm_q_;
             auto &cap = pri == Priority::HIGH ? cap_high_ : cap_norm_;
@@ -79,6 +79,28 @@ namespace openldacs::util {
         size_t cap_high_, cap_norm_;
     };
 
+    template <typename T>
+    class BoundedQueue {
+    public:
+        void push(const T &msg) {
+            std::lock_guard<std::mutex> lk(mu_);
+            q_.push(msg);
+            cv_.notify_one();
+        }
+
+        T pop_blocking() {
+            std::unique_lock<std::mutex> lk(mu_);
+            cv_.wait(lk, [&]{ return !q_.empty(); });
+            T out = q_.front();
+            q_.pop();
+            return out;
+        }
+
+    private:
+        std::queue<T> q_;
+        std::mutex mu_;
+        std::condition_variable cv_;
+    };
 
 }
 

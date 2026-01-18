@@ -7,6 +7,8 @@
 #pragma once
 
 
+#include <queue>
+
 #include "config.h"
 #include "openldacs.h"
 #include "link.h"
@@ -249,9 +251,33 @@ namespace openldacs::phy::link::fl {
         itpp::cmat frame_time;
     };
 
+    class PhySink {
+    public:
+        void enqueue(const BlockBuffer &buffer, const CHANNEL ch) {
+            switch (ch) {
+                case BCCH1_3:
+                    bc13_queue_.push(buffer);
+                    break;
+                case BCCH2:
+                    bc2_queue_.push(buffer);
+                    break;
+                case CCCH_DCH:
+                    fl_data_queue_.push(buffer);
+                    break;
+                default:
+                    throw std::runtime_error("Invalid channel");
+            }
+        }
+    private:
+        util::BoundedQueue<BlockBuffer> bc13_queue_;
+        util::BoundedQueue<BlockBuffer> bc2_queue_;
+        util::BoundedQueue<BlockBuffer> fl_data_queue_;
+    };
+
     class PhyFl final : public LinkBase {
     public:
         struct FLConfig {
+            PhySink sink_;
         };
 
         explicit PhyFl(std::unique_ptr<device::Device>& dev)

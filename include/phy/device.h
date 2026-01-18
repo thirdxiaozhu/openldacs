@@ -8,7 +8,7 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "openldacs.h"
-#include "util/bounded_priority_queue.h"
+#include "util/queue.h"
 #include "util/util.h"
 #include "util/worker.h"
 
