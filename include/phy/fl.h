@@ -23,8 +23,6 @@ namespace openldacs::phy::link::fl {
     using namespace phy::config;
     using namespace phy::params;
 
-    inline constexpr std::size_t n_fl_bc13_ofdm_symb = 13;
-    inline constexpr std::size_t n_fl_bc2_ofdm_symb = 24;
     inline constexpr std::size_t n_sync_symb = 2;
     inline constexpr std::int64_t pos_sync1 = 0;
     inline constexpr std::int64_t pos_sync2 = 1;
@@ -380,10 +378,10 @@ namespace openldacs::phy::link::fl {
         virtual void initCodingTable() = 0;
 
         // frames
-        void buildFrame();
-        virtual void getFrameIndices() = 0;
-        virtual void calcSequences() = 0;
-        virtual void composeFrame() = 0;
+        void buildFrame(int symbols);
+        void getFrameIndices(int symbols);
+        void calcSequences(int symbols);
+        void composeFrame(int symbols);
 
         // channel coding
         virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
@@ -410,18 +408,19 @@ namespace openldacs::phy::link::fl {
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
+        explicit BC1_3Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+            buildFrame(n_bc13_ofdm_symb);
+            initCodingTable();
+        }
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
+        static constexpr std::size_t n_bc13_ofdm_symb = 15;
         void initCodingTable() override {
             coding_table_.initCodingTable({
-                {CMS::QPSK_R12, 1},
-            });
+                                              {CMS::QPSK_R12, 1},
+                                          }, BCCH1_3);
         };
-        void getFrameIndices() override {};
-        void calcSequences() override{};
-        void composeFrame() override{};
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
 
         void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
@@ -430,14 +429,19 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
+        explicit BC2Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+            buildFrame(n_bc2_ofdm_symb);
+            initCodingTable();
+        }
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-        void initCodingTable() override{};
-        void getFrameIndices() override {};
-        void calcSequences() override{};
-        void composeFrame() override{};
+        static constexpr std::size_t n_bc2_ofdm_symb = 26;
+        void initCodingTable() override {
+            coding_table_.initCodingTable({
+                                              {CMS::QPSK_R12, 1},
+                                          }, BCCH2);
+        }
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
 
         void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
@@ -447,7 +451,7 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
-            buildFrame();
+            buildFrame(n_fl_ofdm_symb_);
             initCodingTable();
         }
         void submit(PhySdu sdu, CMS cms) override;
@@ -455,22 +459,18 @@ namespace openldacs::phy::link::fl {
 
     private:
         static constexpr std::size_t n_fl_ofdm_symb_ = 54;
-        static constexpr std::size_t n_frames_ = 9;
+        // static constexpr std::size_t n_frames_ = 9;
 
         void initCodingTable() override {
             coding_table_.initCodingTable({
-                {CMS::QPSK_R12, 2},
-                {CMS::QPSK_R12, 3},
-                {CMS::QPSK_R23, 2},
-                {CMS::QPSK_R23, 3},
-                {CMS::QPSK_R34, 2},
-                {CMS::QPSK_R34, 3},
-            });
+                                              {CMS::QPSK_R12, 2},
+                                              // {CMS::QPSK_R12, 3},
+                                              // {CMS::QPSK_R23, 2},
+                                              // {CMS::QPSK_R23, 3},
+                                              // {CMS::QPSK_R34, 2},
+                                              // {CMS::QPSK_R34, 3},
+                                          }, FL_DCH);
         }
-
-        void getFrameIndices() override;
-        void calcSequences() override;
-        void composeFrame() override;
 
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
 

@@ -9,8 +9,8 @@
 #include "phy/fl.h"
 
 namespace openldacs::phy::params {
-    CodingParams CodingTable::setCodingParams(CodingKey key) const {
-        CodingParams params = get_initial_coding_param(key);
+    CodingParams CodingTable::setCodingParams(CodingKey key, CHANNEL ch) const {
+        CodingParams params = get_initial_coding_param(key, ch);
 
         auto [cms, joint_frame] = key;
 
@@ -68,9 +68,9 @@ namespace openldacs::phy::params {
         return params;
     }
 
-    void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys) {
+    void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys, CHANNEL ch) {
         for (const auto& key : keys) {
-            coding_table.try_emplace(key, setCodingParams(key));
+            coding_table.try_emplace(key, setCodingParams(key, ch));
         }
     }
 

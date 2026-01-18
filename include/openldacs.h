@@ -19,7 +19,6 @@
 #include <itpp/base/vec.h>
 #include <itpp/base/mat.h>
 #include <map>
-#include <eigen3/Eigen/Dense>
 #include <span>
 #include <fstream>
 #include <deque>

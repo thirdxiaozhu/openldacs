@@ -20,7 +20,7 @@ namespace openldacs::phy::params {
         std::vector<int> data_ind;
         std::vector<int> pilot_ind;
         std::vector<int> sync_ind;
-        Eigen::MatrixXi frame_pattern;
+        itpp::imat frame_pattern;
         size_t n_data = 0;
         size_t n_pilot = 0;
         size_t n_sync1 = 12;
@@ -123,15 +123,33 @@ namespace openldacs::phy::params {
 
         CodingTable(FrameInfo &frame_info) : frame_info(frame_info) {}
 
-        CodingParams setCodingParams(CodingKey key) const;
-        void initCodingTable(std::initializer_list<CodingKey> keys);
+        CodingParams setCodingParams(CodingKey key, CHANNEL ch) const;
+        void initCodingTable(std::initializer_list<CodingKey> keys, CHANNEL ch);
 
         const CodingParams &getCodingParams(const CodingKey &key) const {
             return coding_table.at(key);
         }
     };
 
-    static const std::array<std::pair<CodingKey, CodingParams>, 6> init_coding_param_pairs = {
+    static const std::array<std::pair<CodingKey, CodingParams>, 1> init_bc13_coding_params = {
+        {
+            {
+                {CMS::QPSK_R12, 1},
+                CodingParams{HelicalInterleaverParams(43, 28) , RSCoderParams(74, 66)}
+            }
+        }
+    };
+
+    static const std::array<std::pair<CodingKey, CodingParams>, 1> init_bc2_coding_params = {
+        {
+            {
+                {CMS::QPSK_R12, 1},
+                CodingParams{HelicalInterleaverParams(40, 56) , RSCoderParams(139, 125)}
+            }
+        }
+    };
+
+    static const std::array<std::pair<CodingKey, CodingParams>, 6> init_fl_coding_params = {
         {
             {
                 {CMS::QPSK_R12, 2},
@@ -160,15 +178,34 @@ namespace openldacs::phy::params {
         }
     };
 
-    inline CodingParams get_initial_coding_param(const CodingKey &key) {
+    inline CodingParams get_initial_coding_param(const CodingKey &key, CHANNEL ch) {
         bool is_found = false;
         const CodingParams *params_ptr = nullptr;
-        for (const auto &[fst, snd] : init_coding_param_pairs) {
-            if (fst == key) {
-                params_ptr = &snd;
-                is_found = true;
-                break;
+
+        auto find_in_table = [&](const auto &table) {
+            for (const auto &kv : table) {
+                if (kv.first == key) {
+                    params_ptr = &kv.second;
+                    return true;
+                }
             }
+            return false;
+        };
+
+
+        switch (ch) {
+            case BCCH1_3:
+                is_found = find_in_table(init_bc13_coding_params);
+                break;
+            case BCCH2:
+                is_found = find_in_table(init_bc2_coding_params);
+                break;
+            case CCCH_DCH:
+            case FL_DCH:
+                is_found = find_in_table(init_fl_coding_params);
+                break;
+            default:
+                throw std::runtime_error("Unsupported channel for coding params");
         }
 
         if (!is_found) {

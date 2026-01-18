@@ -20,14 +20,14 @@ namespace openldacs::util {
         return bytes;
     }
 
-    template <typename T>
-    void find_Xi(std::vector<T>& v, const Eigen::MatrixXi m, const int t) {
+    inline void find_value_imat(std::vector<int>& v, const itpp::imat &m, const int t) {
         for (int i = 0; i < m.size(); i++) {
             if (m(i) == t) {
                 v.push_back(i);
             }
         }
     }
+
 
 
     inline std::ostream& operator<<(std::ostream& os, const uint8_t& v) {
