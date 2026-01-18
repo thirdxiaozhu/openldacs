@@ -5,6 +5,7 @@
 #ifndef OPENLDACS_BOUNDED_PRIORITY_QUEUE_H
 #define OPENLDACS_BOUNDED_PRIORITY_QUEUE_H
 #include "openldacs.h"
+#include <optional>
 
 namespace openldacs::util {
 
@@ -62,7 +63,7 @@ namespace openldacs::util {
 
         T pop() {
             std::unique_lock<std::mutex> lk(m_);
-            cv_not_empty_.wait(lk, [&]{return !high_q_.empty() || !norm_q_.empty();});
+            cv_not_empty_.wait(lk, [&]{return closed_ || !high_q_.empty() || !norm_q_.empty();});
             T item;
             if (!high_q_.empty()) {item = high_q_.front(); high_q_.pop_front();}
             else {item = norm_q_.front(); norm_q_.pop_front();}
@@ -71,35 +72,57 @@ namespace openldacs::util {
             return item;
         }
 
+        void close() {
+            std::lock_guard<std::mutex> lk(m_);
+            closed_ = true;
+            cv_not_empty_.notify_all();
+            cv_not_full_.notify_all();
+        }
+
     private:
         std::mutex m_;
         std::condition_variable cv_not_empty_;
         std::condition_variable cv_not_full_;
         std::deque<T> high_q_, norm_q_;
         size_t cap_high_, cap_norm_;
+        bool closed_ = false;
     };
 
     template <typename T>
     class BoundedQueue {
     public:
-        void push(const T &msg) {
+        bool push(const T &msg) {
             std::lock_guard<std::mutex> lk(mu_);
+            if (closed_) {
+                return false;
+            }
             q_.push(msg);
             cv_.notify_one();
+            return true;
         }
 
-        T pop_blocking() {
+        std::optional<T> pop_blocking() {
             std::unique_lock<std::mutex> lk(mu_);
-            cv_.wait(lk, [&]{ return !q_.empty(); });
+            cv_.wait(lk, [&]{ return closed_ || !q_.empty(); });
+            if (q_.empty()) {
+                return std::nullopt;
+            }
             T out = q_.front();
             q_.pop();
             return out;
+        }
+
+        void close() {
+            std::lock_guard<std::mutex> lk(mu_);
+            closed_ = true;
+            cv_.notify_all();
         }
 
     private:
         std::queue<T> q_;
         std::mutex mu_;
         std::condition_variable cv_;
+        bool closed_ = false;
     };
 
 }

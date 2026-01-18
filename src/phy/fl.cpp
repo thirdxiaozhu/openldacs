@@ -286,6 +286,9 @@ namespace openldacs::phy::link::fl {
 
                 subcarrier_allocation(block, coding_params.joint_frame);
                 matrix_ifft(block);
+
+                config_.sink_.enqueue(block, sdu.channel);
+
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
                 // const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);

@@ -253,6 +253,18 @@ namespace openldacs::phy::link::fl {
 
     class PhySink {
     public:
+        PhySink() {
+            trans_worker_.start([&] {
+                while (!trans_worker_.stop_requested()) {
+                    auto bf = fl_data_queue_.pop_blocking();
+                    if (!bf) {
+                        break;
+                    }
+                    std::cout << bf->is_cc << std::endl;
+                }
+            });
+        }
+
         void enqueue(const BlockBuffer &buffer, const CHANNEL ch) {
             switch (ch) {
                 case BCCH1_3:
@@ -262,16 +274,27 @@ namespace openldacs::phy::link::fl {
                     bc2_queue_.push(buffer);
                     break;
                 case CCCH_DCH:
+                case FL_DCH:
                     fl_data_queue_.push(buffer);
                     break;
                 default:
                     throw std::runtime_error("Invalid channel");
             }
         }
+
+        ~PhySink() {
+            bc13_queue_.close();
+            bc2_queue_.close();
+            fl_data_queue_.close();
+            trans_worker_.request_stop();
+            trans_worker_.join_and_rethrow();
+        }
+
     private:
         util::BoundedQueue<BlockBuffer> bc13_queue_;
         util::BoundedQueue<BlockBuffer> bc2_queue_;
         util::BoundedQueue<BlockBuffer> fl_data_queue_;
+        util::Worker trans_worker_;
     };
 
     class PhyFl final : public LinkBase {
@@ -331,11 +354,11 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        explicit FLChannelHandler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev)
+        explicit FLChannelHandler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev)
             : config_(config), coding_table_(frame_info_), device_(dev) {
         }
 
-        const PhyFl::FLConfig& config_;
+        PhyFl::FLConfig& config_;
         FrameInfo frame_info_;
         SyncParam sync_param_;
         CodingTable coding_table_;
@@ -387,7 +410,7 @@ namespace openldacs::phy::link::fl {
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
+        explicit BC1_3Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
@@ -403,7 +426,7 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
+        explicit BC2Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {}
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
@@ -419,7 +442,7 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(const PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+        explicit FLDataHandler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
             buildFrame();
             initCodingTable();
         }

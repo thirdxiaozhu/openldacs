@@ -30,11 +30,17 @@ namespace openldacs::phy::device {
 
     class Device {
     public:
-        virtual ~Device() = default;
         void sendData(const itpp::cvec &data, const util::Priority pri) {
             fl_to_trans_.push(util::cvecToComplexDoubleVec(data), pri);
         }
 
+        virtual ~Device() {
+            fl_to_trans_.close();
+            trans_worker_.request_stop();
+            recv_worker_.request_stop();
+            trans_worker_.join_and_rethrow();
+            recv_worker_.join_and_rethrow();
+        }
     protected:
         explicit Device(const uint8_t role) : role_(role), fl_to_trans_(CAP_HIGH, CAP_NORM) {
         };
@@ -146,10 +152,6 @@ namespace openldacs::phy::device {
         }
 
         ~USRP() override {
-            trans_worker_.request_stop();
-            recv_worker_.request_stop();
-            trans_worker_.join_and_rethrow();
-            recv_worker_.join_and_rethrow();
         }
     private:
         static constexpr int recv_samples_ = 16384;
