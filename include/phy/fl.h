@@ -251,14 +251,16 @@ namespace openldacs::phy::link::fl {
 
     class PhySink {
     public:
-        PhySink() {
-            trans_worker_.start([&] {
-                while (!trans_worker_.stop_requested()) {
-                    auto bf = fl_data_queue_.pop_blocking();
+        PhySink(){
+            windowing_worker_.start([&] {
+                while (!windowing_worker_.stop_requested()) {
+                    const auto bf = fl_data_queue_.pop_blocking();
                     if (!bf) {
                         break;
                     }
-                    std::cout << bf->is_cc << std::endl;
+
+                    const itpp::cvec tx_vecs = windowing(bf.value());
+                    std::cout << tx_vecs << std::endl;
                 }
             });
         }
@@ -280,19 +282,23 @@ namespace openldacs::phy::link::fl {
             }
         }
 
+
         ~PhySink() {
             bc13_queue_.close();
             bc2_queue_.close();
             fl_data_queue_.close();
-            trans_worker_.request_stop();
-            trans_worker_.join_and_rethrow();
+            windowing_worker_.request_stop();
+            windowing_worker_.join_and_rethrow();
         }
 
     private:
         util::BoundedQueue<BlockBuffer> bc13_queue_;
         util::BoundedQueue<BlockBuffer> bc2_queue_;
         util::BoundedQueue<BlockBuffer> fl_data_queue_;
-        util::Worker trans_worker_;
+        util::Worker windowing_worker_;
+        std::optional<itpp::cvec> prev_post_;
+
+        itpp::cvec windowing(const BlockBuffer &block);
     };
 
     class PhyFl final : public LinkBase {

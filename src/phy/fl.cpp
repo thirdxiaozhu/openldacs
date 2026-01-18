@@ -151,79 +151,7 @@ namespace openldacs::phy::link::fl {
         return result;
     }
 
-    std::vector<itpp::cvec> FLChannelHandler::windowing(const itpp::cmat &to_process, const int joint_frame) {
-        const int mat_cols = to_process.cols();
-        const int frame_symbols = mat_cols / joint_frame;
 
-        std::vector<itpp::cvec> frames_symbol;
-
-        if (mat_cols % joint_frame != 0) {
-            throw std::runtime_error("Matrix cols must be divisible by joint_frame");
-        }
-
-        if constexpr (n_g <= 0 || n_cp <= 0 || n_ws <= 0) {
-            throw std::runtime_error("OFDM params must be positive");
-        }
-
-        if constexpr (n_g > n_fft) {
-            throw std::runtime_error("N_g (CP length) must be <= Nfft");
-        }
-
-        if constexpr (n_cp > n_fft) {
-            throw std::runtime_error("N_cp must be <= Nfft.");
-        }
-
-        // 循环前缀的，guard symbol
-        itpp::cmat mat_with_cp(n_fft + n_g, mat_cols);
-        {
-            itpp::cmat tail_g = to_process.get_rows(n_fft - n_g, n_fft-1);
-            mat_with_cp.set_rows(0, tail_g);
-            mat_with_cp.set_rows(n_g, to_process);
-        }
-
-        // window 前缀 后缀
-        itpp::cmat window_prefix = to_process.get_rows(n_fft - n_cp, n_fft - n_g -1);
-        itpp::cmat window_postfix = to_process.get_rows(0, n_ws-1);
-
-        // 前缀乘数
-        itpp::vec ramp_up(n_ws);
-        for (int i = 0; i < n_ws; ++i) {
-            ramp_up(i) = 0.5 + 0.5 * std::cos(M_PI + (M_PI * i) / static_cast<double>(n_ws) );
-        }
-        // 后缀乘数
-        itpp::vec ramp_down = fliplrRowvec(ramp_up);
-
-        for (int c = 0; c < window_prefix.cols(); ++c) {
-            for (int r = 0; r < window_postfix.rows(); ++r) {
-                window_prefix(r, c) *= ramp_up(r);
-                window_postfix(r, c) *= ramp_down(r);
-            }
-        }
-
-        for (int i = 0; i < joint_frame; i++) {
-            const int offset = i * frame_symbols;
-            itpp::cmat window_part(n_ws, frame_symbols);
-
-            window_part.set_col(0, window_prefix.get_col(0 + offset ));
-            for (int col = 1; col < frame_symbols; ++col) {
-                itpp::cvec sum = window_postfix.get_col((col - 1) + offset) + window_prefix.get_col(col + offset);
-                window_part.set_col(col, sum);
-            }
-
-            itpp::cmat frame_mat(n_fft + n_cp, frame_symbols);
-            frame_mat.set_rows(0, window_part);
-            frame_mat.set_rows(n_ws, mat_with_cp.get_cols(0 + offset, (frame_symbols - 1) + offset));
-
-            itpp::cvec frame_vec((n_fft + n_cp) * frame_symbols);
-            // std::cout << frame_matrix << " " << frame_matrix.size() << std::endl << std::endl;
-            frame_vec.set_subvector(0, itpp::cvectorize(frame_mat));
-
-            frames_symbol.push_back(frame_vec);
-        // std::cout << frame_vec << std::endl << std::endl;
-        }
-
-        return frames_symbol;
-    }
 
     void FLChannelHandler::synchronisation(const itpp::cvec &input) {
         sync_param_.coarse_sync(input);
@@ -291,7 +219,6 @@ namespace openldacs::phy::link::fl {
 
                 // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
 
-                // const std::vector<itpp::cvec> tx_vecs = windowing(frames_time, coding_params.joint_frame);
 
                 // for (const auto &vec : tx_vecs) {
                 //     device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
@@ -494,6 +421,77 @@ namespace openldacs::phy::link::fl {
     void PhyFl::processPacket(const PhySdu &sdu) const {
         FLChannelHandler& handler = getHandler(sdu.channel);
         handler.submit(sdu);
+    }
+
+    itpp::cvec PhySink::windowing(const BlockBuffer &block) {
+
+        const itpp::cmat &to_process = block.frame_time;
+
+        const int mat_cols = to_process.cols();
+        // const int frame_symbols = mat_cols / joint_frame;
+
+
+        if constexpr (n_g <= 0 || n_cp <= 0 || n_ws <= 0) {
+            throw std::runtime_error("OFDM params must be positive");
+        }
+
+        if constexpr (n_g > n_fft) {
+            throw std::runtime_error("N_g (CP length) must be <= Nfft");
+        }
+
+        if constexpr (n_cp > n_fft) {
+            throw std::runtime_error("N_cp must be <= Nfft.");
+        }
+
+        // 循环前缀的，guard symbol
+        itpp::cmat mat_with_cp(n_fft + n_g, mat_cols);
+        {
+            itpp::cmat tail_g = to_process.get_rows(n_fft - n_g, n_fft-1);
+            mat_with_cp.set_rows(0, tail_g);
+            mat_with_cp.set_rows(n_g, to_process);
+        }
+
+        // window 前缀 后缀
+        itpp::cmat window_prefix = to_process.get_rows(n_fft - n_cp, n_fft - n_g -1);
+        itpp::cmat window_postfix = to_process.get_rows(0, n_ws-1);
+
+        // 前缀乘数
+        itpp::vec ramp_up(n_ws);
+        for (int i = 0; i < n_ws; ++i) {
+            ramp_up(i) = 0.5 + 0.5 * std::cos(M_PI + (M_PI * i) / static_cast<double>(n_ws) );
+        }
+        // 后缀乘数
+        itpp::vec ramp_down = fliplrRowvec(ramp_up);
+
+        for (int c = 0; c < window_prefix.cols(); ++c) {
+            for (int r = 0; r < window_postfix.rows(); ++r) {
+                window_prefix(r, c) *= ramp_up(r);
+                window_postfix(r, c) *= ramp_down(r);
+            }
+        }
+
+        itpp::cmat window_part(n_ws, mat_cols);
+
+        if (!prev_post_) {
+            window_part.set_col(0, window_prefix.get_col(0));
+        }else {
+            window_part.set_col(0, window_prefix.get_col(0) + prev_post_.value());
+        }
+        prev_post_.emplace(window_postfix.get_col(mat_cols - 1));
+
+        for (int col = 1; col < mat_cols; ++col) {
+            itpp::cvec sum = window_postfix.get_col(col - 1) + window_prefix.get_col(col);
+            window_part.set_col(col, sum);
+        }
+
+        itpp::cmat frame_mat(n_fft + n_cp, mat_cols);
+        frame_mat.set_rows(0, window_part);
+        frame_mat.set_rows(n_ws, mat_with_cp.get_cols(0, mat_cols));
+
+        itpp::cvec frames_symbols(frame_mat.size());
+        frames_symbols.set_subvector(0, itpp::cvectorize(frame_mat));
+
+        return frames_symbols;
     }
 
 }
