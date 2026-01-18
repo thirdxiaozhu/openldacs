@@ -32,7 +32,6 @@ namespace openldacs::util {
             }
         }
 
-
     private:
         uint8_t n_, k_;
         correct_reed_solomon* reed_solomon_;

@@ -414,7 +414,11 @@ namespace openldacs::phy::link::fl {
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-        void initCodingTable() override{};
+        void initCodingTable() override {
+            coding_table_.initCodingTable({
+                {CMS::QPSK_R12, 1},
+            });
+        };
         void getFrameIndices() override {};
         void calcSequences() override{};
         void composeFrame() override{};
