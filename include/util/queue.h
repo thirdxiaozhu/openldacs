@@ -38,7 +38,7 @@ namespace openldacs::util {
             std::unique_lock<std::mutex> lk(m_);
             auto &q = pri == Priority::HIGH ? high_q_ : norm_q_;
             auto &cap = pri == Priority::HIGH ? cap_high_ : cap_norm_;
-            cv_not_full_.wait(lk, [&]{return q.size() < cap;});
+            cv_not_full_.wait(lk, [&]{return  closed_|| q.size() < cap;});
             q.push_back(item);
             cv_not_empty_.notify_one();
         }
@@ -61,10 +61,13 @@ namespace openldacs::util {
             return true;
         }
 
-        T pop() {
+        std::optional<T> pop() {
             std::unique_lock<std::mutex> lk(m_);
             cv_not_empty_.wait(lk, [&]{return closed_ || !high_q_.empty() || !norm_q_.empty();});
             T item;
+            if (closed_) {
+                return std::nullopt;
+            }
             if (!high_q_.empty()) {item = high_q_.front(); high_q_.pop_front();}
             else {item = norm_q_.front(); norm_q_.pop_front();}
 

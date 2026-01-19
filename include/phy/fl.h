@@ -151,31 +151,7 @@ namespace openldacs::phy::link::fl {
                          -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
     };
 
-    inline constexpr std::array<uint8_t, 412> random_output = {
-        0xBF, 0x03, 0x82, 0x09, 0x0C, 0x36, 0x28, 0xB4, 0xF3, 0xBA, 0x29, 0x9C, 0xF5, 0x4A, 0x3F, 0xBC, 0x81, 0x8B,
-        0x05, 0x3A, 0x1E, 0x9C, 0x47, 0x49, 0x93, 0xB5, 0x69, 0xBF, 0x75, 0x83, 0x3D, 0x0A, 0x8E, 0x3F, 0x24, 0x82,
-        0xDB, 0x0E, 0xDA, 0x26, 0xDC, 0xD6, 0xCA, 0xF6, 0xBE, 0x37, 0x84, 0xB1, 0x1B, 0xA6, 0x59, 0xD5, 0xD4, 0xFC,
-        0xFA, 0x0A, 0x1C, 0x3C, 0x48, 0x89, 0xB3, 0x35, 0xAA, 0xBD, 0xFF, 0x8C, 0x01, 0x28, 0x06, 0xF0, 0x16, 0x20,
-        0x74, 0xC1, 0x3A, 0x86, 0x9F, 0x17, 0x42, 0x73, 0x8D, 0x29, 0x2E, 0xF6, 0xE6, 0x36, 0x54, 0xB5, 0xFB, 0xBC,
-        0x19, 0x88, 0x55, 0x31, 0xFE, 0xA4, 0x07, 0xD8, 0x10, 0xD0, 0x62, 0xE1, 0x4E, 0x47, 0xA5, 0x91, 0xDD, 0x64,
-        0xCF, 0x5A, 0xA3, 0xDF, 0xC8, 0xC0, 0xB2, 0x83, 0xAF, 0x09, 0xE2, 0x34, 0x4C, 0xB9, 0xAB, 0x95, 0xF9, 0x7C,
-        0x17, 0x08, 0x72, 0x31, 0x2C, 0xA6, 0xEB, 0xD6, 0x78, 0xF5, 0x12, 0x3E, 0x6C, 0x85, 0x6B, 0x1F, 0x7A, 0x43,
-        0x1D, 0x8A, 0x4D, 0x3D, 0xAE, 0x8D, 0xE7, 0x2C, 0x52, 0xE9, 0xEE, 0x74, 0x65, 0x39, 0x5E, 0x97, 0xC7, 0x70,
-        0x93, 0x23, 0x6A, 0xCB, 0x7E, 0xBB, 0x07, 0x9A, 0x11, 0x5C, 0x67, 0xC9, 0x50, 0xB7, 0xE3, 0xB0, 0x49, 0xA1,
-        0xB5, 0xC5, 0xBC, 0x9D, 0x8B, 0x4D, 0x3B, 0xAE, 0x99, 0xE7, 0x54, 0x53, 0xF9, 0xE8, 0x14, 0x70, 0x79, 0x21,
-        0x16, 0xC6, 0x76, 0x95, 0x37, 0x7E, 0xB3, 0x07, 0xAA, 0x11, 0xFC, 0x64, 0x09, 0x58, 0x37, 0xD0, 0xB0, 0xE3,
-        0xA2, 0x49, 0xCD, 0xB4, 0xAD, 0xBB, 0xED, 0x98, 0x6D, 0x51, 0x6F, 0xE7, 0x60, 0x53, 0x41, 0xEB, 0x84, 0x79,
-        0x19, 0x16, 0x56, 0x75, 0xF5, 0x3C, 0x3E, 0x88, 0x87, 0x33, 0x12, 0xAA, 0x6F, 0xFD, 0x60, 0x0F, 0x40, 0x23,
-        0x80, 0xC9, 0x02, 0xB6, 0x0F, 0xB4, 0x21, 0xB8, 0xC5, 0x92, 0x9D, 0x6F, 0x4F, 0x63, 0xA3, 0x49, 0xCB, 0xB4,
-        0xB9, 0xBB, 0x95, 0x99, 0x7D, 0x57, 0x0F, 0xF2, 0x20, 0x2C, 0xC0, 0xEA, 0x82, 0x7F, 0x0D, 0x02, 0x2E, 0x0C,
-        0xE4, 0x2A, 0x58, 0xFD, 0xD2, 0x0C, 0xEC, 0x2A, 0x68, 0xFD, 0x72, 0x0F, 0x2C, 0x22, 0xE8, 0xCE, 0x72, 0xA5,
-        0x2F, 0xDE, 0xE0, 0xC6, 0x42, 0x95, 0x8F, 0x7D, 0x23, 0x0E, 0xCA, 0x26, 0xBC, 0xD7, 0x8A, 0xF1, 0x3E, 0x26,
-        0x84, 0xD7, 0x1A, 0xF2, 0x5E, 0x2D, 0xC4, 0xEC, 0x9A, 0x6B, 0x5D, 0x7B, 0xCF, 0x18, 0xA2, 0x53, 0xCD, 0xE8,
-        0xAC, 0x73, 0xE9, 0x28, 0x76, 0xF1, 0x36, 0x26, 0xB4, 0xD7, 0xBA, 0xF1, 0x9E, 0x25, 0x44, 0xDF, 0x9A, 0xC1,
-        0x5E, 0x87, 0xC7, 0x10, 0x92, 0x63, 0x6D, 0x4B, 0x6F, 0xBB, 0x61, 0x9B, 0x45, 0x5B, 0x9F, 0xD9, 0x40, 0xD7,
-        0x82, 0xF1, 0x0E, 0x26, 0x24, 0xD4, 0xDA, 0xFA, 0xDE, 0x1E, 0xC4, 0x46, 0x99, 0x97, 0x55, 0x73, 0xFF, 0x28,
-        0x02, 0xF0, 0x0E, 0x20, 0x24, 0xC0, 0xDA, 0x82, 0xDF, 0x0E, 0xC2, 0x26, 0x8C, 0xD7, 0x2A, 0xF2,
-    };
+
 
     inline const std::vector<std::vector<int>> pilot_sets = {
         {pilot_set1.begin(), pilot_set1.end()},
@@ -238,7 +214,6 @@ namespace openldacs::phy::link::fl {
         }
     };
 
-    // interleaver
     struct BlockBuffer {
         size_t interleaver_count;
         bool is_cc;
@@ -249,18 +224,13 @@ namespace openldacs::phy::link::fl {
         itpp::cmat frame_time;
     };
 
-    class PhySink {
+    class PhySource {
     public:
-        PhySink(){
-            windowing_worker_.start([&] {
-                while (!windowing_worker_.stop_requested()) {
-                    const auto bf = fl_data_queue_.pop_blocking();
-                    if (!bf) {
-                        break;
-                    }
+        explicit PhySource(device::DevPtr& dev): dev_(dev){
+            source_worker_.start([&] {
+                while (!source_worker_.stop_requested()) {
 
-                    const itpp::cvec tx_vecs = windowing(bf.value());
-                    std::cout << tx_vecs << std::endl;
+                    // std::cout << tx_vecs << std::endl;
                 }
             });
         }
@@ -282,20 +252,70 @@ namespace openldacs::phy::link::fl {
             }
         }
 
+        ~PhySource() {
+            bc13_queue_.close();
+            bc2_queue_.close();
+            fl_data_queue_.close();
+            source_worker_.request_stop();
+            source_worker_.join_and_rethrow();
+        }
+    private:
+        device::DevPtr& dev_;
+        util::BoundedQueue<BlockBuffer> bc13_queue_;
+        util::BoundedQueue<BlockBuffer> bc2_queue_;
+        util::BoundedQueue<BlockBuffer> fl_data_queue_;
+        util::Worker source_worker_;
+    };
+
+    class PhySink {
+    public:
+        explicit PhySink(device::DevPtr& dev): dev_(dev){
+            sink_worker_.start([&] {
+                while (!sink_worker_.stop_requested()) {
+                    const auto bf = fl_data_queue_.pop_blocking();
+                    if (!bf) {
+                        break;
+                    }
+
+                    const itpp::cvec tx_vecs = windowing(bf.value());
+                    // std::cout << tx_vecs << std::endl;
+
+                    dev->sendData(tx_vecs, util::Priority::HIGH);
+                }
+            });
+        }
+
+        void enqueue(const BlockBuffer &buffer, const CHANNEL ch) {
+            switch (ch) {
+                case BCCH1_3:
+                    bc13_queue_.push(buffer);
+                    break;
+                case BCCH2:
+                    bc2_queue_.push(buffer);
+                    break;
+                case CCCH_DCH:
+                case FL_DCH:
+                    fl_data_queue_.push(buffer);
+                    break;
+                default:
+                    throw std::runtime_error("Invalid channel");
+            }
+        }
 
         ~PhySink() {
             bc13_queue_.close();
             bc2_queue_.close();
             fl_data_queue_.close();
-            windowing_worker_.request_stop();
-            windowing_worker_.join_and_rethrow();
+            sink_worker_.request_stop();
+            sink_worker_.join_and_rethrow();
         }
 
     private:
+        device::DevPtr& dev_;
         util::BoundedQueue<BlockBuffer> bc13_queue_;
         util::BoundedQueue<BlockBuffer> bc2_queue_;
         util::BoundedQueue<BlockBuffer> fl_data_queue_;
-        util::Worker windowing_worker_;
+        util::Worker sink_worker_;
         std::optional<itpp::cvec> prev_post_;
 
         itpp::cvec windowing(const BlockBuffer &block);
@@ -304,11 +324,14 @@ namespace openldacs::phy::link::fl {
     class PhyFl final : public LinkBase {
     public:
         struct FLConfig {
+            explicit FLConfig(device::DevPtr& dev): sink_(dev), source_(dev) {
+            }
             PhySink sink_;
+            PhySource source_;
         };
 
-        explicit PhyFl(std::unique_ptr<device::Device>& dev)
-            :config_(),
+        explicit PhyFl(device::DevPtr& dev)
+            :config_(dev),
              bc13_(std::make_unique<BC1_3Handler>(config_, dev)),
              bc2_(std::make_unique<BC2Handler>(config_, dev)),
              data_(std::make_unique<FLDataHandler>(config_, dev)) {
@@ -322,7 +345,7 @@ namespace openldacs::phy::link::fl {
         std::unique_ptr<BC2Handler> bc2_;
         std::unique_ptr<FLDataHandler> data_;
 
-        FLChannelHandler &getHandler(CHANNEL type) const;
+        [[nodiscard]] FLChannelHandler &getHandler(CHANNEL type) const;
     };
 
     struct BlockKeyHash {
@@ -358,18 +381,17 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        explicit FLChannelHandler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev)
+        explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev)
             : config_(config), coding_table_(frame_info_), device_(dev) {
         }
 
         PhyFl::FLConfig& config_;
         FrameInfo frame_info_;
-        SyncParam sync_param_;
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
         std::mutex block_m_;
-        std::unique_ptr<device::Device>& device_;
+        device::DevPtr& device_;
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
             if (sdu.direction == DirectionType::FL) {
@@ -405,16 +427,13 @@ namespace openldacs::phy::link::fl {
         static void matrix_ifft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
-        // sync
-        void synchronisation(const itpp::cvec &input);
-
         // demod
         static itpp::cmat matrix_fft(const itpp::cmat &to_process);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+        explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
             buildFrame(n_bc13_ofdm_symb);
             initCodingTable();
         }
@@ -435,7 +454,7 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+        explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
             buildFrame(n_bc2_ofdm_symb);
             initCodingTable();
         }
@@ -456,7 +475,7 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(PhyFl::FLConfig& config, std::unique_ptr<device::Device>& dev) : FLChannelHandler(config, dev) {
+        explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
             buildFrame(n_fl_ofdm_symb_);
             initCodingTable();
         }

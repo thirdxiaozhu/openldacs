@@ -8,6 +8,7 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "openldacs.h"
+#include "params.h"
 #include "util/queue.h"
 #include "util/util.h"
 #include "util/worker.h"
@@ -44,7 +45,6 @@ namespace openldacs::phy::device {
     protected:
         explicit Device(const uint8_t role) : role_(role), fl_to_trans_(CAP_HIGH, CAP_NORM) {
         };
-        virtual void setupDevice() = 0;
         // 逻辑不对！！！ 注意这里的应该是AS或者gs,但是b210不支持 两个射频
         uint8_t role_;
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
@@ -53,12 +53,20 @@ namespace openldacs::phy::device {
 
         const double fl_freq = 1110e6;
         const double rl_freq = 964e6;
+        params::SyncParam sync_param_;
 
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;
         util::Worker recv_worker_;
+
+        virtual void setupDevice() = 0;
+
+        // sync
+        void synchronisation(const itpp::cvec &input);
     private:
+
     };
+    using DevPtr = std::unique_ptr<Device> ;
 
     class USRP final: public Device {
     public:
@@ -68,50 +76,57 @@ namespace openldacs::phy::device {
         {
             // setupDevice();
 
-            // trans_worker_.start([&] {
-            //     std::unique_lock<std::mutex> lk(trans_worker_.mutex());
-            //     if (!tx_stream_ || !rx_stream_) {
-            //             SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
-            //     }
-            //     bool first_trans = true;
-            //     while (!trans_worker_.stop_requested()) {
-            //         VecCD fl_vec;
-            //         VecCD rl_vec;
-            //
-            //         if (role_ & AS) {
-            //         }
-            //         if (role_ & GS) {
-            //             while (!fl_to_trans_.try_pop(fl_vec)) {
-            //                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            //                 if (trans_worker_.stop_requested()) {
-            //                     break;
-            //                 }
-            //             }
-            //
-            //             if (trans_worker_.stop_requested()) {
-            //                 break;
-            //             }
-            //             // fl_vec = fl_to_trans_.pop();
-            //         }
-            //
-            //         std::vector<std::complex<double> *> buffs = {
-            //             fl_vec.data(),
-            //             fl_vec.data()
-            //         };
-            //
-            //         uhd::tx_metadata_t md;
-            //         md.start_of_burst = first_trans;
-            //         md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
-            //
-            //         tx_stream_->send(buffs, fl_vec.size(), md);
-            //         first_trans = false;
-            //     }
-            //
-            //     // 退出循环后，发送结束标记
-            //     uhd::tx_metadata_t md_end;
-            //     md_end.end_of_burst = true;
-            //     tx_stream_->send("", 0, md_end);
-            // });
+            trans_worker_.start([&] {
+                std::unique_lock<std::mutex> lk(trans_worker_.mutex());
+                if (!tx_stream_ || !rx_stream_) {
+                        SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
+                }
+                bool first_trans = true;
+                while (!trans_worker_.stop_requested()) {
+                    std::optional<VecCD> fl_vec;
+                    std::optional<VecCD> rl_vec;
+
+                    if (role_ & AS) {
+                    }
+                    if (role_ & GS) {
+                        fl_vec = fl_to_trans_.pop();
+
+                        // if (fl_vec.has_value()) {
+                        //     std::cout << fl_vec.value().size() << std::endl;
+                        // }
+
+
+                        // while (!fl_to_trans_.try_pop(fl_vec)) {
+                        //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        //     if (trans_worker_.stop_requested()) {
+                        //         break;
+                        //     }
+                        // }
+                        //
+                        // if (trans_worker_.stop_requested()) {
+                        //     break;
+                        // }
+                        // fl_vec = fl_to_trans_.pop();
+                    }
+
+                    // std::vector<std::complex<double> *> buffs = {
+                    //     fl_vec.data(),
+                    //     fl_vec.data()
+                    // };
+                    //
+                    // uhd::tx_metadata_t md;
+                    // md.start_of_burst = first_trans;
+                    // md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
+                    //
+                    // tx_stream_->send(buffs, fl_vec.size(), md);
+                    // first_trans = false;
+                }
+
+                // 退出循环后，发送结束标记
+                // uhd::tx_metadata_t md_end;
+                // md_end.end_of_burst = true;
+                // tx_stream_->send("", 0, md_end);
+            });
             //
             // recv_worker_.start([&] {
             //     // 接收缓冲区
@@ -168,7 +183,7 @@ namespace openldacs::phy::device {
 
     class DeviceFactory {
     public:
-        static std::unique_ptr<Device> createDevice(const DeviceType type, uint8_t role) {
+        static DevPtr createDevice(const DeviceType type, uint8_t role) {
             switch (type) {
                 case DeviceType::USRP:
                     return std::make_unique<USRP>(role);

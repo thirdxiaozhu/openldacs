@@ -153,11 +153,6 @@ namespace openldacs::phy::link::fl {
 
 
 
-    void FLChannelHandler::synchronisation(const itpp::cvec &input) {
-        sync_param_.coarse_sync(input);
-    }
-
-
     void BC1_3Handler::submit(const PhySdu sdu, CMS cms) {
         std::cout << sdu.payload;
     }

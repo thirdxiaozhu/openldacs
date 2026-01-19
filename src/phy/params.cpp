@@ -4,6 +4,7 @@
 
 #include "phy/params.h"
 
+#include <itpp/base/matfunc.h>
 #include <itpp/base/specmat.h>
 
 #include "phy/fl.h"
@@ -59,7 +60,7 @@ namespace openldacs::phy::params {
         SPDLOG_INFO("rate_cod: {}; bits_per_sdu: {}; bytes_per_pdu: {}", params.rate_cod, params.bits_per_pdu, params.bytes_per_pdu);
 
         params.randomize_vec.resize(params.bytes_per_pdu);
-        const uint8_t* src = fl::random_output.data();
+        const uint8_t* src = random_output.data();
         params.randomize_vec.assign(
             src,
             src + params.bytes_per_pdu
@@ -98,6 +99,9 @@ namespace openldacs::phy::params {
 
         itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
         SPDLOG_INFO("{} {}", vec_1.length(), vec_2.length());
+
+        P(1) = itpp::sum(corr_vec.left(corr_len));
+
 
     }
 }
