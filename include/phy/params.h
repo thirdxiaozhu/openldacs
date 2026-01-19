@@ -64,7 +64,7 @@ namespace openldacs::phy::params {
         int corr_len2 = 3 * config::n_fft / 4 + config::n_g + config::n_ws / 2;
         int corr_diff2 = config::n_fft / 4;
 
-        int upsample_rate = 4;
+        int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
 
         void coarse_sync(const itpp::cvec &input);

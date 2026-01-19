@@ -5,6 +5,7 @@
 #ifndef OPENLDACS_DEVICE_H
 #define OPENLDACS_DEVICE_H
 
+#include <itpp/base/specmat.h>
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "openldacs.h"
@@ -91,9 +92,16 @@ namespace openldacs::phy::device {
                     if (role_ & GS) {
                         fl_vec = fl_to_trans_.pop();
 
-                        // if (fl_vec.has_value()) {
-                        //     std::cout << fl_vec.value().size() << std::endl;
-                        // }
+                        if (fl_vec.has_value()) {
+                            itpp::cvec to_sync_frame = itpp::zeros_c(16200);
+
+                            const int test_frame_start = 3400;
+                            for (int i = 0; i < fl_vec->size(); i++) {
+                                to_sync_frame(test_frame_start+ i) = fl_vec.value()[i];
+                            }
+
+                            synchronisation(to_sync_frame);
+                        }
 
 
                         // while (!fl_to_trans_.try_pop(fl_vec)) {

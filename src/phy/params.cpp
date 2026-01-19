@@ -4,6 +4,8 @@
 
 #include "phy/params.h"
 
+#include <filesystem>
+#include <fstream>
 #include <itpp/base/matfunc.h>
 #include <itpp/base/specmat.h>
 
@@ -81,7 +83,7 @@ namespace openldacs::phy::params {
         int up_corr_len2 =  upsample_rate * corr_len2;
         int up_corr_diff2 =  upsample_rate * corr_diff2;
         int sync_offset = (config::n_g + config::n_ws / 4) * upsample_rate;
-        sync_correlation(input, corr_len1, corr_diff1);
+        sync_correlation(input, up_corr_len1, up_corr_diff1);
     }
 
     void SyncParam::coarse_sync(const itpp::cvec &input) {
@@ -97,11 +99,39 @@ namespace openldacs::phy::params {
         itpp::cvec vec_1 = input.left(input.length() - corr_diff);
         itpp::cvec vec_2 = input.right(input.length() - corr_diff);
 
-        itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
-        SPDLOG_INFO("{} {}", vec_1.length(), vec_2.length());
+        {
+            itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
+            // iterative calculation of P
+            P(0) = itpp::sum(corr_vec.left(corr_len));
+            for (int i = 1; i < out_len; i++) {
+                P(i) = P(i - 1) + corr_vec(i + corr_len - 1) - corr_vec(i - 1);
+            }
+        }
 
-        P(1) = itpp::sum(corr_vec.left(corr_len));
+        // itpp::vec v = abs(P);
+        // std::filesystem::create_directories("dump");
+        // std::ofstream ofs("dump/corr_peak.csv");
+        // for (int i = 0; i < v.length(); ++i) {
+        //     ofs << i << "," << v(i) << "\n";
+        // }
 
+        itpp::vec angle = itpp::angle(P);
+
+        {
+            itpp::vec cor_fac = pow(abs(P), 2.0);
+            itpp::cvec R11 = itpp::zeros_c(R.length());
+            itpp::cvec R22 = itpp::zeros_c(R.length());
+            R11(0) = itpp::sum(cor_fac.left(corr_diff)) + itpp::sum(cor_fac.mid(corr_len, corr_diff));
+            R22(0) = itpp::sum(cor_fac.mid(corr_diff, corr_len-corr_diff));
+
+            for (int i = 1; i < out_len; i++) {
+                R11(i) = R11(i - 1) + cor_fac(i + corr_diff - 1) + cor_fac(i + corr_diff + corr_len - 1) -
+                    cor_fac(i - 1) - cor_fac(i + corr_len - 1);
+                R22(i) = R22(i - 1) + cor_fac(i + corr_len - 1) - cor_fac(i + corr_diff - 1);
+            }
+
+
+        }
 
     }
 }
