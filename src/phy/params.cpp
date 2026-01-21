@@ -78,23 +78,59 @@ namespace openldacs::phy::params {
     }
 
     void SyncParam::frame_sync(const itpp::cvec &input) {
-        int up_corr_len1 =  upsample_rate * corr_len1;
-        int up_corr_diff1 =  upsample_rate * corr_diff1;
-        int up_corr_len2 =  upsample_rate * corr_len2;
-        int up_corr_diff2 =  upsample_rate * corr_diff2;
-        int sync_offset = (config::n_g + config::n_ws / 4) * upsample_rate;
-        sync_correlation(input, up_corr_len1, up_corr_diff1);
+        const int up_corr_len1 =  upsample_rate * corr_len1;
+        const int up_corr_diff1 =  upsample_rate * corr_diff1;
+        const int up_corr_len2 =  upsample_rate * corr_len2;
+        const int up_corr_diff2 =  upsample_rate * corr_diff2;
+        const int sync_offset = (config::n_g + config::n_ws / 4) * upsample_rate;
+
+        itpp::vec pre_M1;
+        itpp::vec pre_angle_metric1;
+        itpp::vec pre_M2;
+        itpp::vec pre_angle_metric2;
+
+        sync_correlation(input, up_corr_len1, up_corr_diff1, pre_M1, pre_angle_metric1);
+        sync_correlation(input, up_corr_len2, up_corr_diff2, pre_M2, pre_angle_metric2);
+
+        M1.set_length(pre_M1.length());
+        M1.zeros();
+        M1.set_subvector(sync_offset, pre_M1.left(pre_M1.length() - sync_offset));
+
+        angle1.set_length(pre_angle_metric1.length());
+        angle1.zeros();
+        angle1.set_subvector(sync_offset, pre_angle_metric1.left(pre_angle_metric1.length() - sync_offset));
+
+        M2.set_length(pre_M2.length());
+        M2.zeros();
+        M2.set_subvector(sync_offset, pre_M2.left(pre_M2.length() - sync_offset));
+
+        angle2.set_length(pre_angle_metric2.length());
+        angle2.zeros();
+        angle2.set_subvector(sync_offset, pre_angle_metric2.left(pre_angle_metric2.length() - sync_offset));
+
+        freq1 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff1 / (2 * M_PI) * angle1;
+        freq2 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff2 / (2 * M_PI) * angle2;
+    }
+
+    void SyncParam::find_peeks() {
+
+    }
+
+    void SyncParam::find_sync_instances() {
+        find_peeks()
     }
 
     void SyncParam::coarse_sync(const itpp::cvec &input) {
+
         frame_sync(input);
+
     }
 
 
-    void SyncParam::sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff) {
+    void SyncParam::sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
         const int out_len = input.size() - corr_len - corr_diff;
         itpp::cvec P = itpp::zeros_c(out_len);
-        itpp::cvec R = itpp::zeros_c(out_len);
+        itpp::vec R = itpp::zeros(out_len);
 
         itpp::cvec vec_1 = input.left(input.length() - corr_diff);
         itpp::cvec vec_2 = input.right(input.length() - corr_diff);
@@ -115,12 +151,13 @@ namespace openldacs::phy::params {
         //     ofs << i << "," << v(i) << "\n";
         // }
 
-        itpp::vec angle = itpp::angle(P);
+        angle_metric = itpp::angle(P);
 
         {
-            itpp::vec cor_fac = pow(abs(P), 2.0);
-            itpp::cvec R11 = itpp::zeros_c(R.length());
-            itpp::cvec R22 = itpp::zeros_c(R.length());
+            itpp::vec cor_fac =  itpp::sqr(abs(input));
+
+            itpp::vec R11 = itpp::zeros(R.length());
+            itpp::vec R22 = itpp::zeros(R.length());
             R11(0) = itpp::sum(cor_fac.left(corr_diff)) + itpp::sum(cor_fac.mid(corr_len, corr_diff));
             R22(0) = itpp::sum(cor_fac.mid(corr_diff, corr_len-corr_diff));
 
@@ -130,8 +167,9 @@ namespace openldacs::phy::params {
                 R22(i) = R22(i - 1) + cor_fac(i + corr_len - 1) - cor_fac(i + corr_diff - 1);
             }
 
-
+            R = 0.5 * R11 + R22;
         }
 
+        M = itpp::elem_div(itpp::sqr(abs(P)) ,itpp::sqr(R));
     }
 }

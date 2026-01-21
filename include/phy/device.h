@@ -93,12 +93,21 @@ namespace openldacs::phy::device {
                         fl_vec = fl_to_trans_.pop();
 
                         if (fl_vec.has_value()) {
-                            itpp::cvec to_sync_frame = itpp::zeros_c(16200);
+                            // 生成高斯白噪声替代原来的补零
+                            itpp::cvec to_sync_frame(16200);
+                            std::random_device rd;
+                            std::mt19937 gen(rd());
+                            std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+
+                            for (int i = 0; i < 16200; i++) {
+                                to_sync_frame(i) = std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                            }
 
                             const int test_frame_start = 3400;
                             for (int i = 0; i < fl_vec->size(); i++) {
-                                to_sync_frame(test_frame_start+ i) = fl_vec.value()[i];
+                                to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
                             }
+
 
                             synchronisation(to_sync_frame);
                         }

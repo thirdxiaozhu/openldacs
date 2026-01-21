@@ -67,10 +67,22 @@ namespace openldacs::phy::params {
         int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
 
+        itpp::vec M1;
+        itpp::vec M2;
+        itpp::vec angle1;
+        itpp::vec angle2;
+        itpp::vec freq1;
+        itpp::vec freq2;
+
+
         void coarse_sync(const itpp::cvec &input);
+    private:
+        void find_peeks();
         void frame_sync(const itpp::cvec &input);
-        void sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff);
+        void find_sync_instances();
+        void sync_correlation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
     };
+
 
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };
