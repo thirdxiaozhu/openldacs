@@ -104,6 +104,14 @@ namespace openldacs::phy::params {
         M2.zeros();
         M2.set_subvector(sync_offset, pre_M2.left(pre_M2.length() - sync_offset));
 
+        // itpp::vec v = abs(M1);
+        // std::filesystem::create_directories("dump");
+        // std::ofstream ofs("dump/corr_peak.csv");
+        // for (int i = 0; i < v.length(); ++i) {
+        //     ofs << i << "," << v(i) << "\n";
+        // }
+
+
         angle2.set_length(pre_angle_metric2.length());
         angle2.zeros();
         angle2.set_subvector(sync_offset, pre_angle_metric2.left(pre_angle_metric2.length() - sync_offset));
@@ -112,17 +120,97 @@ namespace openldacs::phy::params {
         freq2 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff2 / (2 * M_PI) * angle2;
     }
 
-    void SyncParam::find_peeks() {
+    void SyncParam::find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
+        // std::vector<int> peak_indices;
+        // std::vector<double> peak_values;
+        const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * upsample_rate));
+
+        std::vector<int> peak_ind_all;
+        for (int i = 0; i < M1.size(); ++i) {
+            if (M1(i) > threshold_peek) {
+                peak_ind_all.push_back(i);
+            }
+        }
+
+        while (peak_ind_all.size() > 0) {
+            int start = peak_ind_all[0];
+            int end = std::min(start + min_dist, M1.size() - 1);
+
+            double peak_value = M1(start);
+            int peak_ind = start;
+            for (int i = start; i <= end; ++i) {
+                if (M1(i) > peak_value) {
+                    peak_value = M1(i);
+                    peak_ind = i;
+                }
+            }
+
+            peak_indices.push_back(peak_ind);
+            peak_values.push_back(peak_value);
+
+            // 往后查找
+            std::vector<int> filtered;
+            filtered.reserve(peak_ind_all.size());
+            for (int idx : peak_ind_all) {
+                if (idx > end) {
+                    filtered.push_back(idx);
+                }
+            }
+            peak_ind_all.swap(filtered);
+        }
+        //
+        // for (int i = 0; i < peak_indices.size(); ++i) {
+        //     std::cout << peak_indices[i] << " " << peak_values[i] << std::endl;
+        // }
+        // std::cout << std::endl;
 
     }
 
+    void SyncParam::find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
+        const int relation_value = 0.7;
+        double peak_value = 0.0;
+        int peak_ind = 0;
+        // get_peak(M1, )
+
+    }
+
+    void get_peak(const itpp::vec &input, const std::vector<int> &interval, double &peak_value, int &peak_ind) {
+        // Filter interval to [0, input_vec.size()-1]
+        std::vector<int> valid;
+        valid.reserve(interval.size());
+        for (int idx : interval) {
+            if (idx >= 0 && idx < input.size()) {
+                valid.push_back(idx);
+            }
+        }
+
+        if (!valid.empty()) {
+            peak_value = input(valid[0]);
+            peak_ind = valid[0];
+            for (int idx : valid) {
+                if (input(idx) > peak_value) {
+                    peak_value = input(idx);
+                    peak_ind = idx;
+                }
+            }
+        } else {
+            peak_value = 0.0;
+            peak_ind = 0;
+        }
+    }
+
     void SyncParam::find_sync_instances() {
-        find_peeks()
+
+        std::vector<int> peak_indices;
+        std::vector<double> peak_values;
+
+        find_peaks(peak_indices,peak_values);
     }
 
     void SyncParam::coarse_sync(const itpp::cvec &input) {
 
         frame_sync(input);
+        find_sync_instances();
 
     }
 
@@ -143,13 +231,6 @@ namespace openldacs::phy::params {
                 P(i) = P(i - 1) + corr_vec(i + corr_len - 1) - corr_vec(i - 1);
             }
         }
-
-        // itpp::vec v = abs(P);
-        // std::filesystem::create_directories("dump");
-        // std::ofstream ofs("dump/corr_peak.csv");
-        // for (int i = 0; i < v.length(); ++i) {
-        //     ofs << i << "," << v(i) << "\n";
-        // }
 
         angle_metric = itpp::angle(P);
 

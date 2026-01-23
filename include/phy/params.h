@@ -66,6 +66,7 @@ namespace openldacs::phy::params {
 
         int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
+        double threshold_peek = 0.4;
 
         itpp::vec M1;
         itpp::vec M2;
@@ -74,10 +75,11 @@ namespace openldacs::phy::params {
         itpp::vec freq1;
         itpp::vec freq2;
 
-
         void coarse_sync(const itpp::cvec &input);
     private:
-        void find_peeks();
+        void find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
+        void find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values);
+        void get_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void frame_sync(const itpp::cvec &input);
         void find_sync_instances();
         void sync_correlation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
