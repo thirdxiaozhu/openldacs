@@ -128,7 +128,7 @@ namespace openldacs::phy::params {
 
         std::vector<int> peak_ind_all;
         for (int i = 0; i < M1.size(); ++i) {
-            if (M1(i) > threshold_peek) {
+            if (M1(i) > threshold_peak) {
                 peak_ind_all.push_back(i);
             }
         }
@@ -231,13 +231,60 @@ namespace openldacs::phy::params {
             int peak_ind3 = 0;
             get_peak(M2, peak_ind2-tol, peak_ind2+tol, peak_value3, peak_ind3);
 
+            //   time synchronization
+            double reliable_peak = std::round(
+                ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind2 * peak_value2 + peak_ind3 *
+                 peak_value3) / (peak_values[0] + peak_value2 + peak_value3));
 
+            //   freq synchronization
+            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind2) * peak_value2 +
+                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value2 + peak_value3);
+
+            if (peak_indices.size() >= 1) {
+                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
+            }
+            if (peak_values.size() >= 1) {
+                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
+            }
 
         }else {
+            double peak_value3 = 0.0;
+            int peak_ind3 = 0;
+            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
+            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > threshold_peak) {
+                //   time synchronization
+                double reliable_peak = std::round(
+                    (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
+                        peak_values[0] + peak_value3));
+
+                //   freq synchronization
+                double peak_freq = (freq1(peak_indices[0]) * peak_values[0] +
+                                    freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
+            }else {
+                get_peak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
+                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > threshold_peak) {
+
+                    //   time synchronization
+                    double reliable_peak = std::round(
+                        ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind1*peak_value1 + peak_ind3 * peak_value3) / (
+                            peak_values[0] + peak_value1 + peak_value3));
+
+                    //   freq synchronization
+                    double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
+                                        freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
+                }else {
+                    double reliable_peak = peak_indices[0] - nom_dist;
+                    double peak_freq = freq1(peak_indices[0]);
+                }
+            }
+            if (peak_indices.size() >= 1) {
+                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
+            }
+            if (peak_values.size() >= 1) {
+                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
+            }
         }
-
-
 
     }
 

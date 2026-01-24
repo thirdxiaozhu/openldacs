@@ -66,7 +66,7 @@ namespace openldacs::phy::params {
 
         int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
-        double threshold_peek = 0.4;
+        double threshold_peak = 0.4;
 
         itpp::vec M1;
         itpp::vec M2;
