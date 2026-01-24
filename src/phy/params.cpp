@@ -118,6 +118,7 @@ namespace openldacs::phy::params {
 
         freq1 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff1 / (2 * M_PI) * angle1;
         freq2 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff2 / (2 * M_PI) * angle2;
+
     }
 
     void SyncParam::find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
@@ -167,14 +168,91 @@ namespace openldacs::phy::params {
     }
 
     void SyncParam::find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
-        const int relation_value = 0.7;
-        double peak_value = 0.0;
-        int peak_ind = 0;
-        // get_peak(M1, )
+        constexpr double relation_value = 0.7;
+        const int nom_dist = (config::n_fft + config::n_cp) * upsample_rate;
+        const int tol = config::n_cp * upsample_rate;
+
+        double peak_value1 = 0.0;
+        int peak_ind1 = 0;
+        get_peak(M1, peak_indices[0]-tol+nom_dist, peak_indices[0]+tol+nom_dist, peak_value1, peak_ind1);
+        double peak_value2 = 0.0;
+        int peak_ind2 = 0;
+        get_peak(M1, peak_indices[0]-tol-nom_dist, peak_indices[0]+tol-nom_dist, peak_value2, peak_ind2);
+
+        SPDLOG_INFO("{} {}", peak_value2, peak_ind2);
+
+        // both peaks above the threshold
+        if (peak_indices.size() > 1 && std::abs(peak_indices[1] - peak_indices[0] - nom_dist) < tol) {
+            // look for peak of second correlation
+            double peak_value3 = 0.0;
+            int peak_ind3 = 0;
+            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
+
+            //   time synchronization
+            double reliable_peak = std::round(
+                (peak_indices[0] * peak_values[0] + (peak_indices[1] - nom_dist) * peak_values[1] + peak_ind3 *
+                 peak_value3) / (peak_values[0] + peak_values[1] + peak_value3));
+
+            //   freq synchronization
+            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_values[1] +
+                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_values[1] + peak_value3);
+
+            if (peak_indices.size() >= 2) {
+                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 2);
+            }
+            if (peak_values.size() >= 2) {
+                peak_values.erase(peak_values.begin(), peak_values.begin() + 2);
+            }
+
+            // second peak above relation_value*first peak at +nom_dist
+        }else if (peak_indices.size() > 1 && peak_value1 > relation_value * peak_values[0]) {
+            double peak_value3 = 0.0;
+            int peak_ind3 = 0;
+            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
+
+            //   time synchronization
+            double reliable_peak = std::round(
+                (peak_indices[0] * peak_values[0] + (peak_ind1 - nom_dist) * peak_value1 + peak_ind3 *
+                 peak_value3) / (peak_values[0] + peak_value1 + peak_value3));
+
+            //   freq synchronization
+            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_value1 +
+                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
+
+            if (peak_indices.size() >= 1) {
+                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
+            }
+            if (peak_values.size() >= 1) {
+                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
+            }
+        }else if (peak_value2 > relation_value * peak_values[0]) {
+
+            double peak_value3 = 0.0;
+            int peak_ind3 = 0;
+            get_peak(M2, peak_ind2-tol, peak_ind2+tol, peak_value3, peak_ind3);
+
+
+
+        }else {
+
+        }
+
+
 
     }
 
-    void get_peak(const itpp::vec &input, const std::vector<int> &interval, double &peak_value, int &peak_ind) {
+    void SyncParam::get_peak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
+        std::vector<int> interval;
+
+        for (int i = start; i <= end; ++i) {
+            interval.push_back(i);
+        }
+
+        // for (const int aa: interval) {
+        //     std::cout << aa << " ";
+        // }
+        // std::cout << std::endl;
+
         // Filter interval to [0, input_vec.size()-1]
         std::vector<int> valid;
         valid.reserve(interval.size());
@@ -187,7 +265,7 @@ namespace openldacs::phy::params {
         if (!valid.empty()) {
             peak_value = input(valid[0]);
             peak_ind = valid[0];
-            for (int idx : valid) {
+            for (const int idx : valid) {
                 if (input(idx) > peak_value) {
                     peak_value = input(idx);
                     peak_ind = idx;
@@ -205,6 +283,7 @@ namespace openldacs::phy::params {
         std::vector<double> peak_values;
 
         find_peaks(peak_indices,peak_values);
+        find_reliable_peak(peak_indices,peak_values);
     }
 
     void SyncParam::coarse_sync(const itpp::cvec &input) {

@@ -79,7 +79,8 @@ namespace openldacs::phy::params {
     private:
         void find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values);
-        void get_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values);
+
+        void get_peak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
         void frame_sync(const itpp::cvec &input);
         void find_sync_instances();
         void sync_correlation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
