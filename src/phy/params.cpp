@@ -334,8 +334,6 @@ namespace openldacs::phy::params {
 
         findPeaks(peak_indices,peak_values);
 
-        std::cout << peak_values << std::endl;
-
         while (!peak_indices.empty()) {
             double reliable_peak = 0.0;
             double freq_peak = 0.0;
@@ -418,9 +416,12 @@ namespace openldacs::phy::params {
         itpp::vec t_tra = itpp::zeros(t_coarse.size());
         itpp::vec f_tra = itpp::zeros(f_coarse.size());
 
-        for (int i = 0; i < t_tra.size(); ++i) {
-            if (t_tra(i) + )
-        }
+        std::cout << t_coarse << std::endl;
+        std::cout << f_coarse << std::endl;
+
+        // for (int i = 0; i < t_tra.size(); ++i) {
+        //     // if (t_tra(i) + )
+        // }
     }
 
     void SyncParam::coarseSync(const itpp::cvec &input) {
