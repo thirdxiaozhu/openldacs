@@ -8,10 +8,13 @@
 #include <fstream>
 #include <itpp/base/matfunc.h>
 #include <itpp/base/specmat.h>
+#include <itpp/base/svec.h>
 
 #include "phy/fl.h"
 
 namespace openldacs::phy::params {
+    using namespace openldacs::util;
+
     CodingParams CodingTable::setCodingParams(CodingKey key, CHANNEL ch) const {
         CodingParams params = get_initial_coding_param(key, ch);
 
@@ -77,7 +80,7 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::frame_sync(const itpp::cvec &input) {
+    void SyncParam::frameSync(const itpp::cvec &input) {
         const int up_corr_len1 =  upsample_rate * corr_len1;
         const int up_corr_diff1 =  upsample_rate * corr_diff1;
         const int up_corr_len2 =  upsample_rate * corr_len2;
@@ -89,8 +92,8 @@ namespace openldacs::phy::params {
         itpp::vec pre_M2;
         itpp::vec pre_angle_metric2;
 
-        sync_correlation(input, up_corr_len1, up_corr_diff1, pre_M1, pre_angle_metric1);
-        sync_correlation(input, up_corr_len2, up_corr_diff2, pre_M2, pre_angle_metric2);
+        syncCorrelation(input, up_corr_len1, up_corr_diff1, pre_M1, pre_angle_metric1);
+        syncCorrelation(input, up_corr_len2, up_corr_diff2, pre_M2, pre_angle_metric2);
 
         M1.set_length(pre_M1.length());
         M1.zeros();
@@ -121,7 +124,7 @@ namespace openldacs::phy::params {
 
     }
 
-    void SyncParam::find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
+    void SyncParam::findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
         // std::vector<int> peak_indices;
         // std::vector<double> peak_values;
         const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * upsample_rate));
@@ -167,34 +170,34 @@ namespace openldacs::phy::params {
 
     }
 
-    void SyncParam::find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
+    void SyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
         constexpr double relation_value = 0.7;
         const int nom_dist = (config::n_fft + config::n_cp) * upsample_rate;
         const int tol = config::n_cp * upsample_rate;
 
         double peak_value1 = 0.0;
         int peak_ind1 = 0;
-        get_peak(M1, peak_indices[0]-tol+nom_dist, peak_indices[0]+tol+nom_dist, peak_value1, peak_ind1);
+        getPeak(M1, peak_indices[0]-tol+nom_dist, peak_indices[0]+tol+nom_dist, peak_value1, peak_ind1);
         double peak_value2 = 0.0;
         int peak_ind2 = 0;
-        get_peak(M1, peak_indices[0]-tol-nom_dist, peak_indices[0]+tol-nom_dist, peak_value2, peak_ind2);
+        getPeak(M1, peak_indices[0]-tol-nom_dist, peak_indices[0]+tol-nom_dist, peak_value2, peak_ind2);
 
-        SPDLOG_INFO("{} {}", peak_value2, peak_ind2);
+        // SPDLOG_INFO("{} {}", peak_value2, peak_ind2);
 
         // both peaks above the threshold
         if (peak_indices.size() > 1 && std::abs(peak_indices[1] - peak_indices[0] - nom_dist) < tol) {
             // look for peak of second correlation
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
-            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
+            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
             //   time synchronization
-            double reliable_peak = std::round(
+            reliable_peak = std::round(
                 (peak_indices[0] * peak_values[0] + (peak_indices[1] - nom_dist) * peak_values[1] + peak_ind3 *
                  peak_value3) / (peak_values[0] + peak_values[1] + peak_value3));
 
             //   freq synchronization
-            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_values[1] +
+            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_values[1] +
                                 freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_values[1] + peak_value3);
 
             if (peak_indices.size() >= 2) {
@@ -208,87 +211,87 @@ namespace openldacs::phy::params {
         }else if (peak_indices.size() > 1 && peak_value1 > relation_value * peak_values[0]) {
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
-            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
+            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
             //   time synchronization
-            double reliable_peak = std::round(
+            reliable_peak = std::round(
                 (peak_indices[0] * peak_values[0] + (peak_ind1 - nom_dist) * peak_value1 + peak_ind3 *
                  peak_value3) / (peak_values[0] + peak_value1 + peak_value3));
 
             //   freq synchronization
-            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_value1 +
+            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_value1 +
                                 freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
 
-            if (peak_indices.size() >= 1) {
+            if (!peak_indices.empty()) {
                 peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
             }
-            if (peak_values.size() >= 1) {
+            if (!peak_values.empty()) {
                 peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
             }
         }else if (peak_value2 > relation_value * peak_values[0]) {
 
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
-            get_peak(M2, peak_ind2-tol, peak_ind2+tol, peak_value3, peak_ind3);
+            getPeak(M2, peak_ind2-tol, peak_ind2+tol, peak_value3, peak_ind3);
 
             //   time synchronization
-            double reliable_peak = std::round(
+            reliable_peak = std::round(
                 ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind2 * peak_value2 + peak_ind3 *
                  peak_value3) / (peak_values[0] + peak_value2 + peak_value3));
 
             //   freq synchronization
-            double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind2) * peak_value2 +
+            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind2) * peak_value2 +
                                 freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value2 + peak_value3);
 
-            if (peak_indices.size() >= 1) {
+            if (!peak_indices.empty()) {
                 peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
             }
-            if (peak_values.size() >= 1) {
+            if (!peak_values.empty()) {
                 peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
             }
 
         }else {
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
-            get_peak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
+            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
             if (peak_value3 > relation_value * peak_values[0] || peak_value3 > threshold_peak) {
                 //   time synchronization
-                double reliable_peak = std::round(
+                reliable_peak = std::round(
                     (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
                         peak_values[0] + peak_value3));
 
                 //   freq synchronization
-                double peak_freq = (freq1(peak_indices[0]) * peak_values[0] +
+                peak_freq = (freq1(peak_indices[0]) * peak_values[0] +
                                     freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
             }else {
-                get_peak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
+                getPeak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
                 if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > threshold_peak) {
 
                     //   time synchronization
-                    double reliable_peak = std::round(
+                    reliable_peak = std::round(
                         ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind1*peak_value1 + peak_ind3 * peak_value3) / (
                             peak_values[0] + peak_value1 + peak_value3));
 
                     //   freq synchronization
-                    double peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
+                    peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
                                         freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
                 }else {
-                    double reliable_peak = peak_indices[0] - nom_dist;
-                    double peak_freq = freq1(peak_indices[0]);
+                    reliable_peak = peak_indices[0] - nom_dist;
+                    peak_freq = freq1(peak_indices[0]);
                 }
             }
-            if (peak_indices.size() >= 1) {
+            if (!peak_indices.empty()) {
                 peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
             }
-            if (peak_values.size() >= 1) {
+            if (!peak_values.empty()) {
                 peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
             }
         }
 
     }
 
-    void SyncParam::get_peak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
+    void SyncParam::getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
         std::vector<int> interval;
 
         for (int i = start; i <= end; ++i) {
@@ -324,24 +327,121 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::find_sync_instances() {
+    void SyncParam::findSyncInstances() {
 
         std::vector<int> peak_indices;
         std::vector<double> peak_values;
 
-        find_peaks(peak_indices,peak_values);
-        find_reliable_peak(peak_indices,peak_values);
+        findPeaks(peak_indices,peak_values);
+
+        std::cout << peak_values << std::endl;
+
+        while (!peak_indices.empty()) {
+            double reliable_peak = 0.0;
+            double freq_peak = 0.0;
+            findReliablePeak(peak_indices,peak_values, reliable_peak, freq_peak);
+
+            t_coarse.push_back(reliable_peak);
+            f_coarse.push_back(freq_peak);
+        }
     }
 
-    void SyncParam::coarse_sync(const itpp::cvec &input) {
+    void SyncParam::evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync) {
 
-        frame_sync(input);
-        find_sync_instances();
+        // int time_offset = 0;
+        // int freq_offset = 0;
+        //
+        // std::vector<int> success_sync_ind()
+
+    }
+
+    void SyncParam::symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const {
+        const int corr_diff = config::n_fft * upsample_rate;
+        const int corr_len = (config::n_g + config::n_ws / 2)  * upsample_rate;
+        const int symbol_bamc = (config::n_fft + config::n_cp) * upsample_rate;
+
+        itpp::cvec P(input.size() - 2 * symbol_bamc);
+        itpp::vec R = itpp::zeros(input.size() - 2 * symbol_bamc);
+
+        // %-------------------------
+        //         %correlation
+        // is performed
+        // %-------------------------
+        itpp::cvec vec_1 = input.left(input.length() - corr_diff);
+        itpp::cvec vec_2 = input.right(input.length() - corr_diff);
+        itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
+
+        // %--------------------------
+        // %iterative calculation of P
+        // %--------------------------
+        P(0) = itpp::sum(corr_vec.left(corr_len));
+        for (int i = 1; i < P.length(); ++i) {
+            P(i) = P(i - 1) + corr_vec(corr_len + i - 1) - corr_vec(i - 1);
+        }
+
+        // %--------------------------
+        // %iterative calculation of R
+        // %--------------------------
+        itpp::vec cor_fac_vec = itpp::sqr(abs(input));
+        R(0) = itpp::sum(cor_fac_vec.left(corr_len)) + itpp::sum(cor_fac_vec.mid(corr_diff, corr_len));
+        for (int i = 1; i < R.length(); ++i) {
+            R(i) = R(i - 1) + cor_fac_vec(corr_len + i - 1) - cor_fac_vec(i - 1) +
+                cor_fac_vec(corr_len + corr_diff + i - 1) - cor_fac_vec(corr_diff + i - 1);
+        }
+        R = R / 2.0;
+
+        // %-----------------
+        // % calculation of M
+        // %-----------------
+        itpp::vec M_pre = itpp::elem_div(itpp::sqr(itpp::abs(P)), itpp::sqr(R));
+        //上限裁剪（clipping）
+        for (int i = 0; i < M_pre.size(); ++i) {
+            if (M_pre(i) > 2.0) M_pre(i) = 2.0;
+        }
+
+        // %-------------------------------
+        // % shift the metric half a symbol
+        // %-------------------------------
+        const int shift = static_cast<int>(std::round(symbol_bamc / 2.0
+                                                      + (config::n_g + config::n_ws / 4.0) * upsample_rate));
+
+        itpp::vec  M_shift = concat(itpp::zeros(shift), M_pre);
+        itpp::cvec P_shift = concat(itpp::zeros_c(shift), P);
+
+        M = M_shift;
+        angle = itpp::angle(P_shift);
+    }
+
+    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle) const {
+        const int symbol_bamc = (config::n_fft + config::n_cp) * upsample_rate;
+
+        itpp::vec t_tra = itpp::zeros(t_coarse.size());
+        itpp::vec f_tra = itpp::zeros(f_coarse.size());
+
+        for (int i = 0; i < t_tra.size(); ++i) {
+            if (t_tra(i) + )
+        }
+    }
+
+    void SyncParam::coarseSync(const itpp::cvec &input) {
+        frameSync(input);
+
+        findSyncInstances();
+        // 真实场景下用不到
+        //eval_results_fl(t_sync, f_sync);
 
     }
 
 
-    void SyncParam::sync_correlation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
+    void SyncParam::fineSync(const itpp::cvec &input) {
+        itpp::vec M;
+        itpp::vec angle_P;
+        symbolSync(input, M, angle_P);
+        fineSyncCalc(M, angle_P);
+    }
+
+
+    void SyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
         const int out_len = input.size() - corr_len - corr_diff;
         itpp::cvec P = itpp::zeros_c(out_len);
         itpp::vec R = itpp::zeros(out_len);

@@ -75,15 +75,23 @@ namespace openldacs::phy::params {
         itpp::vec freq1;
         itpp::vec freq2;
 
-        void coarse_sync(const itpp::cvec &input);
-    private:
-        void find_peaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
-        void find_reliable_peak(std::vector<int> &peak_indices, std::vector<double> &peak_values);
+        std::vector<double> t_coarse;
+        std::vector<double> f_coarse;
 
-        void get_peak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
-        void frame_sync(const itpp::cvec &input);
-        void find_sync_instances();
-        void sync_correlation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
+        void coarseSync(const itpp::cvec &input);
+        void fineSync(const itpp::cvec &input);
+    private:
+        void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
+        void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
+
+        void getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
+        void frameSync(const itpp::cvec &input);
+        void findSyncInstances();
+        void evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync);
+        void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
+
+        void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle) const;
     };
 
 

@@ -12,7 +12,8 @@
 namespace openldacs::phy::device {
 
         void Device::synchronisation(const itpp::cvec &input) {
-                sync_param_.coarse_sync(input);
+                sync_param_.coarseSync(input);
+                sync_param_.fineSync(input);
         }
 
         void USRP::setupDevice() {
