@@ -148,6 +148,7 @@ namespace openldacs::phy::params {
         // 初始参数
         int a = 0, b = 0;                       // a / b
         int joint_frame = 0;
+        int n_pdus = 0;
         HelicalInterleaverParams h_inter_params;
         RSCoderParams rs_params;
         ConvCodingParams conv_params{};
@@ -156,7 +157,7 @@ namespace openldacs::phy::params {
         int cc_cod = 1;
         int interleaver = 1;
 
-        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)) {
+        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params, int n_pdus): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)),n_pdus(n_pdus) {
         }
     };
 
@@ -182,7 +183,7 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R12, 1},
-                CodingParams{HelicalInterleaverParams(43, 28) , RSCoderParams(74, 66)}
+                CodingParams{HelicalInterleaverParams(43, 28) , RSCoderParams(74, 66), 1}
             }
         }
     };
@@ -191,7 +192,7 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R12, 1},
-                CodingParams{HelicalInterleaverParams(40, 56) , RSCoderParams(139, 125)}
+                CodingParams{HelicalInterleaverParams(40, 56) , RSCoderParams(139, 125), 1}
             }
         }
     };
@@ -200,27 +201,27 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R12, 2},
-                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(101, 91)}
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(101, 91), 3}
             },
             {
                 {CMS::QPSK_R12, 3},
-                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(101, 91)}
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(101, 91), 3}
             },
             {
                 {CMS::QPSK_R23, 2},
-                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(134, 120)}
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(134, 120), 3}
             },
             {
                 {CMS::QPSK_R23, 3},
-                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(134, 120)}
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(134, 120), 3}
             },
             {
                 {CMS::QPSK_R34, 2},
-                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(151, 135)}
+                CodingParams{HelicalInterleaverParams(132, 74) , RSCoderParams(151, 135), 3}
             },
             {
                 {CMS::QPSK_R34,  3},
-                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(151, 135)}
+                CodingParams{HelicalInterleaverParams(111, 132) , RSCoderParams(151, 135), 3}
             }
         }
     };

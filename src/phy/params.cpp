@@ -51,7 +51,7 @@ namespace openldacs::phy::params {
         SPDLOG_INFO("N_bits_before_cc_frame: {}; N_bits_after_RS: {}", bits_before_cc_frame, params.rs_params.bits_after_rs);
 
         //conv coding params
-        params.conv_params.bits_before_cc = params.rs_params.bits_after_rs * 3 * joint_frame;
+        params.conv_params.bits_before_cc = params.rs_params.bits_after_rs * params.n_pdus * joint_frame;
         const double bits_coded_double = static_cast<double>((params.conv_params.bits_before_cc + params.term_bits)) / (static_cast<double>(params.a) / (static_cast<double>(params.b)));
         params.conv_params.bits_coded = std::ceil(bits_coded_double);
         SPDLOG_INFO("N_bits_before_cc: {}; N_pad_coded: {}", params.conv_params.bits_before_cc, params.conv_params.bits_coded);
