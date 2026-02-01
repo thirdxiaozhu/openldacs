@@ -113,23 +113,23 @@ namespace openldacs::phy::params {
         std::vector<double> t_coarse;
         std::vector<double> f_coarse;
 
-        // void synchronisation(const itpp::cvec &input){
-        //     coarseSync(input);
-        //     fineSync(input);
-        //
-        //     switch (sync_state_.get_state()) {
-        //         case SyncState::ACQUIRE:
-        //             // ACQUIRE用来做BC1-BC2-BC3的同步
-        //             // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
-        //             // 对BC帧进行精同步，完成后状态机转换为TRACK
-        //             frameSync(input);
-        //             break;
-        //         case SyncState::TRACK:
-        //             // 无需做粗同步，直接根据帧长找同步点，并进行精同步
-        //             sync_state_.set_state(SyncState::ACQUIRE);
-        //             break;
-        //     }
-        // }
+        void synchronisation(const itpp::cvec &input){
+            coarseSync(input);
+            fineSync(input);
+
+            // switch (sync_state_.get_state()) {
+            //     case SyncState::ACQUIRE:
+            //         // ACQUIRE用来做BC1-BC2-BC3的同步
+            //         // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
+            //         // 对BC帧进行精同步，完成后状态机转换为TRACK
+            //         frameSync(input);
+            //         break;
+            //     case SyncState::TRACK:
+            //         // 无需做粗同步，直接根据帧长找同步点，并进行精同步
+            //         sync_state_.set_state(SyncState::ACQUIRE);
+            //         break;
+            // }
+        }
 
         void coarseSync(const itpp::cvec &input);
         void fineSync(const itpp::cvec &input);
@@ -146,7 +146,7 @@ namespace openldacs::phy::params {
         void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
 
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
-        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle) const;
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int n_ofdm_symb) const;
     };
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };

@@ -410,14 +410,28 @@ namespace openldacs::phy::params {
         angle = itpp::angle(P_shift);
     }
 
-    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle) const {
-        const int symbol_bamc = (config::n_fft + config::n_cp) * upsample_rate;
+    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const int n_ofdm_symb) const {
+        const int symb_bamc = (config::n_fft + config::n_cp) * upsample_rate;
 
         itpp::vec t_tra = itpp::zeros(t_coarse.size());
         itpp::vec f_tra = itpp::zeros(f_coarse.size());
 
         std::cout << t_coarse << std::endl;
         std::cout << f_coarse << std::endl;
+
+        for (int i = 0; i < t_coarse.size(); ++i) {
+            const int frame_len = n_ofdm_symb * symb_bamc;
+            const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
+            int end_idx = start_idx + frame_len;
+
+
+            std::vector<double> temp_M;
+            std::vector<double> temp_angle_P;
+
+            if (t_coarse[i] + n_ofdm_symb * symb_bamc - 1 <= M.size()) {
+
+            }
+        }
 
         // for (int i = 0; i < t_tra.size(); ++i) {
         //     // if (t_tra(i) + )
@@ -439,7 +453,7 @@ namespace openldacs::phy::params {
         itpp::vec M;
         itpp::vec angle_P;
         symbolSync(input, M, angle_P);
-        fineSyncCalc(M, angle_P);
+        fineSyncCalc(M, angle_P, n_fl_ofdm_symb);
     }
 
 
