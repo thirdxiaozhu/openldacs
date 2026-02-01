@@ -62,8 +62,6 @@ namespace openldacs::phy::device {
 
         virtual void setupDevice() = 0;
 
-        // sync
-        void synchronisation(const itpp::cvec &input);
     private:
 
     };
@@ -108,8 +106,7 @@ namespace openldacs::phy::device {
                                 to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
                             }
 
-
-                            synchronisation(to_sync_frame);
+                            sync_param_.synchronisation(to_sync_frame);
                         }
 
 

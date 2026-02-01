@@ -13,6 +13,7 @@
 #include  "util/util.h"
 
 namespace openldacs::phy::params {
+
     using cd = std::complex<double>;
 
     inline constexpr std::array<uint8_t, 412> random_output = {
@@ -40,6 +41,13 @@ namespace openldacs::phy::params {
         0x82, 0xF1, 0x0E, 0x26, 0x24, 0xD4, 0xDA, 0xFA, 0xDE, 0x1E, 0xC4, 0x46, 0x99, 0x97, 0x55, 0x73, 0xFF, 0x28,
         0x02, 0xF0, 0x0E, 0x20, 0x24, 0xC0, 0xDA, 0x82, 0xDF, 0x0E, 0xC2, 0x26, 0x8C, 0xD7, 0x2A, 0xF2,
     };
+
+    static constexpr std::size_t n_bc13_ofdm_symb = 15;
+    static constexpr std::size_t n_bc2_ofdm_symb = 26;
+    static constexpr std::size_t n_fl_ofdm_symb = 54;
+
+    enum class SyncState { ACQUIRE, TRACK };
+
     struct FrameInfo {
         std::vector<int> data_ind;
         std::vector<int> pilot_ind;
@@ -57,7 +65,34 @@ namespace openldacs::phy::params {
         itpp::cmat frame;
     };
 
-    struct SyncParam {
+    class SyncStateMachine {
+    public:
+        explicit SyncStateMachine() {
+            schedule.push_back(n_bc13_ofdm_symb);
+            schedule.push_back(n_bc2_ofdm_symb);
+            schedule.push_back(n_bc13_ofdm_symb);
+            for (int i = 0; i < 36; i++)    schedule.push_back(n_fl_ofdm_symb);
+        }
+
+        void reset() {
+            state_ = SyncState::ACQUIRE;
+        }
+
+        void set_state(SyncState new_state) {
+            state_ = new_state;
+        }
+
+        SyncState get_state() {
+            return state_;
+        }
+
+    private:
+        std::vector<int> schedule;
+        SyncState state_ = SyncState::ACQUIRE;
+    };
+
+    class SyncParam {
+    public:
         int corr_len1 = config::n_fft / 2 + config::n_g + config::n_ws / 2;
         int corr_diff1 = config::n_fft / 2;
 
@@ -78,9 +113,29 @@ namespace openldacs::phy::params {
         std::vector<double> t_coarse;
         std::vector<double> f_coarse;
 
+        // void synchronisation(const itpp::cvec &input){
+        //     coarseSync(input);
+        //     fineSync(input);
+        //
+        //     switch (sync_state_.get_state()) {
+        //         case SyncState::ACQUIRE:
+        //             // ACQUIRE用来做BC1-BC2-BC3的同步
+        //             // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
+        //             // 对BC帧进行精同步，完成后状态机转换为TRACK
+        //             frameSync(input);
+        //             break;
+        //         case SyncState::TRACK:
+        //             // 无需做粗同步，直接根据帧长找同步点，并进行精同步
+        //             sync_state_.set_state(SyncState::ACQUIRE);
+        //             break;
+        //     }
+        // }
+
         void coarseSync(const itpp::cvec &input);
         void fineSync(const itpp::cvec &input);
     private:
+        SyncStateMachine sync_state_;
+
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
 
@@ -93,8 +148,6 @@ namespace openldacs::phy::params {
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
         void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle) const;
     };
-
-
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };
     enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };

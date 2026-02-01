@@ -11,11 +11,6 @@
 
 namespace openldacs::phy::device {
 
-        void Device::synchronisation(const itpp::cvec &input) {
-                sync_param_.coarseSync(input);
-                sync_param_.fineSync(input);
-        }
-
         void USRP::setupDevice() {
                 const std::vector<size_t> channels = {AS_CHANNEL, GS_CHANNEL};
 

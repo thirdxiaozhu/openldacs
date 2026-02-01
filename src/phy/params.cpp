@@ -424,6 +424,7 @@ namespace openldacs::phy::params {
         // }
     }
 
+
     void SyncParam::coarseSync(const itpp::cvec &input) {
         frameSync(input);
 

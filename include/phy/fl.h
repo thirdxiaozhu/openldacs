@@ -151,8 +151,6 @@ namespace openldacs::phy::link::fl {
                          -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
     };
 
-
-
     inline const std::vector<std::vector<int>> pilot_sets = {
         {pilot_set1.begin(), pilot_set1.end()},
         {pilot_set2.begin(), pilot_set2.end()},
@@ -440,7 +438,6 @@ namespace openldacs::phy::link::fl {
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-        static constexpr std::size_t n_bc13_ofdm_symb = 15;
         void initCodingTable() override {
             coding_table_.initCodingTable({
                                               {CMS::QPSK_R12, 1},
@@ -461,7 +458,6 @@ namespace openldacs::phy::link::fl {
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
     private:
-        static constexpr std::size_t n_bc2_ofdm_symb = 26;
         void initCodingTable() override {
             coding_table_.initCodingTable({
                                               {CMS::QPSK_R12, 1},
@@ -476,14 +472,13 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
-            buildFrame(n_fl_ofdm_symb_);
+            buildFrame(n_fl_ofdm_symb);
             initCodingTable();
         }
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
 
     private:
-        static constexpr std::size_t n_fl_ofdm_symb_ = 54;
         // static constexpr std::size_t n_frames_ = 9;
 
         void initCodingTable() override {
