@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "config.h"
-#include "openldacs.h"
+#include "OpenLdacs.h"
 #include "util/reed_solomon.h"
 #include  "util/util.h"
 
@@ -113,9 +113,19 @@ namespace openldacs::phy::params {
         std::vector<double> t_coarse;
         std::vector<double> f_coarse;
 
+        std::vector<double> t_fine;
+        std::vector<double> f_fine;
+
         void synchronisation(const itpp::cvec &input){
             coarseSync(input);
-            fineSync(input);
+
+            constexpr int ofdm_symb = 54;
+
+            fineSync(input, ofdm_symb);
+            correct_transfer_function(ofdm_symb);
+
+            blanking_block(input, ofdm_symb);
+
 
             // switch (sync_state_.get_state()) {
             //     case SyncState::ACQUIRE:
@@ -132,7 +142,9 @@ namespace openldacs::phy::params {
         }
 
         void coarseSync(const itpp::cvec &input);
-        void fineSync(const itpp::cvec &input);
+        void fineSync(const itpp::cvec &input, int ofdm_symb);
+        void correct_transfer_function(int ofdm_symb);
+        void blanking_block(const itpp::cvec &input, int ofdm_symb);
     private:
         SyncStateMachine sync_state_;
 
@@ -146,7 +158,9 @@ namespace openldacs::phy::params {
         void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
 
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
-        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int n_ofdm_symb) const;
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int ofdm_symb);
+
+        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t_fine, std::vector<double> f_fine, int ofdm_symb, itpp::cvec &data_time);
     };
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };

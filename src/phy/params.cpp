@@ -410,32 +410,69 @@ namespace openldacs::phy::params {
         angle = itpp::angle(P_shift);
     }
 
-    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const int n_ofdm_symb) const {
+    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const int ofdm_symb) {
         const int symb_bamc = (config::n_fft + config::n_cp) * upsample_rate;
 
-        itpp::vec t_tra = itpp::zeros(t_coarse.size());
-        itpp::vec f_tra = itpp::zeros(f_coarse.size());
+        // itpp::vec t_tra = itpp::zeros(t_coarse.size());
+        // itpp::vec f_tra = itpp::zeros(f_coarse.size());
 
         std::cout << t_coarse << std::endl;
         std::cout << f_coarse << std::endl;
 
         for (int i = 0; i < t_coarse.size(); ++i) {
-            const int frame_len = n_ofdm_symb * symb_bamc;
+            const int frame_len = ofdm_symb * symb_bamc;
             const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
             int end_idx = start_idx + frame_len;
 
+            itpp::vec M_vec;
+            itpp::vec angle_P_vec;
 
-            std::vector<double> temp_M;
-            std::vector<double> temp_angle_P;
+            if (end_idx <= M.length() && start_idx > 0) {
+                M_vec = M.mid(start_idx, frame_len);
+                angle_P_vec = angle_P.mid(start_idx, frame_len);
+            }else if (start_idx < 0) { // 左侧越界
+                const int num_zeros = std::abs(start_idx);
+                const int valid_length = frame_len - num_zeros;
 
-            if (t_coarse[i] + n_ofdm_symb * symb_bamc - 1 <= M.size()) {
+                M_vec = concat(itpp::zeros(num_zeros), M.left(valid_length));
+                angle_P_vec = concat(itpp::zeros(num_zeros), angle_P.left(valid_length));
+            }else { // 右侧越界
+                const int num_zeros = end_idx - M.length();
+                const int valid_length = frame_len - num_zeros;
 
+                M_vec = concat(M.mid(start_idx, valid_length), itpp::zeros(num_zeros));
+                angle_P_vec = concat(angle_P.mid(start_idx, valid_length), itpp::zeros(num_zeros));
             }
+
+            itpp::mat M_mat(ofdm_symb, symb_bamc);
+            itpp::mat angle_P_mat(ofdm_symb, symb_bamc);
+            int idx = 0;
+            for(int r = 0; r < ofdm_symb; r++) {
+                for(int c = 0; c < symb_bamc; c++) {
+                    M_mat(r, c) = M_vec(idx);
+                    angle_P_mat(r, c) = angle_P_vec(idx);
+                    idx++;
+                }
+            }
+
+            itpp::mat weighted_angle = elem_mult(angle_P_mat, M_mat);
+            itpp::vec M_sum = sum(M_mat);
+            itpp::vec angle_sum = sum(weighted_angle);
+            itpp::vec angle_P_final = elem_div(angle_sum, M_sum);
+
+            const int max_idx = itpp::max_index(M_sum); // t_tra(k)
+            const double max_val = M_sum(max_idx);
+
+            const double t_tra_val = t_coarse[i] + max_idx - (static_cast<double>(symb_bamc) / 2);
+            t_fine[i] = std::round(t_tra_val);
+
+            const double f_tra_k = (1.0/ (2 * M_PI)) * angle_P_final(max_idx);
+            const double f_tra_int = std::round(f_coarse[i] - f_tra_k);
+            f_fine[i] = f_tra_int + f_tra_k;
         }
 
-        // for (int i = 0; i < t_tra.size(); ++i) {
-        //     // if (t_tra(i) + )
-        // }
+            std::cout << t_fine << std::endl;
+            std::cout << f_fine << std::endl;
     }
 
 
@@ -449,11 +486,130 @@ namespace openldacs::phy::params {
     }
 
 
-    void SyncParam::fineSync(const itpp::cvec &input) {
+    void SyncParam::fineSync(const itpp::cvec &input, const int ofdm_symb) {
         itpp::vec M;
         itpp::vec angle_P;
+
+        t_fine.resize(t_coarse.size(), 0);
+        f_fine.resize(f_coarse.size(), 0);
+
         symbolSync(input, M, angle_P);
-        fineSyncCalc(M, angle_P, n_fl_ofdm_symb);
+        fineSyncCalc(M, angle_P, ofdm_symb);
+    }
+
+    void SyncParam::blanking_block(const itpp::cvec &input, const int ofdm_symb) {
+        const auto &config = OpenLdacsConfig::getInstance();
+        std::vector<double> t_fine_c;
+        std::vector<double> f_fine_c;
+        if (config.getRole() == AS) { // FL rx
+            int n_ofdm_symb = ofdm_symb;
+            t_fine_c = t_fine;
+            f_fine_c = f_fine;
+        } else { // RL rx
+
+        }
+
+        itpp::cvec data_time;
+        correct_rx_singal_time(input, t_fine_c, f_fine_c, ofdm_symb, data_time);
+
+        std::ofstream file("time_domain_waveform.csv");
+        if (file.is_open()) {
+            for (int i = 0; i < data_time.size(); ++i) {
+                file << i << "," << data_time(i).real() << "," << data_time(i).imag() << "\n";
+            }
+            file.close();
+        } else {
+            SPDLOG_ERROR("Failed to open file for writing time domain waveform.");
+        }
+
+    }
+
+    void SyncParam::correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t, std::vector<double> f, const int ofdm_symb, itpp::cvec &data_time) {
+        int cp_sample = config::n_cp * upsample_rate;
+        int fft_sample = config::n_fft * upsample_rate;
+        int symb_bamc = cp_sample + fft_sample;
+        int frame_length_td = symb_bamc * ofdm_symb;
+        // int num_frames = round(input.size() / frame_length_td);
+        int num_frames = 2; //临时的
+
+        const std::complex<double> J(0, 1);
+        auto norm_factor = static_cast<double>(config::n_fft * upsample_rate);
+        for (int i = 0; i < num_frames; i++) {
+            int current_t_fine = static_cast<int>(std::round(t[i]));
+            int start_idx = current_t_fine - cp_sample;
+            int end_idx = start_idx + frame_length_td - 1;
+
+            itpp::cvec data_extract;
+
+            int input_len = input.length();
+            int num_rand1 = 0;
+            int num_rand2 = 0;
+
+            // 左边界检查 (对应: if data_ind(1, 1) < 1)
+            if (start_idx < 0) {
+                num_rand1 = std::abs(start_idx);
+                start_idx = 0; // 修正起始点
+            }
+
+            // 右边界检查 (对应: if data_ind(end) > length)
+            if (end_idx >= input_len) {
+                num_rand2 = end_idx - input_len + 1;
+                end_idx = input_len - 1; // 修正结束点
+            }
+
+            // 拼接数据 (对应: [rand; input; rand])
+            // MATLAB 的 rand 产生 [0,1] 实数，这里用 randu 模拟
+            if (num_rand1 > 0) {
+                data_extract = itpp::concat(data_extract, itpp::zeros_c(num_rand1));
+            }
+
+            // 提取有效部分
+            if (start_idx <= end_idx) {
+                data_extract = itpp::concat(data_extract, input.mid(start_idx, end_idx - start_idx + 1));
+            }
+
+            if (num_rand2 > 0) {
+                data_extract = itpp::concat(data_extract, itpp::zeros_c(num_rand2));
+            }
+
+            // --- 4. 频偏补偿 (Compensate Frequency Offset) ---
+            // 对应: freq_cor_fac = exp(...)
+            // 对应: data_freq_comp = data_extract .* freq_cor_fac
+            itpp::cvec data_freq_comp(frame_length_td);
+            double current_f_fine = f[i];
+
+            for (int k = 0; k < frame_length_td; ++k) {
+                // MATLAB 中: (1:frame_length_td)
+                // 公式: exp(-j * 2 * pi * f_fine * t / (N_fft*r_up))
+                auto t = static_cast<double>(k + 1);
+                std::complex<double> phase_rot = std::exp(-J * 2.0 * itpp::pi * current_f_fine * t / norm_factor);
+
+                data_freq_comp(k) = data_extract(k) * phase_rot;
+            }
+
+            // --- 5. 移除 CP (Remove CP) ---
+            // 对应: data_time = reshape(...) -> data_time(N_cp*r_up+1 : end, :)
+            // 这一步我们将一帧拆分为多个 OFDM 符号，并去掉每个符号的头
+
+            for (int s = 0; s < ofdm_symb; ++s) {
+                // 计算当前符号在帧内的起始位置
+                int sym_start_index = s * symb_bamc;
+
+                // 跳过 CP (N_cp * r_up)
+                int data_start_index = sym_start_index + cp_sample;
+
+                // 提取有效数据长度 (N_fft * r_up)
+                // 对应 reshape 后切片的保留部分
+                itpp::cvec valid_symbol = data_freq_comp.mid(data_start_index, fft_sample);
+
+                // 追加到最终结果
+                data_time = itpp::concat(data_time, valid_symbol);
+            }
+        }
+    }
+
+    void SyncParam::correct_transfer_function(const int ofdm_symb) {
+
     }
 
 

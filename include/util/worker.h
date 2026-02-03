@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_WORKER_H
 #define OPENLDACS_WORKER_H
-#include "openldacs.h"
+#include "OpenLdacs.h"
 
 namespace openldacs::util {
     class Worker {

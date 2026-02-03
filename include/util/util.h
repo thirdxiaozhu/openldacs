@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_UTIL_H
 #define OPENLDACS_UTIL_H
-#include <openldacs.h>
+#include <OpenLdacs.h>
 
 namespace openldacs::util {
 
@@ -114,13 +114,6 @@ namespace openldacs::util {
         return b;
     }
 
-
-    static void dump_constellation(const itpp::cvec &x, const std::string &path) {
-        std::ofstream f(path);
-        for (int i = 0; i < x.size(); ++i) {
-            f << std::real(x[i]) << " " << std::imag(x[i]) << "\n";
-        }
-    }
 
     static void dump_ofdm_mag_per_symbol(const itpp::cmat& frames_freq,
                                      const std::string& prefix)

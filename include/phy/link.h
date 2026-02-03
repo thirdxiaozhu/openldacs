@@ -5,7 +5,7 @@
 #ifndef OPENLDACS_LINK_H
 #define OPENLDACS_LINK_H
 
-#include "openldacs.h"
+#include "OpenLdacs.h"
 #include "phy.h"
 
 namespace openldacs::phy::link {

@@ -10,7 +10,7 @@
 #include <queue>
 
 #include "config.h"
-#include "openldacs.h"
+#include "OpenLdacs.h"
 #include "link.h"
 #include "params.h"
 

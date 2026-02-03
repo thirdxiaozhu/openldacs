@@ -8,7 +8,7 @@
 #include <itpp/base/specmat.h>
 #include <uhd/usrp/multi_usrp.hpp>
 
-#include "openldacs.h"
+#include "OpenLdacs.h"
 #include "params.h"
 #include "util/queue.h"
 #include "util/util.h"
