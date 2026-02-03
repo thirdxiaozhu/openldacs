@@ -149,6 +149,10 @@ namespace openldacs::phy::link::fl {
         return result;
     }
 
+    itpp::cvec FLChannelHandler::vec_fft(const itpp::cvec &to_process) {
+        return itpp::fft(to_process);
+    }
+
 
 
     void BC1_3Handler::submit(const PhySdu sdu, CMS cms) {

@@ -477,7 +477,7 @@ namespace openldacs::phy::params {
         fineSyncCalc(M, angle_P, t_coarse, f_coarse, t_fine, f_fine);
     }
 
-    void FineSyncParam::blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine) {
+    void FineSyncParam::blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine, itpp::cmat &data_time) {
         const auto &config = OpenLdacsConfig::getInstance();
         std::vector<double> t_fine_c;
         std::vector<double> f_fine_c;
@@ -489,7 +489,6 @@ namespace openldacs::phy::params {
 
         }
 
-        itpp::cvec data_time;
         correct_rx_singal_time(input, t_fine_c, f_fine_c, data_time);
 
         std::ofstream file("time_domain_waveform.csv");
@@ -504,7 +503,7 @@ namespace openldacs::phy::params {
 
     }
 
-    void FineSyncParam::correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cvec &data_time) {
+    void FineSyncParam::correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cmat &data_time) {
         int cp_sample = config::n_cp * sync.upsample_rate;
         int fft_sample = config::n_fft * sync.upsample_rate;
         int symb_bamc = cp_sample + fft_sample;
@@ -512,78 +511,83 @@ namespace openldacs::phy::params {
         // int num_frames = round(input.size() / frame_length_td);
         int num_frames = 2; //临时的
 
+        data_time.set_size(fft_sample, num_frames * ofdm_symb_);
+
         const std::complex<double> J(0, 1);
-        auto norm_factor = static_cast<double>(config::n_fft * sync.upsample_rate);
+        const auto norm_factor = static_cast<double>(fft_sample);
+
+        itpp::vec t_vec = itpp::linspace(0, frame_length_td - 1, frame_length_td);
         for (int i = 0; i < num_frames; i++) {
-            int current_t_fine = static_cast<int>(std::round(t[i]));
-            int start_idx = current_t_fine - cp_sample;
+            int t_current = static_cast<int>(std::round(t[i]));
+            double f_current = f[i];
+
+            // 计算当前帧的提取索引范围
+            // MATLAB: data_ind = t_fine + (0:frame_length-1) - N_cp*r_up
+            int start_idx = t_current - cp_sample;
             int end_idx = start_idx + frame_length_td - 1;
 
             itpp::cvec data_extract;
-
             int input_len = input.length();
-            int num_rand1 = 0;
-            int num_rand2 = 0;
 
-            // 左边界检查 (对应: if data_ind(1, 1) < 1)
+            // 左边界处理 (对应 data_ind(1) < 1)
+            int num_rand1 = 0;
             if (start_idx < 0) {
                 num_rand1 = std::abs(start_idx);
                 start_idx = 0; // 修正起始点
             }
 
-            // 右边界检查 (对应: if data_ind(end) > length)
+            // 右边界处理 (对应 data_ind(end) > length)
+            int num_rand2 = 0;
             if (end_idx >= input_len) {
                 num_rand2 = end_idx - input_len + 1;
                 end_idx = input_len - 1; // 修正结束点
             }
 
-            // 拼接数据 (对应: [rand; input; rand])
-            // MATLAB 的 rand 产生 [0,1] 实数，这里用 randu 模拟
+            // >>>>>> 修改开始 >>>>>>
+
+            // 左侧补零
             if (num_rand1 > 0) {
-                data_extract = itpp::concat(data_extract, itpp::zeros_c(num_rand1));
+                // 使用 zeros_c 生成复数零向量 (0 + 0i)
+                data_extract = concat(data_extract, itpp::zeros_c(num_rand1));
             }
 
-            // 提取有效部分
+            // 提取有效部分 (保持不变)
             if (start_idx <= end_idx) {
-                data_extract = itpp::concat(data_extract, input.mid(start_idx, end_idx - start_idx + 1));
+                data_extract = concat(data_extract, input.mid(start_idx, end_idx - start_idx + 1));
             }
 
+            // 右侧补零
             if (num_rand2 > 0) {
-                data_extract = itpp::concat(data_extract, itpp::zeros_c(num_rand2));
+                // 使用 zeros_c 生成复数零向量
+                data_extract = concat(data_extract, itpp::zeros_c(num_rand2));
             }
 
-            // --- 4. 频偏补偿 (Compensate Frequency Offset) ---
-            // 对应: freq_cor_fac = exp(...)
-            // 对应: data_freq_comp = data_extract .* freq_cor_fac
-            itpp::cvec data_freq_comp(frame_length_td);
-            double current_f_fine = f[i];
+            // 构建当前帧的校正因子向量
+            // MATLAB: exp(-1i*2*pi*f_fine * t ./ (N_fft*r_up))
+            // t 从 0 到 frame_length_td - 1
+            itpp::cvec freq_cor_fac = itpp::exp(itpp::to_cvec(-2.0 * itpp::pi * f_current * t_vec / norm_factor) * J);
+            // 执行补偿
+            itpp::cvec data_freq_comp = elem_mult(data_extract, freq_cor_fac);
 
-            for (int k = 0; k < frame_length_td; ++k) {
-                // MATLAB 中: (1:frame_length_td)
-                // 公式: exp(-j * 2 * pi * f_fine * t / (N_fft*r_up))
-                auto t = static_cast<double>(k + 1);
-                std::complex<double> phase_rot = std::exp(-J * 2.0 * itpp::pi * current_f_fine * t / norm_factor);
+            // --- 5. Remove CP & Reshape (移除 CP 并填入矩阵) ---
 
-                data_freq_comp(k) = data_extract(k) * phase_rot;
-            }
-
-            // --- 5. 移除 CP (Remove CP) ---
-            // 对应: data_time = reshape(...) -> data_time(N_cp*r_up+1 : end, :)
-            // 这一步我们将一帧拆分为多个 OFDM 符号，并去掉每个符号的头
+            // 对应 MATLAB: data_time = reshape(...) 然后切片
+            // 我们直接将每个符号切好填入最终的 output cmat
 
             for (int s = 0; s < ofdm_symb_; ++s) {
-                // 计算当前符号在帧内的起始位置
-                int sym_start_index = s * symb_bamc;
+                // 计算当前符号在帧内的偏移
+                int sym_start_in_frame = s * symb_bamc;
 
                 // 跳过 CP (N_cp * r_up)
-                int data_start_index = sym_start_index + cp_sample;
+                // MATLAB: data_time(N_cp*r_up+1 : end, :)
+                int valid_data_start = sym_start_in_frame + cp_sample;
 
-                // 提取有效数据长度 (N_fft * r_up)
-                // 对应 reshape 后切片的保留部分
-                itpp::cvec valid_symbol = data_freq_comp.mid(data_start_index, fft_sample);
+                // 提取有效数据 (长度为 N_fft * r_up)
+                itpp::cvec valid_sym = data_freq_comp.mid(valid_data_start, fft_sample);
 
-                // 追加到最终结果
-                data_time = itpp::concat(data_time, valid_symbol);
+                // 填入输出矩阵的对应列
+                int global_col_idx = i * ofdm_symb_ + s;
+                data_time.set_col(global_col_idx, valid_sym);
             }
         }
     }

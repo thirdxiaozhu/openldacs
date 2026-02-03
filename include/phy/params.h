@@ -112,12 +112,12 @@ namespace openldacs::phy::params {
         explicit FineSyncParam(const int ofdm_symb) : ofdm_symb_(ofdm_symb) {
         }
 
-        void synchronisation(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+        void synchronisation(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, itpp::cmat &data_time) {
             std::vector<double> t_fine;
             std::vector<double> f_fine;
 
             fineSync(input, t_coarse, f_coarse, t_fine, f_fine);
-            blanking_block(input, t_fine, f_fine);
+            blanking_block(input, t_fine, f_fine, data_time);
         }
     private:
         int ofdm_symb_;
@@ -127,8 +127,8 @@ namespace openldacs::phy::params {
         void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, std::vector<double> &t_coarse, std::vector<double> &
                           f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine);
 
-        void blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine);
-        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cvec &data_time);
+        void blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine, itpp::cmat &data_time);
+        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cmat &data_time);
     };
 
     struct CoarseSyncParam {
@@ -168,7 +168,7 @@ namespace openldacs::phy::params {
         int n, k;
         int bits_uncoded;
         int bits_after_rs;
-        util::ReedSolomon rs;
+        ReedSolomon rs;
 
         RSCoderParams(const int n_val, const int k_val) : n(n_val), k(k_val), rs(n_val, k_val) {
             bits_uncoded = k_val * 8;      // 假设每个符号8位

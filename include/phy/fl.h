@@ -314,10 +314,10 @@ namespace openldacs::phy::link::fl {
 
     private:
         device::DevPtr& dev_;
-        util::BoundedQueue<BlockBuffer> bc13_queue_;
-        util::BoundedQueue<BlockBuffer> bc2_queue_;
-        util::BoundedQueue<BlockBuffer> fl_data_queue_;
-        util::Worker sink_worker_;
+        BoundedQueue<BlockBuffer> bc13_queue_;
+        BoundedQueue<BlockBuffer> bc2_queue_;
+        BoundedQueue<BlockBuffer> fl_data_queue_;
+        Worker sink_worker_;
         std::optional<itpp::cvec> prev_post_;
 
         itpp::cvec windowing(const BlockBuffer &block);
@@ -433,6 +433,7 @@ namespace openldacs::phy::link::fl {
 
         // demod
         static itpp::cmat matrix_fft(const itpp::cmat &to_process);
+        itpp::cvec vec_fft(const itpp::cvec &to_process);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
@@ -442,7 +443,8 @@ namespace openldacs::phy::link::fl {
             initCodingTable();
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
-                f_sync.synchronisation(input, t_coarse, f_coarse);
+                itpp::cmat data_time;
+                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
             });
         }
         void submit(PhySdu sdu, CMS cms) override;
@@ -466,7 +468,8 @@ namespace openldacs::phy::link::fl {
             initCodingTable();
 
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
-                f_sync.synchronisation(input, t_coarse, f_coarse);
+                itpp::cmat data_time;
+                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
             });
         }
         void submit(PhySdu sdu, CMS cms) override;
@@ -490,7 +493,11 @@ namespace openldacs::phy::link::fl {
             initCodingTable();
 
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
-                f_sync.synchronisation(input, t_coarse, f_coarse);
+                itpp::cmat data_time;
+                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
+                itpp::cmat data_freq_up = matrix_fft(data_time);
+
+                std::cout << data_freq_up << std::endl;
             });
 
         }
