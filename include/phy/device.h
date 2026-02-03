@@ -8,7 +8,7 @@
 #include <itpp/base/specmat.h>
 #include <uhd/usrp/multi_usrp.hpp>
 
-#include "OpenLdacs.h"
+#include "openldacs.h"
 #include "params.h"
 #include "util/queue.h"
 #include "util/util.h"
@@ -32,16 +32,22 @@ namespace openldacs::phy::device {
 
     class Device {
     public:
+        using RxCallbackType = std::function<void(itpp::cvec)>;
+
         void sendData(const itpp::cvec &data, const util::Priority pri) {
             fl_to_trans_.push(util::cvecToComplexDoubleVec(data), pri);
         }
 
+        void registerRxCallback(const RxCallbackType &cb) {
+            rx_callback_ = cb;
+        }
+
         virtual ~Device() {
             fl_to_trans_.close();
-            trans_worker_.request_stop();
-            recv_worker_.request_stop();
-            trans_worker_.join_and_rethrow();
-            recv_worker_.join_and_rethrow();
+            trans_worker_.requestStop();
+            recv_worker_.requestStop();
+            trans_worker_.joinAndRethrow();
+            recv_worker_.joinAndRethrow();
         }
     protected:
         explicit Device(const uint8_t role) : role_(role), fl_to_trans_(CAP_HIGH, CAP_NORM) {
@@ -59,6 +65,8 @@ namespace openldacs::phy::device {
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;
         util::Worker recv_worker_;
+
+        RxCallbackType rx_callback_;
 
         virtual void setupDevice() = 0;
 
@@ -106,7 +114,10 @@ namespace openldacs::phy::device {
                                 to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
                             }
 
-                            sync_param_.synchronisation(to_sync_frame);
+                            if (rx_callback_) {
+                                rx_callback_(to_sync_frame);
+                                // sync_param_.synchronisation(to_sync_frame);
+                            }
                         }
 
 

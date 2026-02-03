@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_UTIL_H
 #define OPENLDACS_UTIL_H
-#include <OpenLdacs.h>
+#include <openldacs.h>
 
 namespace openldacs::util {
 

@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_WORKER_H
 #define OPENLDACS_WORKER_H
-#include "OpenLdacs.h"
+#include "openldacs.h"
 
 namespace openldacs::util {
     class Worker {
@@ -40,13 +40,13 @@ public:
     }
 
     // 请求停止：配合线程内部等待点退出
-    void request_stop() {
+    void requestStop() {
         stop_.store(true, std::memory_order_relaxed);
         cv_.notify_all();
     }
 
     // join 并在这里统一抛出线程异常（如果有）
-    void join_and_rethrow() {
+    void joinAndRethrow() {
         if (t_.joinable()) t_.join();
         if (eptr_) std::rethrow_exception(eptr_);
     }
@@ -68,7 +68,7 @@ public:
 
 private:
     void stop_and_join_noexcept() noexcept {
-        request_stop();
+        requestStop();
         if (t_.joinable()) {
             try { t_.join(); } catch (...) { /* join 不会抛，这里只是保险 */ }
         }

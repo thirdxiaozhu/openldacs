@@ -3,7 +3,7 @@
 //
 
 
-#include  "OpenLdacs.h"
+#include  "openldacs.h"
 #include "phy/config.h"
 
 #include "phy/fl.h"
@@ -13,12 +13,12 @@
 using  namespace  openldacs::phy;
 
 int main() {
+    using namespace openldacs;
     using namespace openldacs::phy::config;
     using namespace openldacs::phy::link::fl;
-    using namespace openldacs;
 
     const auto& config = OpenLdacsConfig::getInstance();
-    std::cout << static_cast<int>(config.getRole()) << std::endl;
+    std::cout << config.getRole() << std::endl;
 
     // 接管信号
     sigset_t set;

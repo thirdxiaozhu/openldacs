@@ -9,7 +9,6 @@
 #include <correct.h>
 
 namespace openldacs::phy::link::fl {
-    using namespace openldacs::util;
 
     void FLChannelHandler::buildFrame(const int symbols)  {
         getFrameIndices(symbols);
@@ -131,7 +130,6 @@ namespace openldacs::phy::link::fl {
     }
 
     void FLChannelHandler::matrix_ifft(BlockBuffer &block) {
-        // itpp::cmat result(block.rows(), block.cols());
         block.frame_time = itpp::cmat(block.frames_freq.rows(), block.frames_freq.cols());
 
         for (int i = 0; i < block.frame_time.cols(); ++i) {
@@ -218,8 +216,6 @@ namespace openldacs::phy::link::fl {
                 // for (const auto &vec : tx_vecs) {
                 //     device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
                 // }
-                //
-                //
                 //
                 // // 测试接收
                 // itpp::cvec recv_data = tx_vecs[0]; //后面要给他扩大随机长度，所有扩大的位置用零填充

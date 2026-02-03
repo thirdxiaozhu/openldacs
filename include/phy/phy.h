@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_PHY_H
 #define OPENLDACS_PHY_H
-#include "OpenLdacs.h"
+#include "openldacs.h"
 #include "phy/device.h"
 
 namespace openldacs::phy {

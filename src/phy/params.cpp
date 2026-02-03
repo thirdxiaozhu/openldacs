@@ -13,7 +13,6 @@
 #include "phy/fl.h"
 
 namespace openldacs::phy::params {
-    using namespace openldacs::util;
 
     CodingParams CodingTable::setCodingParams(CodingKey key, CHANNEL ch) const {
         CodingParams params = get_initial_coding_param(key, ch);
@@ -80,12 +79,12 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::frameSync(const itpp::cvec &input) {
-        const int up_corr_len1 =  upsample_rate * corr_len1;
-        const int up_corr_diff1 =  upsample_rate * corr_diff1;
-        const int up_corr_len2 =  upsample_rate * corr_len2;
-        const int up_corr_diff2 =  upsample_rate * corr_diff2;
-        const int sync_offset = (config::n_g + config::n_ws / 4) * upsample_rate;
+    void CoarseSyncParam::frameSync(const itpp::cvec &input) {
+        const int up_corr_len1 =  sync_param.upsample_rate * sync_param.corr_len1;
+        const int up_corr_diff1 =  sync_param.upsample_rate * sync_param.corr_diff1;
+        const int up_corr_len2 =  sync_param.upsample_rate * sync_param.corr_len2;
+        const int up_corr_diff2 =  sync_param.upsample_rate * sync_param.corr_diff2;
+        const int sync_offset = (config::n_g + config::n_ws / 4) * sync_param.upsample_rate;
 
         itpp::vec pre_M1;
         itpp::vec pre_angle_metric1;
@@ -114,24 +113,22 @@ namespace openldacs::phy::params {
         //     ofs << i << "," << v(i) << "\n";
         // }
 
-
         angle2.set_length(pre_angle_metric2.length());
         angle2.zeros();
         angle2.set_subvector(sync_offset, pre_angle_metric2.left(pre_angle_metric2.length() - sync_offset));
 
-        freq1 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff1 / (2 * M_PI) * angle1;
-        freq2 = static_cast<double>(config::n_fft * upsample_rate) / corr_diff2 / (2 * M_PI) * angle2;
-
+        freq1 = static_cast<double>(config::n_fft * sync_param.upsample_rate) / sync_param.corr_diff1 / (2 * M_PI) * angle1;
+        freq2 = static_cast<double>(config::n_fft * sync_param.upsample_rate) / sync_param.corr_diff2 / (2 * M_PI) * angle2;
     }
 
-    void SyncParam::findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
+    void CoarseSyncParam::findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
         // std::vector<int> peak_indices;
         // std::vector<double> peak_values;
-        const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * upsample_rate));
+        const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * sync_param.upsample_rate));
 
         std::vector<int> peak_ind_all;
         for (int i = 0; i < M1.size(); ++i) {
-            if (M1(i) > threshold_peak) {
+            if (M1(i) > sync_param.threshold_peak) {
                 peak_ind_all.push_back(i);
             }
         }
@@ -170,10 +167,10 @@ namespace openldacs::phy::params {
 
     }
 
-    void SyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
+    void CoarseSyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
         constexpr double relation_value = 0.7;
-        const int nom_dist = (config::n_fft + config::n_cp) * upsample_rate;
-        const int tol = config::n_cp * upsample_rate;
+        const int nom_dist = (config::n_fft + config::n_cp) * sync_param.upsample_rate;
+        const int tol = config::n_cp * sync_param.upsample_rate;
 
         double peak_value1 = 0.0;
         int peak_ind1 = 0;
@@ -255,7 +252,7 @@ namespace openldacs::phy::params {
             int peak_ind3 = 0;
             getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
-            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > threshold_peak) {
+            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > sync_param.threshold_peak) {
                 //   time synchronization
                 reliable_peak = std::round(
                     (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
@@ -266,7 +263,7 @@ namespace openldacs::phy::params {
                                     freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
             }else {
                 getPeak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
-                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > threshold_peak) {
+                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > sync_param.threshold_peak) {
 
                     //   time synchronization
                     reliable_peak = std::round(
@@ -291,7 +288,7 @@ namespace openldacs::phy::params {
 
     }
 
-    void SyncParam::getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
+    void CoarseSyncParam::getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
         std::vector<int> interval;
 
         for (int i = start; i <= end; ++i) {
@@ -327,7 +324,7 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::findSyncInstances() {
+    void CoarseSyncParam::findSyncInstances(std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
 
         std::vector<int> peak_indices;
         std::vector<double> peak_values;
@@ -476,16 +473,6 @@ namespace openldacs::phy::params {
     }
 
 
-    void SyncParam::coarseSync(const itpp::cvec &input) {
-        frameSync(input);
-
-        findSyncInstances();
-        // 真实场景下用不到
-        //eval_results_fl(t_sync, f_sync);
-
-    }
-
-
     void SyncParam::fineSync(const itpp::cvec &input, const int ofdm_symb) {
         itpp::vec M;
         itpp::vec angle_P;
@@ -613,7 +600,7 @@ namespace openldacs::phy::params {
     }
 
 
-    void SyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
+    void CoarseSyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
         const int out_len = input.size() - corr_len - corr_diff;
         itpp::cvec P = itpp::zeros_c(out_len);
         itpp::vec R = itpp::zeros(out_len);

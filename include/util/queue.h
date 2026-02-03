@@ -4,7 +4,7 @@
 
 #ifndef OPENLDACS_BOUNDED_PRIORITY_QUEUE_H
 #define OPENLDACS_BOUNDED_PRIORITY_QUEUE_H
-#include "OpenLdacs.h"
+#include "openldacs.h"
 #include <optional>
 
 namespace openldacs::util {

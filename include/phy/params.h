@@ -8,11 +8,13 @@
 #include <utility>
 
 #include "config.h"
-#include "OpenLdacs.h"
+#include "openldacs.h"
 #include "util/reed_solomon.h"
 #include  "util/util.h"
 
 namespace openldacs::phy::params {
+    using namespace openldacs::util;
+    namespace openldacs::phy {class FLChannelHandler;};
 
     using cd = std::complex<double>;
 
@@ -91,8 +93,8 @@ namespace openldacs::phy::params {
         SyncState state_ = SyncState::ACQUIRE;
     };
 
-    class SyncParam {
-    public:
+
+    struct SyncParam {
         int corr_len1 = config::n_fft / 2 + config::n_g + config::n_ws / 2;
         int corr_diff1 = config::n_fft / 2;
 
@@ -103,6 +105,34 @@ namespace openldacs::phy::params {
         int t_upsample = config::t_sample / upsample_rate;
         double threshold_peak = 0.4;
 
+        std::vector<double> t_coarse;
+        std::vector<double> f_coarse;
+
+        std::vector<double> t_fine;
+        std::vector<double> f_fine;
+
+        // 放进 fl中的PhySource里
+        void synchronisation(const itpp::cvec &input){
+            constexpr int ofdm_symb = 54;
+
+            fineSync(input, ofdm_symb);
+            correct_transfer_function(ofdm_symb);
+            blanking_block(input, ofdm_symb);
+        }
+
+        void fineSync(const itpp::cvec &input, int ofdm_symb);
+        void correct_transfer_function(int ofdm_symb);
+        void blanking_block(const itpp::cvec &input, int ofdm_symb);
+    private:
+
+        void evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync);
+        void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int ofdm_symb);
+        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t_fine, std::vector<double> f_fine, int ofdm_symb, itpp::cvec &data_time);
+    };
+
+    struct CoarseSyncParam {
+        SyncParam sync_param;
         itpp::vec M1;
         itpp::vec M2;
         itpp::vec angle1;
@@ -110,58 +140,23 @@ namespace openldacs::phy::params {
         itpp::vec freq1;
         itpp::vec freq2;
 
-        std::vector<double> t_coarse;
-        std::vector<double> f_coarse;
-
-        std::vector<double> t_fine;
-        std::vector<double> f_fine;
-
-        void synchronisation(const itpp::cvec &input){
-            coarseSync(input);
-
-            constexpr int ofdm_symb = 54;
-
-            fineSync(input, ofdm_symb);
-            correct_transfer_function(ofdm_symb);
-
-            blanking_block(input, ofdm_symb);
-
-
-            // switch (sync_state_.get_state()) {
-            //     case SyncState::ACQUIRE:
-            //         // ACQUIRE用来做BC1-BC2-BC3的同步
-            //         // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
-            //         // 对BC帧进行精同步，完成后状态机转换为TRACK
-            //         frameSync(input);
-            //         break;
-            //     case SyncState::TRACK:
-            //         // 无需做粗同步，直接根据帧长找同步点，并进行精同步
-            //         sync_state_.set_state(SyncState::ACQUIRE);
-            //         break;
-            // }
+        void coarseSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+            frameSync(input);
+            findSyncInstances(t_coarse, f_coarse);
         }
-
-        void coarseSync(const itpp::cvec &input);
-        void fineSync(const itpp::cvec &input, int ofdm_symb);
-        void correct_transfer_function(int ofdm_symb);
-        void blanking_block(const itpp::cvec &input, int ofdm_symb);
     private:
-        SyncStateMachine sync_state_;
-
+        void frameSync(const itpp::cvec &input);
+        void findSyncInstances(std::vector<double> &t_coarse, std::vector<double> &f_coarse);
+        void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
-
         void getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
-        void frameSync(const itpp::cvec &input);
-        void findSyncInstances();
-        void evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync);
-        void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
-
-        void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
-        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int ofdm_symb);
-
-        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t_fine, std::vector<double> f_fine, int ofdm_symb, itpp::cvec &data_time);
     };
+
+    struct FineSyncParam {
+        SyncParam sync_param;
+    };
+
 
     enum class ModulationType : int { QPSK, QAM16, QAM64, };
     enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };

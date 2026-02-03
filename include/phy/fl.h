@@ -10,7 +10,7 @@
 #include <queue>
 
 #include "config.h"
-#include "OpenLdacs.h"
+#include "openldacs.h"
 #include "link.h"
 #include "params.h"
 
@@ -20,6 +20,7 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler;
     class BC2Handler;
     class FLDataHandler;
+    using namespace openldacs::util;
     using namespace phy::config;
     using namespace phy::params;
 
@@ -224,45 +225,50 @@ namespace openldacs::phy::link::fl {
 
     class PhySource {
     public:
-        explicit PhySource(device::DevPtr& dev): dev_(dev){
-            source_worker_.start([&] {
-                while (!source_worker_.stop_requested()) {
+        using ChRxCallbackType = std::function<void(int)>;
 
-                    // std::cout << tx_vecs << std::endl;
+        explicit PhySource(device::DevPtr& dev): dev_(dev){
+
+            // 向dev注册接收回调队列
+            dev->registerRxCallback([this](const itpp::cvec &f) {
+                std::vector<double> t_coarse;
+                std::vector<double> f_coarse;
+
+                c_sync_param_.coarseSync(f, t_coarse, f_coarse);
+
+                if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
+
+                }else {
+                    throw std::runtime_error("No callback registered");
                 }
+
+                // switch (sync_state_.get_state()) {
+                //     case SyncState::ACQUIRE:
+                //         // ACQUIRE用来做BC1-BC2-BC3的同步
+                //         // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
+                //         // 对BC帧进行精同步，完成后状态机转换为TRACK
+                //         frameSync(input);
+                //         break;
+                //     case SyncState::TRACK:
+                //         // 无需做粗同步，直接根据帧长找同步点，并进行精同步
+                //         sync_state_.set_state(SyncState::ACQUIRE);
+                //         break;
+                // }
+
             });
         }
 
-        void enqueue(const BlockBuffer &buffer, const CHANNEL ch) {
-            switch (ch) {
-                case BCCH1_3:
-                    bc13_queue_.push(buffer);
-                    break;
-                case BCCH2:
-                    bc2_queue_.push(buffer);
-                    break;
-                case CCCH_DCH:
-                case FL_DCH:
-                    fl_data_queue_.push(buffer);
-                    break;
-                default:
-                    throw std::runtime_error("Invalid channel");
-            }
+        // 各信道注册
+        void registerRecvHandler(CHANNEL channel, ChRxCallbackType callback) {
+            rx_handlers_.emplace(channel, callback);
         }
 
-        ~PhySource() {
-            bc13_queue_.close();
-            bc2_queue_.close();
-            fl_data_queue_.close();
-            source_worker_.request_stop();
-            source_worker_.join_and_rethrow();
-        }
+        ~PhySource() = default;
     private:
         device::DevPtr& dev_;
-        util::BoundedQueue<BlockBuffer> bc13_queue_;
-        util::BoundedQueue<BlockBuffer> bc2_queue_;
-        util::BoundedQueue<BlockBuffer> fl_data_queue_;
-        util::Worker source_worker_;
+        CoarseSyncParam c_sync_param_;
+        SyncStateMachine sync_state_;
+        std::map<CHANNEL, std::optional<ChRxCallbackType>> rx_handlers_;
     };
 
     class PhySink {
@@ -274,10 +280,7 @@ namespace openldacs::phy::link::fl {
                     if (!bf) {
                         break;
                     }
-
                     const itpp::cvec tx_vecs = windowing(bf.value());
-                    // std::cout << tx_vecs << std::endl;
-
                     dev->sendData(tx_vecs, util::Priority::HIGH);
                 }
             });
@@ -304,8 +307,8 @@ namespace openldacs::phy::link::fl {
             bc13_queue_.close();
             bc2_queue_.close();
             fl_data_queue_.close();
-            sink_worker_.request_stop();
-            sink_worker_.join_and_rethrow();
+            sink_worker_.requestStop();
+            sink_worker_.joinAndRethrow();
         }
 
     private:
@@ -380,16 +383,18 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev)
-            : config_(config), coding_table_(frame_info_), device_(dev) {
+            : device_(dev), config_(config), coding_table_(frame_info_) {
         }
 
+        std::mutex block_m_;
+        device::DevPtr& device_;
         PhyFl::FLConfig& config_;
+
         FrameInfo frame_info_;
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
-        std::mutex block_m_;
-        device::DevPtr& device_;
+        FineSyncParam f_sync_param;
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
             if (sdu.direction == DirectionType::FL) {
@@ -474,13 +479,17 @@ namespace openldacs::phy::link::fl {
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
             buildFrame(n_fl_ofdm_symb);
             initCodingTable();
+
+            config_.source_.registerRecvHandler(FL_DCH, [this](int a) {
+
+            });
+
         }
+
         void submit(PhySdu sdu, CMS cms) override;
+
         void submit(PhySdu sdu) override;
-
     private:
-        // static constexpr std::size_t n_frames_ = 9;
-
         void initCodingTable() override {
             coding_table_.initCodingTable({
                                               {CMS::QPSK_R12, 2},
