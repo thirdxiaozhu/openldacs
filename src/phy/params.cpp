@@ -80,11 +80,11 @@ namespace openldacs::phy::params {
     }
 
     void CoarseSyncParam::frameSync(const itpp::cvec &input) {
-        const int up_corr_len1 =  sync_param.upsample_rate * sync_param.corr_len1;
-        const int up_corr_diff1 =  sync_param.upsample_rate * sync_param.corr_diff1;
-        const int up_corr_len2 =  sync_param.upsample_rate * sync_param.corr_len2;
-        const int up_corr_diff2 =  sync_param.upsample_rate * sync_param.corr_diff2;
-        const int sync_offset = (config::n_g + config::n_ws / 4) * sync_param.upsample_rate;
+        const int up_corr_len1 =  sync.upsample_rate * sync.corr_len1;
+        const int up_corr_diff1 =  sync.upsample_rate * sync.corr_diff1;
+        const int up_corr_len2 =  sync.upsample_rate * sync.corr_len2;
+        const int up_corr_diff2 =  sync.upsample_rate * sync.corr_diff2;
+        const int sync_offset = (config::n_g + config::n_ws / 4) * sync.upsample_rate;
 
         itpp::vec pre_M1;
         itpp::vec pre_angle_metric1;
@@ -117,18 +117,18 @@ namespace openldacs::phy::params {
         angle2.zeros();
         angle2.set_subvector(sync_offset, pre_angle_metric2.left(pre_angle_metric2.length() - sync_offset));
 
-        freq1 = static_cast<double>(config::n_fft * sync_param.upsample_rate) / sync_param.corr_diff1 / (2 * M_PI) * angle1;
-        freq2 = static_cast<double>(config::n_fft * sync_param.upsample_rate) / sync_param.corr_diff2 / (2 * M_PI) * angle2;
+        freq1 = static_cast<double>(config::n_fft * sync.upsample_rate) / sync.corr_diff1 / (2 * M_PI) * angle1;
+        freq2 = static_cast<double>(config::n_fft * sync.upsample_rate) / sync.corr_diff2 / (2 * M_PI) * angle2;
     }
 
     void CoarseSyncParam::findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
         // std::vector<int> peak_indices;
         // std::vector<double> peak_values;
-        const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * sync_param.upsample_rate));
+        const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * sync.upsample_rate));
 
         std::vector<int> peak_ind_all;
         for (int i = 0; i < M1.size(); ++i) {
-            if (M1(i) > sync_param.threshold_peak) {
+            if (M1(i) > sync.threshold_peak) {
                 peak_ind_all.push_back(i);
             }
         }
@@ -169,8 +169,8 @@ namespace openldacs::phy::params {
 
     void CoarseSyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
         constexpr double relation_value = 0.7;
-        const int nom_dist = (config::n_fft + config::n_cp) * sync_param.upsample_rate;
-        const int tol = config::n_cp * sync_param.upsample_rate;
+        const int nom_dist = (config::n_fft + config::n_cp) * sync.upsample_rate;
+        const int tol = config::n_cp * sync.upsample_rate;
 
         double peak_value1 = 0.0;
         int peak_ind1 = 0;
@@ -252,7 +252,7 @@ namespace openldacs::phy::params {
             int peak_ind3 = 0;
             getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
-            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > sync_param.threshold_peak) {
+            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > sync.threshold_peak) {
                 //   time synchronization
                 reliable_peak = std::round(
                     (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
@@ -263,7 +263,7 @@ namespace openldacs::phy::params {
                                     freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
             }else {
                 getPeak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
-                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > sync_param.threshold_peak) {
+                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > sync.threshold_peak) {
 
                     //   time synchronization
                     reliable_peak = std::round(
@@ -341,19 +341,11 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync) {
 
-        // int time_offset = 0;
-        // int freq_offset = 0;
-        //
-        // std::vector<int> success_sync_ind()
-
-    }
-
-    void SyncParam::symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const {
-        const int corr_diff = config::n_fft * upsample_rate;
-        const int corr_len = (config::n_g + config::n_ws / 2)  * upsample_rate;
-        const int symbol_bamc = (config::n_fft + config::n_cp) * upsample_rate;
+    void FineSyncParam::symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const {
+        const int corr_diff = config::n_fft *  sync.upsample_rate;
+        const int corr_len = (config::n_g + config::n_ws / 2)  * sync.upsample_rate;
+        const int symbol_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
         itpp::cvec P(input.size() - 2 * symbol_bamc);
         itpp::vec R = itpp::zeros(input.size() - 2 * symbol_bamc);
@@ -398,7 +390,7 @@ namespace openldacs::phy::params {
         // % shift the metric half a symbol
         // %-------------------------------
         const int shift = static_cast<int>(std::round(symbol_bamc / 2.0
-                                                      + (config::n_g + config::n_ws / 4.0) * upsample_rate));
+                                                      + (config::n_g + config::n_ws / 4.0) * sync.upsample_rate));
 
         itpp::vec  M_shift = concat(itpp::zeros(shift), M_pre);
         itpp::cvec P_shift = concat(itpp::zeros_c(shift), P);
@@ -407,8 +399,9 @@ namespace openldacs::phy::params {
         angle = itpp::angle(P_shift);
     }
 
-    void SyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const int ofdm_symb) {
-        const int symb_bamc = (config::n_fft + config::n_cp) * upsample_rate;
+    void FineSyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, std::vector<double> &t_coarse, std::vector<double> &
+                                     f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine) {
+        const int symb_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
         // itpp::vec t_tra = itpp::zeros(t_coarse.size());
         // itpp::vec f_tra = itpp::zeros(f_coarse.size());
@@ -417,7 +410,7 @@ namespace openldacs::phy::params {
         std::cout << f_coarse << std::endl;
 
         for (int i = 0; i < t_coarse.size(); ++i) {
-            const int frame_len = ofdm_symb * symb_bamc;
+            const int frame_len = ofdm_symb_ * symb_bamc;
             const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
             int end_idx = start_idx + frame_len;
 
@@ -441,10 +434,10 @@ namespace openldacs::phy::params {
                 angle_P_vec = concat(angle_P.mid(start_idx, valid_length), itpp::zeros(num_zeros));
             }
 
-            itpp::mat M_mat(ofdm_symb, symb_bamc);
-            itpp::mat angle_P_mat(ofdm_symb, symb_bamc);
+            itpp::mat M_mat(ofdm_symb_, symb_bamc);
+            itpp::mat angle_P_mat(ofdm_symb_, symb_bamc);
             int idx = 0;
-            for(int r = 0; r < ofdm_symb; r++) {
+            for(int r = 0; r < ofdm_symb_; r++) {
                 for(int c = 0; c < symb_bamc; c++) {
                     M_mat(r, c) = M_vec(idx);
                     angle_P_mat(r, c) = angle_P_vec(idx);
@@ -472,8 +465,8 @@ namespace openldacs::phy::params {
             std::cout << f_fine << std::endl;
     }
 
-
-    void SyncParam::fineSync(const itpp::cvec &input, const int ofdm_symb) {
+    void FineSyncParam::fineSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, std::vector<double> &t_fine, std
+                                 ::vector<double> &f_fine) {
         itpp::vec M;
         itpp::vec angle_P;
 
@@ -481,15 +474,15 @@ namespace openldacs::phy::params {
         f_fine.resize(f_coarse.size(), 0);
 
         symbolSync(input, M, angle_P);
-        fineSyncCalc(M, angle_P, ofdm_symb);
+        fineSyncCalc(M, angle_P, t_coarse, f_coarse, t_fine, f_fine);
     }
 
-    void SyncParam::blanking_block(const itpp::cvec &input, const int ofdm_symb) {
+    void FineSyncParam::blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine) {
         const auto &config = OpenLdacsConfig::getInstance();
         std::vector<double> t_fine_c;
         std::vector<double> f_fine_c;
         if (config.getRole() == AS) { // FL rx
-            int n_ofdm_symb = ofdm_symb;
+            int n_ofdm_symb = ofdm_symb_;
             t_fine_c = t_fine;
             f_fine_c = f_fine;
         } else { // RL rx
@@ -497,7 +490,7 @@ namespace openldacs::phy::params {
         }
 
         itpp::cvec data_time;
-        correct_rx_singal_time(input, t_fine_c, f_fine_c, ofdm_symb, data_time);
+        correct_rx_singal_time(input, t_fine_c, f_fine_c, data_time);
 
         std::ofstream file("time_domain_waveform.csv");
         if (file.is_open()) {
@@ -511,16 +504,16 @@ namespace openldacs::phy::params {
 
     }
 
-    void SyncParam::correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t, std::vector<double> f, const int ofdm_symb, itpp::cvec &data_time) {
-        int cp_sample = config::n_cp * upsample_rate;
-        int fft_sample = config::n_fft * upsample_rate;
+    void FineSyncParam::correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cvec &data_time) {
+        int cp_sample = config::n_cp * sync.upsample_rate;
+        int fft_sample = config::n_fft * sync.upsample_rate;
         int symb_bamc = cp_sample + fft_sample;
-        int frame_length_td = symb_bamc * ofdm_symb;
+        int frame_length_td = symb_bamc * ofdm_symb_;
         // int num_frames = round(input.size() / frame_length_td);
         int num_frames = 2; //临时的
 
         const std::complex<double> J(0, 1);
-        auto norm_factor = static_cast<double>(config::n_fft * upsample_rate);
+        auto norm_factor = static_cast<double>(config::n_fft * sync.upsample_rate);
         for (int i = 0; i < num_frames; i++) {
             int current_t_fine = static_cast<int>(std::round(t[i]));
             int start_idx = current_t_fine - cp_sample;
@@ -578,7 +571,7 @@ namespace openldacs::phy::params {
             // 对应: data_time = reshape(...) -> data_time(N_cp*r_up+1 : end, :)
             // 这一步我们将一帧拆分为多个 OFDM 符号，并去掉每个符号的头
 
-            for (int s = 0; s < ofdm_symb; ++s) {
+            for (int s = 0; s < ofdm_symb_; ++s) {
                 // 计算当前符号在帧内的起始位置
                 int sym_start_index = s * symb_bamc;
 
@@ -595,9 +588,6 @@ namespace openldacs::phy::params {
         }
     }
 
-    void SyncParam::correct_transfer_function(const int ofdm_symb) {
-
-    }
 
 
     void CoarseSyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {

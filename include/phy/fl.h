@@ -225,7 +225,7 @@ namespace openldacs::phy::link::fl {
 
     class PhySource {
     public:
-        using ChRxCallbackType = std::function<void(int)>;
+        using ChRxCallbackType = std::function<void(const itpp::cvec &, std::vector<double> &, std::vector<double> &)>;
 
         explicit PhySource(device::DevPtr& dev): dev_(dev){
 
@@ -237,7 +237,8 @@ namespace openldacs::phy::link::fl {
                 c_sync_param_.coarseSync(f, t_coarse, f_coarse);
 
                 if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
-
+                    ChRxCallbackType cb_value = cb.value();
+                    cb_value(f, t_coarse, f_coarse);
                 }else {
                     throw std::runtime_error("No callback registered");
                 }
@@ -382,8 +383,8 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev)
-            : device_(dev), config_(config), coding_table_(frame_info_) {
+        explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev, const int ofdm_symb)
+            : device_(dev), config_(config), coding_table_(frame_info_), f_sync(ofdm_symb) {
         }
 
         std::mutex block_m_;
@@ -394,7 +395,7 @@ namespace openldacs::phy::link::fl {
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
-        FineSyncParam f_sync_param;
+        FineSyncParam f_sync;
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
             if (sdu.direction == DirectionType::FL) {
@@ -436,9 +437,13 @@ namespace openldacs::phy::link::fl {
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
+        explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
             buildFrame(n_bc13_ofdm_symb);
             initCodingTable();
+
+            config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
+                f_sync.synchronisation(input, t_coarse, f_coarse);
+            });
         }
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
@@ -456,9 +461,13 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
+        explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
             buildFrame(n_bc2_ofdm_symb);
             initCodingTable();
+
+            config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
+                f_sync.synchronisation(input, t_coarse, f_coarse);
+            });
         }
         void submit(PhySdu sdu, CMS cms) override;
         void submit(PhySdu sdu) override;
@@ -476,12 +485,12 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev) {
+        explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
             buildFrame(n_fl_ofdm_symb);
             initCodingTable();
 
-            config_.source_.registerRecvHandler(FL_DCH, [this](int a) {
-
+            config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
+                f_sync.synchronisation(input, t_coarse, f_coarse);
             });
 
         }

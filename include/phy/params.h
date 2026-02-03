@@ -104,35 +104,35 @@ namespace openldacs::phy::params {
         int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
         double threshold_peak = 0.4;
+    };
 
-        std::vector<double> t_coarse;
-        std::vector<double> f_coarse;
+    struct FineSyncParam {
+        SyncParam sync;
 
-        std::vector<double> t_fine;
-        std::vector<double> f_fine;
-
-        // 放进 fl中的PhySource里
-        void synchronisation(const itpp::cvec &input){
-            constexpr int ofdm_symb = 54;
-
-            fineSync(input, ofdm_symb);
-            correct_transfer_function(ofdm_symb);
-            blanking_block(input, ofdm_symb);
+        explicit FineSyncParam(const int ofdm_symb) : ofdm_symb_(ofdm_symb) {
         }
 
-        void fineSync(const itpp::cvec &input, int ofdm_symb);
-        void correct_transfer_function(int ofdm_symb);
-        void blanking_block(const itpp::cvec &input, int ofdm_symb);
-    private:
+        void synchronisation(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+            std::vector<double> t_fine;
+            std::vector<double> f_fine;
 
-        void evalResultsFl(std::vector<double> &t_sync, std::vector<double> &f_sync);
+            fineSync(input, t_coarse, f_coarse, t_fine, f_fine);
+            blanking_block(input, t_fine, f_fine);
+        }
+    private:
+        int ofdm_symb_;
+        void fineSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, std::vector<double> &t_fine, std
+                      ::vector<double> &f_fine);
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
-        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, int ofdm_symb);
-        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> t_fine, std::vector<double> f_fine, int ofdm_symb, itpp::cvec &data_time);
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, std::vector<double> &t_coarse, std::vector<double> &
+                          f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine);
+
+        void blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine);
+        void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cvec &data_time);
     };
 
     struct CoarseSyncParam {
-        SyncParam sync_param;
+        SyncParam sync;
         itpp::vec M1;
         itpp::vec M2;
         itpp::vec angle1;
@@ -151,10 +151,6 @@ namespace openldacs::phy::params {
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
         void getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
-    };
-
-    struct FineSyncParam {
-        SyncParam sync_param;
     };
 
 
