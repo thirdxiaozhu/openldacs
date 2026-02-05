@@ -433,7 +433,7 @@ namespace openldacs::phy::link::fl {
 
         // demod
         static itpp::cmat matrix_fft(const itpp::cmat &to_process);
-        itpp::cvec vec_fft(const itpp::cvec &to_process);
+        static itpp::cmat downsampling_freq(const itpp::cmat &signal, int downsample);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
@@ -495,9 +495,10 @@ namespace openldacs::phy::link::fl {
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
-                itpp::cmat data_freq_up = matrix_fft(data_time);
+                const itpp::cmat data_freq_up = matrix_fft(data_time);
 
-                std::cout << data_freq_up << std::endl;
+                downsampling_freq(data_freq_up, f_sync.sync.upsample_rate);
+
             });
 
         }

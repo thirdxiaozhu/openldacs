@@ -149,11 +149,36 @@ namespace openldacs::phy::link::fl {
         return result;
     }
 
-    itpp::cvec FLChannelHandler::vec_fft(const itpp::cvec &to_process) {
-        return itpp::fft(to_process);
+    itpp::cmat FLChannelHandler::downsampling_freq(const itpp::cmat &signal, const int downsample) {
+        const int num_rows = signal.rows();
+
+        double scale_factor = 1.0 / std::sqrt(static_cast<double>(downsample));
+
+        double use_len_d = static_cast<double>(num_rows) / downsample;
+        if (num_rows % downsample != 0) {
+            it_error("Downsampling factor should be a divisor of the signal length");
+        }
+
+        int use_len = static_cast<int>(use_len_d);
+        int use_len1 = static_cast<int>(std::floor(use_len / 2.0));
+
+        int start_idx = (num_rows / 2) - use_len1;
+        int end_idx = start_idx + use_len - 1;
+
+        // 边界安全检查
+        if (start_idx < 0 || end_idx >= num_rows) {
+            it_error("Calculated indices are out of bounds.");
+        }
+
+        itpp::cmat sig_down = signal.get_rows(start_idx, end_idx);
+
+        SPDLOG_INFO("{} {}",  start_idx, end_idx);
+
+        //TODO: 差一个步骤：应用缩放因子
+        // return sig_down * scale_factor;
+
+        return sig_down;
     }
-
-
 
     void BC1_3Handler::submit(const PhySdu sdu, CMS cms) {
         std::cout << sdu.payload;
