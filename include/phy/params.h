@@ -63,6 +63,7 @@ namespace openldacs::phy::params {
         itpp::cvec pilot_seeds;
         itpp::cvec sync_symbols1;
         itpp::cvec sync_symbols2;
+        itpp::cvec sync_symbols;
 
         itpp::cmat frame;
     };

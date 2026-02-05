@@ -384,8 +384,9 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev, const int ofdm_symb)
-            : device_(dev), config_(config), coding_table_(frame_info_), f_sync(ofdm_symb) {
+            : device_(dev), config_(config), coding_table_(frame_info_), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb){
         }
+
 
         std::mutex block_m_;
         device::DevPtr& device_;
@@ -395,6 +396,7 @@ namespace openldacs::phy::link::fl {
         CodingTable coding_table_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
+        int ofdm_symb_;
         FineSyncParam f_sync;
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
@@ -432,8 +434,13 @@ namespace openldacs::phy::link::fl {
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
         // demod
-        static itpp::cmat matrix_fft(const itpp::cmat &to_process);
-        static itpp::cmat downsampling_freq(const itpp::cmat &signal, int downsample);
+        static itpp::cmat matrixFft(const itpp::cmat &to_process);
+        static itpp::cmat downsamplingFreq(const itpp::cmat &signal, int downsample);
+
+        itpp::cmat channelEst(const itpp::cmat &input);
+        itpp::cmat channel_coeff_pil(const itpp::cmat &input);
+        itpp::cmat line_int_2d(const itpp::cmat &input);
+
     };
 
     class BC1_3Handler final:public FLChannelHandler {
@@ -495,10 +502,10 @@ namespace openldacs::phy::link::fl {
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
-                const itpp::cmat data_freq_up = matrix_fft(data_time);
+                const itpp::cmat data_freq_up = matrixFft(data_time);
+                const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
 
-                downsampling_freq(data_freq_up, f_sync.sync.upsample_rate);
-
+                channelEst(data_freq);
             });
 
         }
