@@ -366,6 +366,15 @@ namespace openldacs::phy::link::fl {
         }
     };
 
+    struct ChannelEstimate {
+        explicit ChannelEstimate(const itpp::cmat &frame): frame_(frame) {
+
+        };
+    private:
+
+        itpp::cmat frame_;
+    };
+
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
