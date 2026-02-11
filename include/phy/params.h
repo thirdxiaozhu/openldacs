@@ -14,9 +14,158 @@
 
 namespace openldacs::phy::params {
     using namespace openldacs::util;
+    using namespace phy::config;
     namespace openldacs::phy {class FLChannelHandler;};
 
     using cd = std::complex<double>;
+
+
+    enum class ModulationType : int { QPSK, QAM16, QAM64, };
+    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
+
+    inline constexpr std::size_t n_sync_symb = 2;
+    inline constexpr std::int64_t pos_sync1 = 0;
+    inline constexpr std::int64_t pos_sync2 = 1;
+    inline constexpr std::int64_t guard_left = 7;
+    inline constexpr std::int64_t guard_right = 6;
+    inline constexpr std::array<int, 12> sync_ind1 = {
+        -24 + n_fft/2,
+        -20 + n_fft/2,
+        -16 + n_fft/2,
+        -12 + n_fft/2,
+        -8 + n_fft/2,
+        -4 + n_fft/2,
+        4 + n_fft/2,
+        8 + n_fft/2,
+        12 + n_fft/2,
+        16 + n_fft/2,
+        20 + n_fft/2,
+        24 + n_fft/2
+    };
+    inline constexpr std::array<int, 24> sync_ind2 = {
+        -24 + n_fft*3/2,
+        -22 + n_fft*3/2,
+        -20 + n_fft*3/2,
+        -18 + n_fft*3/2,
+        -16 + n_fft*3/2,
+        -14 + n_fft*3/2,
+        -12 + n_fft*3/2,
+        -10 + n_fft*3/2,
+        -8 + n_fft*3/2,
+        -6 + n_fft*3/2,
+        -4 + n_fft*3/2,
+        -2 + n_fft*3/2,
+        2 + n_fft*3/2,
+        4 + n_fft*3/2,
+        6 + n_fft*3/2,
+        8 + n_fft*3/2,
+        10 + n_fft*3/2,
+        12 + n_fft*3/2,
+        14 + n_fft*3/2,
+        16 + n_fft*3/2,
+        18 + n_fft*3/2,
+        20 + n_fft*3/2,
+        22 + n_fft*3/2,
+        24 + n_fft*3/2,
+    };
+
+    inline constexpr std::array<int, 4> pilot_set0 = {
+        -25 + n_fft/2,
+        -1 + n_fft/2,
+        1 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set1 = {
+        -17 + n_fft/2,
+        17 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 4> pilot_set2 = {
+        -21 + n_fft/2,
+        -13 + n_fft/2,
+        13 + n_fft/2,
+        21 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 4> pilot_set3 = {
+        -25 + n_fft/2,
+        -9 + n_fft/2,
+        9 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set4 = {
+        -5 + n_fft/2,
+        5 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> pilot_set5 = {
+        -1 + n_fft/2,
+        1 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 14> pilot_set6 = {
+        -25 + n_fft/2,
+        -21 + n_fft/2,
+        -17 + n_fft/2,
+        -13 + n_fft/2,
+        -9 + n_fft/2,
+        -5 + n_fft/2,
+        -1 + n_fft/2,
+        1 + n_fft/2,
+        5 + n_fft/2 ,
+        9 + n_fft/2,
+        13 + n_fft/2,
+        17 + n_fft/2,
+        21 + n_fft/2,
+        25 + n_fft/2,
+    };
+
+    inline constexpr std::array<cd, 4> pilot_seed0 = {
+        1, -1, -1 , -1
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed1 = {
+        1, -1
+    };
+
+    inline constexpr std::array<cd, 4> pilot_seed2 = {
+        1, 1, cd(0, 1), cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 4> pilot_seed3 = {
+        1, -1, cd(0, -1), cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed4 = {
+        1,  cd(0, -1)
+    };
+
+    inline constexpr std::array<cd, 2> pilot_seed5 = {
+        1,  -1
+    };
+
+    inline constexpr std::array<cd, 14> pilot_seed6 = {
+        1, cd(0, -1), cd(0, 1), 1, cd(0, 1), cd(0, 1),
+                         -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
+    };
+
+    inline const std::vector<std::vector<int>> pilot_sets_define = {
+        {pilot_set1.begin(), pilot_set1.end()},
+        {pilot_set2.begin(), pilot_set2.end()},
+        {pilot_set3.begin(), pilot_set3.end()},
+        {pilot_set4.begin(), pilot_set4.end()},
+        {pilot_set5.begin(), pilot_set5.end()},
+    };
+
+    inline const std::vector<std::vector<cd>> pilot_seeds_define = {
+        {pilot_seed1.begin(), pilot_seed1.end()},
+        {pilot_seed2.begin(), pilot_seed2.end()},
+        {pilot_seed3.begin(), pilot_seed3.end()},
+        {pilot_seed4.begin(), pilot_seed4.end()},
+        {pilot_seed5.begin(), pilot_seed5.end()},
+    };
 
     inline constexpr std::array<uint8_t, 412> random_output = {
         0xBF, 0x03, 0x82, 0x09, 0x0C, 0x36, 0x28, 0xB4, 0xF3, 0xBA, 0x29, 0x9C, 0xF5, 0x4A, 0x3F, 0xBC, 0x81, 0x8B,
@@ -66,6 +215,18 @@ namespace openldacs::phy::params {
         itpp::cvec sync_symbols;
 
         itpp::cmat frame;
+
+        explicit FrameInfo(const int symbols):symbols_(symbols){
+            getFrameIndices();
+            calcSequences();
+            composeFrame();
+        }
+
+    private:
+        int symbols_;
+        void getFrameIndices();
+        void calcSequences();
+        void composeFrame();
     };
 
     class SyncStateMachine {
@@ -154,9 +315,76 @@ namespace openldacs::phy::params {
         void getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
     };
 
+    struct ChannelEstimate {
+        std::vector<std::vector<int>>    pilot_ind_cell;
+        std::vector<std::vector<double>> pilot_dist_cell;
+        std::vector<int> data_ind;
+        itpp::imat frame_pattern_sync_;
 
-    enum class ModulationType : int { QPSK, QAM16, QAM64, };
-    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
+        explicit ChannelEstimate(FrameInfo &frame): frame_info_(frame) {
+            frame_pattern_sync_ = std::move(frame_info_.frame_pattern);
+            // 判断是否是FL
+            if (1) {
+                for (int i = 0; i < sync_ind2.size(); i++) {
+                    frame_pattern_sync_(sync_ind2[i]) = 2;
+                }
+            }
+
+            // TODO: 判断rl
+            // if strcmp(chan_param.transmission, 'rl')
+            //      frame_pattern = repmat(frame_pattern, 1, ce_param.N_tile_joint/2);
+            // end
+
+            std::vector<int> pilot_ind;
+            std::vector<int> data_ind_x, data_ind_y;
+            std::vector<int> pilot_ind_x, pilot_ind_y;
+
+            for (int r = 0; r < frame_pattern_sync_.rows(); ++r) {
+                for (int c = 0; c < frame_pattern_sync_.cols(); ++c) {
+                    int val = frame_pattern_sync_(r, c);
+                    int lin = r * frame_pattern_sync_.cols() + c; // linear index
+                    if (val == static_cast<int>(SymbolValue::DATA)) {
+                        data_ind.push_back(lin);
+                        data_ind_x.push_back(r);
+                        data_ind_y.push_back(c);
+                    } else if (val == static_cast<int>(SymbolValue::PILOT)) {
+                        pilot_ind.push_back(lin);
+                        pilot_ind_x.push_back(r);
+                        pilot_ind_y.push_back(c);
+                    }
+                }
+            }
+
+            pilot_ind_cell.resize(data_ind.size());
+            pilot_dist_cell.resize(data_ind.size());
+
+            for (size_t k = 0; k < data_ind.size(); ++k) {
+                int data_x = data_ind_x[k];
+                int data_y = data_ind_y[k];
+
+                std::vector<int>    pilot_ind_aux;
+                std::vector<double> pilot_dist_aux;
+
+                for (size_t p = 0; p < pilot_ind.size(); ++p) {
+                    int dx = pilot_ind_x[p] - data_x;
+                    int dy = pilot_ind_y[p] - data_y;
+                    double dist = std::sqrt(static_cast<double>(dx * dx + dy * dy));
+                    if (dist <= influence_length) {
+                        pilot_ind_aux.push_back(pilot_ind[p]); // linear index
+                        pilot_dist_aux.push_back(dist);
+                    }
+                }
+
+                pilot_ind_cell[k]  = std::move(pilot_ind_aux);
+                pilot_dist_cell[k] = std::move(pilot_dist_aux);
+            }
+            std::cout << frame_pattern_sync_ << std::endl;
+        }
+    private:
+        FrameInfo& frame_info_;
+        int influence_length = 10;
+    };
+
     // enum class CodingRate : int { R12, R23, R34 };
     struct HelicalInterleaverParams {
         int a, b = 0;

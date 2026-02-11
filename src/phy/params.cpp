@@ -14,6 +14,125 @@
 
 namespace openldacs::phy::params {
 
+    void FrameInfo::getFrameIndices() {
+        itpp::imat& pattern = frame_pattern;
+
+        pattern = itpp::imat(n_fft, symbols_);
+        pattern.ones();
+        pattern.set_col(pos_sync1, itpp::zeros_i(n_fft));
+        pattern.set_col(pos_sync2, itpp::zeros_i(n_fft));
+
+        // guards
+        pattern.set_rows(0, itpp::zeros_i(guard_left, symbols_));
+        pattern.set_rows(n_fft-guard_right, itpp::zeros_i(guard_right, symbols_));
+        // middle
+        pattern.set_row(n_fft/2, itpp::zeros_i(symbols_));
+
+        // pilots 1
+        for (const int i : pilot_set0) {
+            pattern(i, 2) = static_cast<int>(SymbolValue::PILOT);
+        }
+
+        // pilots 2-53
+        for (int i = 0 ; i < symbols_ - 4; i++) {
+            for (const int s : pilot_sets_define[i % 5]) {
+                pattern(s, i+3) = static_cast<int>(SymbolValue::PILOT);
+            }
+        }
+
+        // pilots 54
+        for (const int i : pilot_set6) {
+            pattern(i, symbols_ - 1) = static_cast<int>(SymbolValue::PILOT);
+        }
+
+        // std::cout << pattern << std::endl;
+
+        find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
+        find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
+        n_data = data_ind.size();
+        n_pilot = pilot_ind.size();
+
+        // for sync
+        sync_ind.insert(sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
+        sync_ind.insert(sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
+    }
+
+
+    void FrameInfo::calcSequences() {
+        // pilot symbol
+        {
+            pilot_seeds.set_size(static_cast<int>(n_pilot));
+
+            int idx = 0;
+
+            // seed1 - pilot_seed0
+            for (const auto current_pilot_seed : pilot_seed0) {
+                pilot_seeds(idx++) = current_pilot_seed;
+            }
+
+            for (int i = 0; i < symbols_ - 4; i++) {
+                const std::vector<cd>& current_pilot_seeds = pilot_seeds_define[i % 5];
+                for (auto current_pilot_seed : current_pilot_seeds) {
+                    pilot_seeds(idx++) = current_pilot_seed;
+                }
+            }
+
+            // seed7 - pilot_seed6
+            for (const auto current_pilot_seed : pilot_seed6) {
+                pilot_seeds(idx++) = current_pilot_seed;
+            }
+        }
+
+        // sync symbol2
+        {
+
+            const int N1 = static_cast<int>(n_sync1);
+            sync_symbols1.set_size(N1);
+
+            for (int k = 0; k < N1; ++k) {
+                const std::complex<double> W_N1 = std::exp(std::complex<double>(0.0, 5 * M_PI * k * k / N1));
+                sync_symbols1(k) = std::sqrt(4) * W_N1;
+            }
+        }
+
+        // sync symbol1
+        {
+            const int N2 = static_cast<int>(n_sync2);
+            sync_symbols2.set_size(N2);
+
+            for (int k = 0; k < N2; ++k) {
+                const std::complex<double> W_N2 = std::exp(std::complex<double>(0.0,  M_PI * k * k / N2));
+                sync_symbols2(k) = std::sqrt(2) * W_N2;
+            }
+        }
+
+        sync_symbols = itpp::concat(sync_symbols1, sync_symbols2);
+
+        // std::cout << frame_info_.sync_ind << std::endl;
+        // std::cout << frame_info_.sync_symbols1 << std::endl;
+        // std::cout << frame_info_.sync_symbols2 << std::endl;
+        // std::cout << frame_info_.sync_symbols << std::endl;
+    }
+
+    void FrameInfo::composeFrame() {
+        frame.set_size(n_fft, symbols_);
+        frame.zeros();
+
+        for (int i = 0; i < pilot_ind.size(); i++) {
+            frame(pilot_ind[i]) = pilot_seeds[i];
+        }
+
+        for (int i = 0; i < sync_ind1.size(); i++) {
+            frame(sync_ind1[i]) = sync_symbols1[i];
+        }
+
+        for (int i = 0; i < sync_ind2.size(); i++) {
+            frame(sync_ind2[i]) = sync_symbols2[i];
+        }
+
+    }
+
+
     CodingParams CodingTable::setCodingParams(CodingKey key, CHANNEL ch) const {
         CodingParams params = get_initial_coding_param(key, ch);
 

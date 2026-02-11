@@ -21,152 +21,9 @@ namespace openldacs::phy::link::fl {
     class BC2Handler;
     class FLDataHandler;
     using namespace openldacs::util;
-    using namespace phy::config;
     using namespace phy::params;
 
-    inline constexpr std::size_t n_sync_symb = 2;
-    inline constexpr std::int64_t pos_sync1 = 0;
-    inline constexpr std::int64_t pos_sync2 = 1;
-    inline constexpr std::int64_t guard_left = 7;
-    inline constexpr std::int64_t guard_right = 6;
-    inline constexpr std::array<int, 12> sync_ind1 = {
-        -24 + n_fft/2,
-        -20 + n_fft/2,
-        -16 + n_fft/2,
-        -12 + n_fft/2,
-        -8 + n_fft/2,
-        -4 + n_fft/2,
-        4 + n_fft/2,
-        8 + n_fft/2,
-        12 + n_fft/2,
-        16 + n_fft/2,
-        20 + n_fft/2,
-        24 + n_fft/2
-    };
-    inline constexpr std::array<int, 24> sync_ind2 = {
-        -24 + n_fft*3/2,
-        -22 + n_fft*3/2,
-        -20 + n_fft*3/2,
-        -18 + n_fft*3/2,
-        -16 + n_fft*3/2,
-        -14 + n_fft*3/2,
-        -12 + n_fft*3/2,
-        -10 + n_fft*3/2,
-        -8 + n_fft*3/2,
-        -6 + n_fft*3/2,
-        -4 + n_fft*3/2,
-        -2 + n_fft*3/2,
-        2 + n_fft*3/2,
-        4 + n_fft*3/2,
-        6 + n_fft*3/2,
-        8 + n_fft*3/2,
-        10 + n_fft*3/2,
-        12 + n_fft*3/2,
-        14 + n_fft*3/2,
-        16 + n_fft*3/2,
-        18 + n_fft*3/2,
-        20 + n_fft*3/2,
-        22 + n_fft*3/2,
-        24 + n_fft*3/2,
-    };
 
-    inline constexpr std::array<int, 4> pilot_set0 = {
-        -25 + n_fft/2,
-        -1 + n_fft/2,
-        1 + n_fft/2,
-        25 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 2> pilot_set1 = {
-        -17 + n_fft/2,
-        17 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 4> pilot_set2 = {
-        -21 + n_fft/2,
-        -13 + n_fft/2,
-        13 + n_fft/2,
-        21 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 4> pilot_set3 = {
-        -25 + n_fft/2,
-        -9 + n_fft/2,
-        9 + n_fft/2,
-        25 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 2> pilot_set4 = {
-        -5 + n_fft/2,
-        5 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 2> pilot_set5 = {
-        -1 + n_fft/2,
-        1 + n_fft/2,
-    };
-
-    inline constexpr std::array<int, 14> pilot_set6 = {
-        -25 + n_fft/2,
-        -21 + n_fft/2,
-        -17 + n_fft/2,
-        -13 + n_fft/2,
-        -9 + n_fft/2,
-        -5 + n_fft/2,
-        -1 + n_fft/2,
-        1 + n_fft/2,
-        5 + n_fft/2 ,
-        9 + n_fft/2,
-        13 + n_fft/2,
-        17 + n_fft/2,
-        21 + n_fft/2,
-        25 + n_fft/2,
-    };
-
-    inline constexpr std::array<cd, 4> pilot_seed0 = {
-        1, -1, -1 , -1
-    };
-
-    inline constexpr std::array<cd, 2> pilot_seed1 = {
-        1, -1
-    };
-
-    inline constexpr std::array<cd, 4> pilot_seed2 = {
-        1, 1, cd(0, 1), cd(0, -1)
-    };
-
-    inline constexpr std::array<cd, 4> pilot_seed3 = {
-        1, -1, cd(0, -1), cd(0, -1)
-    };
-
-    inline constexpr std::array<cd, 2> pilot_seed4 = {
-        1,  cd(0, -1)
-    };
-
-    inline constexpr std::array<cd, 2> pilot_seed5 = {
-        1,  -1
-    };
-
-    inline constexpr std::array<cd, 14> pilot_seed6 = {
-        1, cd(0, -1), cd(0, 1), 1, cd(0, 1), cd(0, 1),
-                         -1, -1, cd(0, 1), cd(0, 1), 1, cd(0, 1), cd(0, -1), 1
-    };
-
-    inline const std::vector<std::vector<int>> pilot_sets = {
-        {pilot_set1.begin(), pilot_set1.end()},
-        {pilot_set2.begin(), pilot_set2.end()},
-        {pilot_set3.begin(), pilot_set3.end()},
-        {pilot_set4.begin(), pilot_set4.end()},
-        {pilot_set5.begin(), pilot_set5.end()},
-    };
-
-    inline const std::vector<std::vector<cd>> pilot_seeds = {
-        {pilot_seed1.begin(), pilot_seed1.end()},
-        {pilot_seed2.begin(), pilot_seed2.end()},
-        {pilot_seed3.begin(), pilot_seed3.end()},
-        {pilot_seed4.begin(), pilot_seed4.end()},
-        {pilot_seed5.begin(), pilot_seed5.end()},
-    };
 
     // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
     struct RsEncodedUnit {
@@ -366,15 +223,6 @@ namespace openldacs::phy::link::fl {
         }
     };
 
-    struct ChannelEstimate {
-        explicit ChannelEstimate(const itpp::cmat &frame): frame_(frame) {
-
-        };
-    private:
-
-        itpp::cmat frame_;
-    };
-
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
@@ -393,9 +241,8 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev, const int ofdm_symb)
-            : device_(dev), config_(config), coding_table_(frame_info_), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb){
+            : device_(dev), config_(config), frame_info_(ofdm_symb), coding_table_(frame_info_), channel_est_(frame_info_), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb){
         }
-
 
         std::mutex block_m_;
         device::DevPtr& device_;
@@ -403,6 +250,7 @@ namespace openldacs::phy::link::fl {
 
         FrameInfo frame_info_;
         CodingTable coding_table_;
+        ChannelEstimate channel_est_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
         int ofdm_symb_;
@@ -420,11 +268,6 @@ namespace openldacs::phy::link::fl {
 
         virtual void initCodingTable() = 0;
 
-        // frames
-        void buildFrame(int symbols);
-        void getFrameIndices(int symbols);
-        void calcSequences(int symbols);
-        void composeFrame(int symbols);
 
         // channel coding
         virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
@@ -448,14 +291,13 @@ namespace openldacs::phy::link::fl {
 
         itpp::cmat channelEst(const itpp::cmat &input);
         itpp::cmat channel_coeff_pil(const itpp::cmat &input);
-        itpp::cmat line_int_2d(const itpp::cmat &input);
+        void line_int_2d(const itpp::cmat &input);
 
     };
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
-            buildFrame(n_bc13_ofdm_symb);
             initCodingTable();
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
@@ -480,7 +322,6 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
-            buildFrame(n_bc2_ofdm_symb);
             initCodingTable();
 
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
@@ -505,7 +346,6 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            buildFrame(n_fl_ofdm_symb);
             initCodingTable();
 
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){

@@ -10,12 +10,6 @@
 
 namespace openldacs::phy::link::fl {
 
-    void FLChannelHandler::buildFrame(const int symbols)  {
-        getFrameIndices(symbols);
-        calcSequences(symbols);
-        composeFrame(symbols);
-    }
-
     FLChannelHandler& PhyFl::getHandler(const CHANNEL type) const {
         switch (type) {
             case BCCH1_3:   return *bc13_;
@@ -183,7 +177,6 @@ namespace openldacs::phy::link::fl {
     }
 
     itpp::cmat FLChannelHandler::channel_coeff_pil(const itpp::cmat &input) {
-        SPDLOG_INFO("{} {} {}", input.size(), input.rows(), input.cols());
         int num_frames = input.size() / ofdm_symb_ / n_fft;
         int sync_pos = -1;
 
@@ -272,7 +265,28 @@ namespace openldacs::phy::link::fl {
         return chan_coeff_mat;
     }
 
-    itpp::cmat FLChannelHandler::line_int_2d(const itpp::cmat &input) {
+    void FLChannelHandler::line_int_2d(const itpp::cmat &input) {
+        SPDLOG_INFO("{} {} {}", input.size(), input.rows(), input.cols());
+        // TODO: 判断rl
+        //     if strcmp(transmission, 'rl')
+        //          N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
+        //     end
+
+        int num_frames = input.cols() / ofdm_symb_;
+
+        for (int i = 0; i < num_frames; ++i) {
+            const int col_offset = num_frames * ofdm_symb_;
+            for (int k = 0; k < channel_est_.data_ind.size(); i++) {
+                const auto& pilot_ind_aux = channel_est_.pilot_ind_cell[k];
+                const auto& pilot_dist_aux = channel_est_.pilot_dist_cell[k];
+
+                std::complex<double> num(0.0, 0.0);
+                double den = 0.0;
+                double w_sum = 0.0;
+
+            }
+        }
+
 
     }
 
@@ -392,127 +406,6 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void FLChannelHandler::getFrameIndices(const int symbols) {
-        itpp::imat& pattern = frame_info_.frame_pattern;
-
-        pattern = itpp::imat(n_fft, symbols);
-        pattern.ones();
-        pattern.set_col(pos_sync1, itpp::zeros_i(n_fft));
-        pattern.set_col(pos_sync2, itpp::zeros_i(n_fft));
-
-        // guards
-        pattern.set_rows(0, itpp::zeros_i(guard_left, symbols));
-        pattern.set_rows(n_fft-guard_right, itpp::zeros_i(guard_right, symbols));
-        // middle
-        pattern.set_row(n_fft/2, itpp::zeros_i(symbols));
-
-        // pilots 1
-        for (const int i : pilot_set0) {
-            pattern(i, 2) = static_cast<int>(SymbolValue::PILOT);
-        }
-
-        // pilots 2-53
-        for (int i = 0 ; i < symbols - 4; i++) {
-            for (const int s : pilot_sets[i % 5]) {
-                pattern(s, i+3) = static_cast<int>(SymbolValue::PILOT);
-            }
-        }
-
-        // pilots 54
-        for (const int i : pilot_set6) {
-            pattern(i, symbols - 1) = static_cast<int>(SymbolValue::PILOT);
-        }
-
-        // std::cout << pattern << std::endl;
-
-        find_value_imat(frame_info_.data_ind, pattern, static_cast<int>(SymbolValue::DATA));
-        find_value_imat(frame_info_.pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
-        frame_info_.n_data = frame_info_.data_ind.size();
-        frame_info_.n_pilot = frame_info_.pilot_ind.size();
-
-        // for sync
-        frame_info_.sync_ind.insert(frame_info_.sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
-        frame_info_.sync_ind.insert(frame_info_.sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
-    }
-
-    void FLChannelHandler::calcSequences(const int symbols) {
-        // pilot symbol
-        {
-            itpp::cvec& seed = frame_info_.pilot_seeds;
-            seed.set_size(static_cast<int>(frame_info_.n_pilot));
-
-            int idx = 0;
-
-            // seed1 - pilot_seed0
-            for (const auto current_pilot_seed : pilot_seed0) {
-                seed(idx++) = current_pilot_seed;
-            }
-
-            for (int i = 0; i < symbols - 4; i++) {
-                const std::vector<cd>& current_pilot_seeds = pilot_seeds[i % 5];
-                for (auto current_pilot_seed : current_pilot_seeds) {
-                    seed(idx++) = current_pilot_seed;
-                }
-            }
-
-            // seed7 - pilot_seed6
-            for (const auto current_pilot_seed : pilot_seed6) {
-                seed(idx++) = current_pilot_seed;
-            }
-        }
-
-        // sync symbol2
-        {
-
-            const int N1 = static_cast<int>(frame_info_.n_sync1);
-            itpp::cvec &sync_symbols1 = frame_info_.sync_symbols1;
-            sync_symbols1.set_size(N1);
-
-            for (int k = 0; k < N1; ++k) {
-                const std::complex<double> W_N1 = std::exp(std::complex<double>(0.0, 5 * M_PI * k * k / N1));
-                sync_symbols1(k) = std::sqrt(4) * W_N1;
-            }
-        }
-
-        // sync symbol1
-        {
-            const int N2 = static_cast<int>(frame_info_.n_sync2);
-            itpp::cvec &sync_symbols2 = frame_info_.sync_symbols2;
-            sync_symbols2.set_size(N2);
-
-            for (int k = 0; k < N2; ++k) {
-                const std::complex<double> W_N2 = std::exp(std::complex<double>(0.0,  M_PI * k * k / N2));
-                sync_symbols2(k) = std::sqrt(2) * W_N2;
-            }
-        }
-
-        frame_info_.sync_symbols = itpp::concat(frame_info_.sync_symbols1, frame_info_.sync_symbols2);
-
-        // std::cout << frame_info_.sync_ind << std::endl;
-        // std::cout << frame_info_.sync_symbols1 << std::endl;
-        // std::cout << frame_info_.sync_symbols2 << std::endl;
-        // std::cout << frame_info_.sync_symbols << std::endl;
-    }
-
-    void FLChannelHandler::composeFrame(const int symbols) {
-        itpp::cmat &frame = frame_info_.frame;
-
-        frame.set_size(n_fft, symbols);
-        frame.zeros();
-
-        for (int i = 0; i < frame_info_.pilot_ind.size(); i++) {
-            frame(frame_info_.pilot_ind[i]) = frame_info_.pilot_seeds[i];
-        }
-
-        for (int i = 0; i < sync_ind1.size(); i++) {
-            frame(sync_ind1[i]) = frame_info_.sync_symbols1[i];
-        }
-
-        for (int i = 0; i < sync_ind2.size(); i++) {
-            frame(sync_ind2[i]) = frame_info_.sync_symbols2[i];
-        }
-
-    }
 
     void FLDataHandler::subcarrier_allocation(BlockBuffer &block, const int joint_frame) {
         int input_ind = 0;
