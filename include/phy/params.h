@@ -506,33 +506,87 @@ namespace openldacs::phy::params {
             itpp::mat sigma2_sum(E_s.rows(), E_s.cols());
             for (int i = 0; i < sigma2_sum.size(); i++) {
                 const double abs_h2 = std::norm(chan_coeff_mat(i));
-                sigma2_sum(i) = E_n / (abs_h2 * E_s(i));
+                const double denom = (abs_h2 > 1e-12) ? (abs_h2 * E_s(i)) : 1e-12;
+                sigma2_sum(i) = E_n / denom;
             }
+
 
             itpp::cmat chan_scaled(chan_coeff_mat.rows(), chan_coeff_mat.cols());
             for (int i = 0; i < chan_scaled.size(); i++) {
                 chan_scaled(i) = chan_coeff_mat(i) * std::sqrt(E_s(i));
             }
 
+            // itpp::cmat data_equ(frame_info_.data_ind.size(), num_frames);
+            // for (int k = 0; k < num_frames; k++) {
+            //     int offset = k * ofdm_symb_ * n_fft;
+            //     for (int i = 0; i < frame_info_.data_ind.size(); i++) {
+            //         const int data_idx = frame_info_.data_ind[i];
+            //
+            //         const std::complex<double> data_val = data_sync(data_idx + offset);
+            //         std::complex<double> chan_coeff = chan_scaled(data_idx + offset);
+            //
+            //         // set zero to very low value for avoiding error from dividing by zero
+            //         if (chan_coeff == std::complex<double>(0.0, 0.0)) {
+            //             chan_coeff = std::complex<double>(1e-6, 0.0);
+            //         }
+            //
+            //         data_equ(i, k) = data_val / chan_coeff;
+            //     }
+            // }
+
+
             itpp::cmat data_equ(frame_info_.data_ind.size(), num_frames);
+            const std::complex<double> tiny_h(1e-6, 0.0);
+
             for (int k = 0; k < num_frames; k++) {
-                int offset = k * ofdm_symb_ * n_fft;
-                for (int i = 0; i < frame_info_.data_ind.size(); i++) {
+                const int offset = k * ofdm_symb_ * n_fft;
+
+                // 1) Pilot-aided per-symbol CPE estimate
+                std::vector<std::complex<double> > cpe_acc(ofdm_symb_, std::complex<double>(0.0, 0.0));
+                std::vector<int> cpe_cnt(ofdm_symb_, 0);
+
+                for (int p = 0; p < static_cast<int>(frame_info_.pilot_ind.size()); ++p) {
+                    const int pilot_idx = frame_info_.pilot_ind[p];
+                    const int sym = pilot_idx / n_fft;
+                    const int abs_idx = pilot_idx + offset;
+
+                    std::complex<double> h = chan_scaled(abs_idx);
+                    if (std::abs(h) < 1e-12) h = tiny_h;
+
+                    const std::complex<double> x_hat = data_sync(abs_idx) / h;
+                    const std::complex<double> ref = frame_info_.pilot_seeds(p);
+                    const std::complex<double> e = x_hat * std::conj(ref);
+                    const double mag = std::abs(e);
+
+                    if (mag > 1e-12 && sym >= 0 && sym < ofdm_symb_) {
+                        cpe_acc[sym] += e / mag;
+                        cpe_cnt[sym] += 1;
+                    }
+                }
+
+                std::vector<double> theta_sym(ofdm_symb_, 0.0);
+                for (int s = 0; s < ofdm_symb_; ++s) {
+                    if (cpe_cnt[s] > 0) {
+                        theta_sym[s] = std::arg(cpe_acc[s]);
+                    }
+                }
+
+                // 2) Equalize + remove CPE
+                for (int i = 0; i < static_cast<int>(frame_info_.data_ind.size()); i++) {
                     const int data_idx = frame_info_.data_ind[i];
+                    const int sym = data_idx / n_fft;
 
                     const std::complex<double> data_val = data_sync(data_idx + offset);
                     std::complex<double> chan_coeff = chan_scaled(data_idx + offset);
+                    if (std::abs(chan_coeff) < 1e-12) chan_coeff = tiny_h;
 
-                    // set zero to very low value for avoiding error from dividing by zero
-                    if (chan_coeff == std::complex<double>(0.0, 0.0)) {
-                        chan_coeff = std::complex<double>(1e-6, 0.0);
-                    }
+                    const std::complex<double> z_eq = data_val / chan_coeff;
+                    const std::complex<double> rot = std::polar(1.0, -theta_sym[sym]);
 
-                    data_equ(i, k) = data_val / chan_coeff;
+                    data_equ(i, k) = z_eq * rot;
                 }
             }
-            // MATLAB: data_equ = reshape(data_equ, [], N_pdu);
-            // 当前接口没有 N_pdu，先保持 [data_ind.size(), num_frames] 形状
+
             dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
         }
     private:
