@@ -240,8 +240,11 @@ namespace openldacs::phy::link::fl {
         }
 
     protected:
-        explicit FLChannelHandler(PhyFl::FLConfig& config, device::DevPtr& dev, const int ofdm_symb)
-            : device_(dev), config_(config), frame_info_(ofdm_symb), coding_table_(frame_info_), channel_est_(frame_info_), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb){
+        explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
+            : device_(dev), config_(config), frame_info_(ofdm_symb), coding_table_(frame_info_),
+              QPSK_modulator_(ModulationType::QPSK), QAM16_modulator_(ModulationType::QAM16),
+              QAM64_modulator_(ModulationType::QAM64), channel_est_(frame_info_, ofdm_symb),
+              equalizer_(frame_info_, dev, ofdm_symb), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb) {
         }
 
         std::mutex block_m_;
@@ -250,11 +253,16 @@ namespace openldacs::phy::link::fl {
 
         FrameInfo frame_info_;
         CodingTable coding_table_;
+        LdacsModulator QPSK_modulator_;
+        LdacsModulator QAM16_modulator_;
+        LdacsModulator QAM64_modulator_;
         ChannelEstimate channel_est_;
+        Equalizer equalizer_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
         CMS default_cms_ = CMS::QPSK_R12;
         int ofdm_symb_;
         FineSyncParam f_sync;
+
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
             if (sdu.direction == DirectionType::FL) {
@@ -280,18 +288,14 @@ namespace openldacs::phy::link::fl {
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
 
         // modulation
-        static void modulate(BlockBuffer &block, ModulationType mod_type);
-        virtual void subcarrier_allocation(BlockBuffer &block, int joint_frame) = 0;
-        static void matrix_ifft(BlockBuffer &block);
+        void modulate(BlockBuffer &block, ModulationType mod_type);
+        virtual void subcarrierAllocation(BlockBuffer &block, int joint_frame) = 0;
+        static void matrixIfft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
         // demod
         static itpp::cmat matrixFft(const itpp::cmat &to_process);
         static itpp::cmat downsamplingFreq(const itpp::cmat &signal, int downsample);
-
-        itpp::cmat channelEst(const itpp::cmat &input);
-        itpp::cmat channel_coeff_pil(const itpp::cmat &input);
-        void line_int_2d(const itpp::cmat &input);
 
     };
 
@@ -315,7 +319,7 @@ namespace openldacs::phy::link::fl {
         };
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
 
-        void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
+        void subcarrierAllocation(BlockBuffer &block, const int joint_frame) override {
         }
     };
 
@@ -339,7 +343,7 @@ namespace openldacs::phy::link::fl {
         }
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
 
-        void subcarrier_allocation(BlockBuffer &block, const int joint_frame) override {
+        void subcarrierAllocation(BlockBuffer &block, const int joint_frame) override {
         }
     };
 
@@ -354,7 +358,8 @@ namespace openldacs::phy::link::fl {
                 const itpp::cmat data_freq_up = matrixFft(data_time);
                 const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
 
-                channelEst(data_freq);
+                const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
+                equalizer_.equalize(data_freq, chan_coeff_mat);
             });
 
         }
@@ -376,7 +381,7 @@ namespace openldacs::phy::link::fl {
 
         void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
 
-        void subcarrier_allocation(BlockBuffer &block, int joint_frame) override;
+        void subcarrierAllocation(BlockBuffer &block, int joint_frame) override;
     };
 }
 

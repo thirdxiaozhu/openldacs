@@ -530,13 +530,15 @@ namespace openldacs::phy::params {
 
         for (int i = 0; i < t_coarse.size(); ++i) {
             const int frame_len = ofdm_symb_ * symb_bamc;
-            const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
+            // const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
+            const int start_idx = static_cast<int>(std::llround(t_coarse[i]));
             int end_idx = start_idx + frame_len;
 
             itpp::vec M_vec;
             itpp::vec angle_P_vec;
 
-            if (end_idx <= M.length() && start_idx > 0) {
+            // if (end_idx <= M.length() && start_idx > 0) {
+            if (end_idx <= M.length() && start_idx >= 0) {
                 M_vec = M.mid(start_idx, frame_len);
                 angle_P_vec = angle_P.mid(start_idx, frame_len);
             }else if (start_idx < 0) { // 左侧越界
@@ -750,5 +752,155 @@ namespace openldacs::phy::params {
         }
 
         M = itpp::elem_div(itpp::sqr(abs(P)) ,itpp::sqr(R));
+    }
+
+    itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input) {
+        itpp::cmat ce_pil = channel_coeff_pil(input);
+        line_int_2d(ce_pil);
+        return ce_pil;
+    }
+
+    itpp::cmat ChannelEstimate::channel_coeff_pil(const itpp::cmat &input) {
+        int num_frames = input.size() / ofdm_symb_ / n_fft;
+        int sync_pos = -1;
+
+        // 判断信道是否存在同步符号 ,在FL试验阶段直接就true
+        if (1) {
+            sync_pos = pos_sync2;
+        }
+        itpp::cmat chan_coeff_mat = itpp::zeros_c(n_fft, ofdm_symb_ * num_frames);
+
+        for (int i = 0; i < num_frames; ++i) {
+            // --- 提取一帧数据 ---
+            // MATLAB: data_sync(:, frame_count*N_ofdm_symb+1:(frame_count+1)*N_ofdm_symb)
+            // IT++: get_cols(start_col, end_col) 使用 0-based 索引
+            const int start_col = i * ofdm_symb_;
+            const int end_col = (i + 1) * ofdm_symb_ - 1;
+            itpp::cmat data_frame = input.get_cols(start_col, end_col);
+
+            for (int k = 0; k < frame_info_.pilot_ind.size(); ++k) {
+                // 获取 MATLAB 风格的线性索引 (0-based)
+                int mat_linear_idx = frame_info_.pilot_ind[k];
+
+
+                // 计算行列坐标 (MATLAB 是列优先 Column-Major)
+                int r = mat_linear_idx % n_fft; // 行索引
+                int c = mat_linear_idx / n_fft; // 列索引 (相对于当前帧)
+
+                // 提取接收到的导频值
+                std::complex<double> rec_val = data_frame(r, c);
+                std::complex<double> sent_val = frame_info_.pilot_seeds(k);
+
+                // LS 估计: H = Y / X
+                std::complex<double> h_est;
+
+                if (std::abs(sent_val) > 1e-9) {
+                    h_est = rec_val / sent_val;
+                } else {
+                    h_est = 0.0;
+                }
+
+                // 防止除零错误 (Zero-Forcing safety)
+                if (std::abs(h_est) == 0.0) {
+                    h_est = std::complex<double>(1e-5, 0.0);
+                }
+
+                // 存入大矩阵 (chan_coeff_mat)
+                // 注意列坐标要加上当前帧的偏移量
+                chan_coeff_mat(r, start_col + c) = h_est;
+            }
+
+            // --- 处理同步符号 (Sync Symbols) ---
+            if (sync_pos >= 0) {
+                // MATLAB: sync_symbols(13:end). 对应 C++ index 12 到最后
+                // 我们假设 sync_ind2 也是针对 data_frame 的线性索引
+
+                for (int k = 0; k < sync_ind2.size(); ++k) {
+                    const int mat_idx = sync_ind2[k];
+
+                    // 计算相对索引，复刻 MATLAB 逻辑:
+                    // rec_ref(frame_info.sync_ind2-(pos_sync_pi-1)*N_fft)
+                    // 这实际上是在计算 sync_ind2 对应在 这一列(pos_sync_pi) 中的行号
+                    // 但简单起见，我们直接解析 sync_ind2 的位置
+
+                    int r = mat_idx % n_fft;
+                    int c = mat_idx / n_fft; // 这一步应该等于 (pos_sync_pi - 1)
+
+                    std::complex<double> rec_ref_val = data_frame(r, c);
+
+                    // 获取对应的发送符号
+                    // MATLAB: sync_symbols(13:end) -> index k 对应 sync_symbols[12 + k]
+                    // 注意：这里需要确保 sync_symbols 长度足够
+                    std::complex<double> sent_ref_val = frame_info_.sync_symbols(12 + k);
+
+                    std::complex<double> h_ref = rec_ref_val / sent_ref_val;
+
+                    if (std::abs(h_ref) == 0.0) {
+                        h_ref = std::complex<double>(1e-5, 0.0);
+                    }
+
+                    // 存入大矩阵
+                    // 位置: 当前帧的起始列 + 同步符号所在的列(pos_sync_pi - 1)
+                    chan_coeff_mat(r, start_col + sync_pos) = h_ref;
+                }
+            }
+        }
+
+        return chan_coeff_mat;
+    }
+
+    void ChannelEstimate::line_int_2d(itpp::cmat &input) {
+        // SPDLOG_INFO("{} {} {}", input.size(), input.rows(), input.cols());
+        // TODO: 判断rl
+        //     if strcmp(transmission, 'rl')
+        //          N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
+        //     end
+
+
+        const int total_cols = input.cols();
+        if (total_cols % ofdm_symb_ != 0) {
+            throw std::runtime_error("lin_int_2d: invalid matrix width");
+        }
+        const int num_frames = total_cols / ofdm_symb_;
+
+        const double eps = 1e-12;
+        const std::complex<double> tiny(1e-5, 0.0);
+
+        for (int i = 0; i < num_frames; ++i) {
+            const int col_offset = i * ofdm_symb_;
+            for (int k = 0; k < data_ind.size(); k++) {
+                const auto data_idx = data_ind[k];
+                const int dr = data_idx % n_fft;
+                const int dc = col_offset + data_idx / n_fft;
+
+                const auto& pilot_idx_vec = pilot_ind_cell[k];
+                const auto& pilot_dist_vec = pilot_dist_cell[k];
+
+                if (pilot_idx_vec.empty() || pilot_idx_vec.size() != pilot_dist_vec.size()) {
+                    continue;
+                }
+                std::complex<double> acc(0.0, 0.0);
+                double wsum = 0.0;
+
+                for (size_t m = 0; m < pilot_idx_vec.size(); ++m) {
+                    if (pilot_dist_vec[m] <= eps) continue;
+                    const double w = 1.0 / pilot_dist_vec[m];
+
+                    const int pr = pilot_idx_vec[m] % n_fft;
+                    const int pc = col_offset + pilot_idx_vec[m] / n_fft;
+
+                    acc += w * input(pr, pc);
+                    wsum += w;
+                }
+
+                input(dr, dc) = (wsum > eps) ? (acc / wsum) : tiny;
+            }
+        }
+
+        for (int c = 0; c < input.cols(); ++c) {
+            for (int r = 0; r < input.rows(); ++r) {
+                if (std::abs(input(r, c)) <= eps) input(r, c) = tiny;
+            }
+        }
     }
 }

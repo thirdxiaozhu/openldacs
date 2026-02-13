@@ -114,6 +114,30 @@ namespace openldacs::util {
         return b;
     }
 
+    inline void dump_cvec_constellation(const itpp::cvec& v, const std::string& file_path) {
+        std::ofstream ofs(file_path);
+        if (!ofs.is_open()) {
+            throw std::runtime_error("failed to open " + file_path);
+        }
+        ofs << std::setprecision(17);
+        for (int i = 0; i < v.size(); ++i) {
+            ofs << v(i).real() << "," << v(i).imag() << "\n";
+        }
+    }
+
+    inline void dump_cmat_constellation(const itpp::cmat& m, const std::string& file_path) {
+        std::ofstream ofs(file_path);
+        if (!ofs.is_open()) {
+            throw std::runtime_error("failed to open " + file_path);
+        }
+        ofs << std::setprecision(17);
+        for (int c = 0; c < m.cols(); ++c) {
+            for (int r = 0; r < m.rows(); ++r) {
+                const auto z = m(r, c);
+                ofs << c << "," << z.real() << "," << z.imag() << "\n";
+            }
+        }
+    }
 
     static void dump_ofdm_mag_per_symbol(const itpp::cmat& frames_freq,
                                      const std::string& prefix)

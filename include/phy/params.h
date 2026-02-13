@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "config.h"
+#include "device.h"
 #include "openldacs.h"
 #include "util/reed_solomon.h"
 #include  "util/util.h"
@@ -229,6 +230,81 @@ namespace openldacs::phy::params {
         void composeFrame();
     };
 
+    class LdacsModulator {
+    public:
+        explicit LdacsModulator(const ModulationType mod_type) : modulator_(make_ldacs_symbols(mod_type), make_bits2symbols(mod_type)) {
+        }
+
+        itpp::vec demod_soft_per_symbol_noise(const itpp::cvec &y_eq,
+                                              const itpp::vec &p_noise
+                                              ) const {
+            if (y_eq.size() != p_noise.size()) throw std::runtime_error("size mismatch");
+            int k = modulator_.bits_per_symbol();
+            itpp::vec llr(k * y_eq.size());
+
+            for (int n = 0; n < y_eq.size(); ++n) {
+                itpp::cvec one(1); one(0) = y_eq(n);
+                itpp::vec llr_one = modulator_.demodulate_soft_bits(one, p_noise(n), itpp::APPROX);
+                llr.set_subvector(n * k, llr_one);
+            }
+            return llr;
+        }
+
+        itpp::cvec modulate(const itpp::bvec &input) const {
+            return modulator_.modulate_bits(input);
+        }
+
+    private:
+        itpp::Modulator<std::complex<double>> modulator_;
+
+        static itpp::ivec make_bits2symbols(const ModulationType mod_type) {
+            int M = 0;
+            if (mod_type == ModulationType::QPSK) M = 4;
+            else if (mod_type == ModulationType::QAM16) M = 16;
+            else if (mod_type == ModulationType::QAM64) M = 64;
+            else throw std::runtime_error("Unsupported modulation");
+
+            itpp::ivec bits2symbols(M);
+            for (int i = 0; i < M; ++i) {
+                bits2symbols(i) = i; // identity mapping
+            }
+            return bits2symbols;
+        }
+
+
+        static itpp::cvec make_ldacs_symbols(ModulationType mod_type) {
+            int k = 0, M = 0;
+            if (mod_type == ModulationType::QPSK) { k = 2; M = 4; }
+            else if (mod_type == ModulationType::QAM16) { k = 4; M = 16; }
+            else if (mod_type == ModulationType::QAM64) { k = 6; M = 64; }
+            else throw std::runtime_error("Unsupported modulation");
+
+            itpp::cvec symbols(M);
+
+            for (int d = 0; d < M; ++d) {
+                std::vector<int> b(k); // MSB -> LSB
+                for (int i = 0; i < k; ++i) b[i] = (d >> (k - 1 - i)) & 1;
+
+                std::complex<double> s;
+                if (mod_type == ModulationType::QPSK) {
+                    double b1 = -2.0 * b[0] + 1.0, b2 = -2.0 * b[1] + 1.0;
+                    s = {b1, b2}; s /= std::sqrt(2.0);
+                } else if (mod_type == ModulationType::QAM16) {
+                    double b1 = -2.0 * b[0] + 1.0, b2 = 2.0 * b[1] + 1.0;
+                    double b3 = -2.0 * b[2] + 1.0, b4 = 2.0 * b[3] + 1.0;
+                    s = {b1 * b2, b3 * b4}; s /= std::sqrt(10.0);
+                } else { // QAM64
+                    double b1 = -2.0 * b[0] + 1.0, b2 = 2.0 * b[1] - 1.0, b3 = 2.0 * b[2] + 1.0;
+                    double b4 = -2.0 * b[3] + 1.0, b5 = 2.0 * b[4] - 1.0, b6 = 2.0 * b[5] + 1.0;
+                    double re = (b2 * b3 + 4.0) * b1, im = (b5 * b6 + 4.0) * b4;
+                    s = {re, im}; s /= std::sqrt(42.0);
+                }
+                symbols(d) = s;
+            }
+            return symbols;
+        }
+    };
+
     class SyncStateMachine {
     public:
         explicit SyncStateMachine() {
@@ -312,7 +388,7 @@ namespace openldacs::phy::params {
         void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
-        void getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind);
+        void getPeak(const itpp::vec &input, int start, int end, double &peak_value, int &peak_ind);
     };
 
     struct ChannelEstimate {
@@ -320,8 +396,9 @@ namespace openldacs::phy::params {
         std::vector<std::vector<double>> pilot_dist_cell;
         std::vector<int> data_ind;
         itpp::imat frame_pattern_sync_;
+        int ofdm_symb_;
 
-        explicit ChannelEstimate(FrameInfo &frame): frame_info_(frame) {
+        explicit ChannelEstimate(FrameInfo &frame, const int ofdm_symb): ofdm_symb_(ofdm_symb), frame_info_(frame) {
             frame_pattern_sync_ = std::move(frame_info_.frame_pattern);
             // 判断是否是FL
             if (1) {
@@ -342,7 +419,7 @@ namespace openldacs::phy::params {
             for (int r = 0; r < frame_pattern_sync_.rows(); ++r) {
                 for (int c = 0; c < frame_pattern_sync_.cols(); ++c) {
                     int val = frame_pattern_sync_(r, c);
-                    int lin = r * frame_pattern_sync_.cols() + c; // linear index
+                    int lin = c * frame_pattern_sync_.rows() + r; // linear index
                     if (val == static_cast<int>(SymbolValue::DATA)) {
                         data_ind.push_back(lin);
                         data_ind_x.push_back(r);
@@ -378,11 +455,90 @@ namespace openldacs::phy::params {
                 pilot_ind_cell[k]  = std::move(pilot_ind_aux);
                 pilot_dist_cell[k] = std::move(pilot_dist_aux);
             }
-            std::cout << frame_pattern_sync_ << std::endl;
+            // std::cout << frame_pattern_sync_ << std::endl;
+        }
+
+        itpp::cmat channelEst(const itpp::cmat &input);
+    private:
+        FrameInfo &frame_info_;
+        int influence_length = 10;
+
+        itpp::cmat channel_coeff_pil(const itpp::cmat &input);
+
+        void line_int_2d(itpp::cmat &input);
+
+    };
+
+    struct Equalizer {
+
+        explicit Equalizer(const FrameInfo &frame, device::DevPtr& dev, int ofdm_symb):dev_(dev), frame_info_(frame), ofdm_symb_(ofdm_symb) {
+
+        }
+
+        double getEn() {
+            return 2 * dev_->getSigmaN() * dev_->getSigmaN();
+        }
+
+        void equalize(const itpp::cmat &data_sync, const itpp::cmat &chan_coeff_mat) {
+            double E_n = getEn();
+            itpp::mat E_s = itpp::zeros(data_sync.rows(), data_sync.cols());
+            E_s.zeros();
+            int num_frames = data_sync.size() / ofdm_symb_ / n_fft;
+
+            for (int f = 0; f < num_frames; f++) {
+                int offset = f * ofdm_symb_ * n_fft;
+
+                for (const int i: frame_info_.pilot_ind) {
+                    E_s(i+offset) = 1;
+                }
+
+                for (const int i: frame_info_.data_ind) {
+                    E_s(i+offset) = 1;
+                }
+            }
+            for (int i = 0; i < E_s.size(); i++) {
+                if (E_s(i) == 0) E_s(i) = 2;
+            }
+
+            // 已按你的条件化简：
+            // K_Factor == 1, P_int_blank == 0
+            // sigma2_sum = E_n / (|H|^2 * E_s)
+            itpp::mat sigma2_sum(E_s.rows(), E_s.cols());
+            for (int i = 0; i < sigma2_sum.size(); i++) {
+                const double abs_h2 = std::norm(chan_coeff_mat(i));
+                sigma2_sum(i) = E_n / (abs_h2 * E_s(i));
+            }
+
+            itpp::cmat chan_scaled(chan_coeff_mat.rows(), chan_coeff_mat.cols());
+            for (int i = 0; i < chan_scaled.size(); i++) {
+                chan_scaled(i) = chan_coeff_mat(i) * std::sqrt(E_s(i));
+            }
+
+            itpp::cmat data_equ(frame_info_.data_ind.size(), num_frames);
+            for (int k = 0; k < num_frames; k++) {
+                int offset = k * ofdm_symb_ * n_fft;
+                for (int i = 0; i < frame_info_.data_ind.size(); i++) {
+                    const int data_idx = frame_info_.data_ind[i];
+
+                    const std::complex<double> data_val = data_sync(data_idx + offset);
+                    std::complex<double> chan_coeff = chan_scaled(data_idx + offset);
+
+                    // set zero to very low value for avoiding error from dividing by zero
+                    if (chan_coeff == std::complex<double>(0.0, 0.0)) {
+                        chan_coeff = std::complex<double>(1e-6, 0.0);
+                    }
+
+                    data_equ(i, k) = data_val / chan_coeff;
+                }
+            }
+            // MATLAB: data_equ = reshape(data_equ, [], N_pdu);
+            // 当前接口没有 N_pdu，先保持 [data_ind.size(), num_frames] 形状
+            dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
         }
     private:
-        FrameInfo& frame_info_;
-        int influence_length = 10;
+        device::DevPtr& dev_;
+        FrameInfo frame_info_;
+        int ofdm_symb_;
     };
 
     // enum class CodingRate : int { R12, R23, R34 };

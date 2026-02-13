@@ -9,7 +9,6 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "openldacs.h"
-#include "params.h"
 #include "util/queue.h"
 #include "util/util.h"
 #include "util/worker.h"
@@ -42,6 +41,14 @@ namespace openldacs::phy::device {
             rx_callback_ = cb;
         }
 
+        void setSigmaN(const double new_sigma) {
+            sigma_n_ = new_sigma;
+        }
+
+        double getSigmaN() const {
+            return sigma_n_;
+        }
+
         virtual ~Device() {
             fl_to_trans_.close();
             trans_worker_.requestStop();
@@ -58,9 +65,10 @@ namespace openldacs::phy::device {
         const double tx_gain_ = 30.0;
         const double rx_gain_ = 30.0;
 
-        const double fl_freq = 1110e6;
-        const double rl_freq = 964e6;
-        params::SyncParam sync_param_;
+        const double fl_freq_ = 1110e6;
+        const double rl_freq_ = 964e6;
+
+        double sigma_n_;
 
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;

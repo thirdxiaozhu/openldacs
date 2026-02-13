@@ -26,10 +26,10 @@ namespace openldacs::phy::device {
                 rx_args_.channels = channels;
                 tx_stream_ = usrp_->get_tx_stream(tx_args_);
                 rx_stream_ = usrp_->get_rx_stream(rx_args_);
-                usrp_->set_tx_freq(uhd::tune_request_t(rl_freq), AS_CHANNEL);
-                usrp_->set_rx_freq(uhd::tune_request_t(fl_freq), AS_CHANNEL);
-                usrp_->set_tx_freq(uhd::tune_request_t(fl_freq), GS_CHANNEL);
-                usrp_->set_rx_freq(uhd::tune_request_t(rl_freq), GS_CHANNEL);
+                usrp_->set_tx_freq(uhd::tune_request_t(rl_freq_), AS_CHANNEL);
+                usrp_->set_rx_freq(uhd::tune_request_t(fl_freq_), AS_CHANNEL);
+                usrp_->set_tx_freq(uhd::tune_request_t(fl_freq_), GS_CHANNEL);
+                usrp_->set_rx_freq(uhd::tune_request_t(rl_freq_), GS_CHANNEL);
                 for (const auto ch : channels) {
                         usrp_->set_tx_gain(tx_gain_, ch);
                         usrp_->set_rx_gain(rx_gain_, ch);
