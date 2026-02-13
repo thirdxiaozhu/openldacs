@@ -5,7 +5,6 @@
 #ifndef OPENLDACS_CONFIG_H
 #define OPENLDACS_CONFIG_H
 
-#include "openldacs.h"
 #pragma once
 namespace openldacs::phy::config {
     inline constexpr int n_fft = 64;                 // FFT size

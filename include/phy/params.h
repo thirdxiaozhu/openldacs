@@ -461,7 +461,7 @@ namespace openldacs::phy::params {
         itpp::cmat channelEst(const itpp::cmat &input);
     private:
         FrameInfo &frame_info_;
-        int influence_length = 10;
+        int influence_length = 6;
 
         itpp::cmat channel_coeff_pil(const itpp::cmat &input);
 
