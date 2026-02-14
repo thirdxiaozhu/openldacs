@@ -289,6 +289,8 @@ namespace openldacs::phy::link::fl {
 
         // modulation
         void modulate(BlockBuffer &block, ModulationType mod_type);
+
+        itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const;
         virtual void subcarrierAllocation(BlockBuffer &block, int joint_frame) = 0;
         static void matrixIfft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
@@ -359,7 +361,13 @@ namespace openldacs::phy::link::fl {
                 const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
 
                 const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
-                equalizer_.equalize(data_freq, chan_coeff_mat);
+
+                itpp::cmat data_equ;
+                itpp::mat sigma2_sum;
+                equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
+
+                itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时的
+                std::cout << demod << std::endl;
             });
 
         }

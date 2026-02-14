@@ -68,7 +68,7 @@ namespace openldacs::phy::device {
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
 
-        double sigma_n_;
+        double sigma_n_ = 0.1;
 
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;

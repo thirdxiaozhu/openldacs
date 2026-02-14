@@ -235,20 +235,68 @@ namespace openldacs::phy::params {
         explicit LdacsModulator(const ModulationType mod_type) : modulator_(make_ldacs_symbols(mod_type), make_bits2symbols(mod_type)) {
         }
 
-        itpp::vec demod_soft_per_symbol_noise(const itpp::cvec &y_eq,
-                                              const itpp::vec &p_noise
-                                              ) const {
-            if (y_eq.size() != p_noise.size()) throw std::runtime_error("size mismatch");
-            int k = modulator_.bits_per_symbol();
-            itpp::vec llr(k * y_eq.size());
 
-            for (int n = 0; n < y_eq.size(); ++n) {
-                itpp::cvec one(1); one(0) = y_eq(n);
-                itpp::vec llr_one = modulator_.demodulate_soft_bits(one, p_noise(n), itpp::APPROX);
-                llr.set_subvector(n * k, llr_one);
+        // MATLAB-aligned:
+        // y_eq            -> equalized data symbols, size: N_data x N_pdu
+        // p_noise_full    -> full TF noise power matrix (not same size as y_eq)
+        // data_ind_packet -> linear indices (0-based, column-major), length = N_data*N_pdu
+        // return          -> LLR matrix, size: (k*N_data) x N_pdu  (same as MATLAB reshape(LLR(:),[],N_pdu))
+        itpp::mat demod_soft_matlab(const itpp::cmat &y_eq,
+                                    const itpp::mat &p_noise_full,
+                                    const std::vector<int> &data_ind
+        ) const {
+            const int n_data = y_eq.rows();
+            const int n_col = y_eq.cols();
+            const int n_sym = n_data * n_col;
+            const int k = modulator_.bits_per_symbol();
+
+            if (data_ind.size() != n_data) {
+                throw std::runtime_error("data_ind_packet size mismatch");
             }
-            return llr;
+
+            const int full_rows = p_noise_full.rows();
+            const int full_cols = p_noise_full.cols();
+            const int full_size = full_rows * full_cols;
+            if (n_col <= 0 || full_cols % n_col != 0) {
+                throw std::runtime_error("p_noise_full shape mismatch with y_eq");
+            }
+            const int cols_per_pdu = full_cols / n_col;
+            const int frame_stride = cols_per_pdu * full_rows;
+
+            itpp::vec noise_by_sym(n_sym); // MATLAB: P_noise(data_ind_packet).'
+            for (int f = 0; f < n_col; ++f) {
+                int offset = f * n_data;
+                for (int t = 0; t < n_data; ++t) {
+                    const int idx0 = data_ind[t] + f * frame_stride;
+                    if (idx0 < 0 || idx0 >= full_size) {
+                        throw std::runtime_error("data_ind_packet out of range");
+                    }
+                    const int r = idx0 % full_rows; // column-major linear indexing
+                    const int c = idx0 / full_rows;
+                    noise_by_sym(t + offset) = std::max(p_noise_full(r, c), 1e-10);
+                }
+            }
+
+            itpp::mat llr_mat(k * n_data, n_col);
+            itpp::cvec one(1);
+            itpp::vec llr_one(k); // reuse buffer, avoid per-symbol allocation
+
+            int t = 0; // symbol index in MATLAB y_eq(:) order
+            for (int c = 0; c < n_col; ++c) {
+                for (int r = 0; r < n_data; ++r, ++t) {
+                    one(0) = y_eq(r, c);
+                    modulator_.demodulate_soft_bits(one, noise_by_sym(t), llr_one, itpp::APPROX);
+
+                    // MATLAB-compatible packing: symbol r in column c occupies rows [r*k, r*k+k-1]
+                    for (int b = 0; b < k; ++b) {
+                        llr_mat(r * k + b, c) = llr_one(b);
+                    }
+                }
+            }
+
+            return llr_mat;
         }
+
 
         itpp::cvec modulate(const itpp::bvec &input) const {
             return modulator_.modulate_bits(input);
@@ -479,7 +527,7 @@ namespace openldacs::phy::params {
             return 2 * dev_->getSigmaN() * dev_->getSigmaN();
         }
 
-        void equalize(const itpp::cmat &data_sync, const itpp::cmat &chan_coeff_mat) {
+        void equalize(const itpp::cmat &data_sync, const itpp::cmat &chan_coeff_mat, itpp::cmat &data_equ, itpp::mat &sigma2_sum) {
             double E_n = getEn();
             itpp::mat E_s = itpp::zeros(data_sync.rows(), data_sync.cols());
             E_s.zeros();
@@ -503,7 +551,7 @@ namespace openldacs::phy::params {
             // 已按你的条件化简：
             // K_Factor == 1, P_int_blank == 0
             // sigma2_sum = E_n / (|H|^2 * E_s)
-            itpp::mat sigma2_sum(E_s.rows(), E_s.cols());
+            sigma2_sum = itpp::mat(E_s.rows(), E_s.cols());
             for (int i = 0; i < sigma2_sum.size(); i++) {
                 const double abs_h2 = std::norm(chan_coeff_mat(i));
                 const double denom = (abs_h2 > 1e-12) ? (abs_h2 * E_s(i)) : 1e-12;
@@ -535,7 +583,7 @@ namespace openldacs::phy::params {
             // }
 
 
-            itpp::cmat data_equ(frame_info_.data_ind.size(), num_frames);
+            data_equ = itpp::cmat(frame_info_.data_ind.size(), num_frames);
             const std::complex<double> tiny_h(1e-6, 0.0);
 
             for (int k = 0; k < num_frames; k++) {

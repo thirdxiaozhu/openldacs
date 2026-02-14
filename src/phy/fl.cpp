@@ -115,9 +115,27 @@ namespace openldacs::phy::link::fl {
                 block.mod_vec = QAM64_modulator_.modulate(block.coded_bits);
                 return;
             }
+            default: {
+                throw std::runtime_error("Unknown ModulationType");
+            }
         }
+    }
 
-        throw std::runtime_error("Unknown ModulationType");
+    itpp::mat FLChannelHandler::demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const {
+        switch (mod_type) {
+            case ModulationType::QPSK: {
+                return QPSK_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+            }
+            case ModulationType::QAM16: {
+                return QAM16_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+            }
+            case ModulationType::QAM64: {
+                return QAM64_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+            }
+            default: {
+                throw std::runtime_error("Unknown ModulationType");
+            }
+        }
     }
 
     void FLChannelHandler::matrixIfft(BlockBuffer &block) {
