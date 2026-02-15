@@ -8,6 +8,7 @@
 
 
 #include <queue>
+#include <itpp/base/matfunc.h>
 
 #include "config.h"
 #include "openldacs.h"
@@ -367,10 +368,14 @@ namespace openldacs::phy::link::fl {
                 equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
 
                 itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时的
-                std::cout << demod << std::endl;
+
+                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 2});
+                itpp::mat LLR_int = itpp::reshape(demod, params.int_bits_size, demod.size() / params.int_bits_size);
+
+
             });
 
-        }
+        }r
 
         void submit(PhySdu sdu, CMS cms) override;
 

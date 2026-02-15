@@ -279,7 +279,7 @@ namespace openldacs::phy::params {
 
             itpp::mat llr_mat(k * n_data, n_col);
             itpp::cvec one(1);
-            itpp::vec llr_one(k); // reuse buffer, avoid per-symbol allocation
+            itpp::vec llr_one(k); // reuse buffer avoid per-symbol allocation
 
             int t = 0; // symbol index in MATLAB y_eq(:) order
             for (int c = 0; c < n_col; ++c) {
@@ -681,7 +681,7 @@ namespace openldacs::phy::params {
         int bytes_per_pdu = 0;
         mutable itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
-        int int_size = 1;
+        int int_bits_size = 1;
         double rate_cod = 0;
         VecU8 randomize_vec;
 
