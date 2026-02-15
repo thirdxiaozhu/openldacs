@@ -643,11 +643,39 @@ namespace openldacs::phy::params {
         int ofdm_symb_;
     };
 
-    // enum class CodingRate : int { R12, R23, R34 };
     struct HelicalInterleaverParams {
         int a, b = 0;
-        std::vector<int> pattern;
-        HelicalInterleaverParams(const int a, const int b) : a(a), b(b) {
+        std::vector<size_t> perm_;
+        int int_bits_size_ = 0;
+
+        HelicalInterleaverParams(const int a, const int b) : a(a), b(b), perm_(makeHelicalPerm()) {
+        }
+
+    private:
+        std::vector<std::size_t> makeHelicalPerm() const {
+            if (a == 0 || b == 0) throw std::invalid_argument("a and b must be > 0");
+            const std::size_t N = a * b;
+
+            std::vector<std::size_t> perm(N, 0);
+
+            for (std::size_t l = 0; l < a; ++l) {
+                for (std::size_t n = 0; n < b; ++n) {
+                    // 交织前索引 k：通常就是按行展开
+                    const std::size_t k = l * b + n;
+                    const std::size_t mk = b * ((3 * n + l) % a) + n;
+
+                    if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
+                    perm[k] = mk;
+                }
+            }
+
+            // 可选：检查是否为真置换（0..N-1 各一次）
+            std::vector<std::size_t> chk = perm;
+            std::sort(chk.begin(), chk.end());
+            for (std::size_t i = 0; i < N; ++i) {
+                if (chk[i] != i) throw std::runtime_error("perm is not a permutation; check formula");
+            }
+            return perm;
         }
     };
 
@@ -681,7 +709,7 @@ namespace openldacs::phy::params {
         int bytes_per_pdu = 0;
         mutable itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
-        int int_bits_size = 1;
+        // int int_bits_size = 1;
         double rate_cod = 0;
         VecU8 randomize_vec;
 

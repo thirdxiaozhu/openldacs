@@ -161,9 +161,8 @@ namespace openldacs::phy::params {
         int bits_before_cc_frame = bits_before_cc * params.cc_cod;
 
         // interleaver
-        params.int_bits_size = bits_with_pad * params.interleaver;
-        SPDLOG_INFO("int size: {}; N_int: {}", params.int_bits_size, params.interleaver);
-        params.h_inter_params.pattern = util::interleaveHelical(params.int_bits_size, params.h_inter_params.a, params.h_inter_params.b);
+        params.h_inter_params.int_bits_size_ = bits_with_pad * params.interleaver;
+        SPDLOG_INFO("int size: {}; N_int: {}", params.h_inter_params.int_bits_size_, params.interleaver);
 
         // rs params
         SPDLOG_INFO("N_bits_before_cc_frame: {}; N_bits_after_RS: {}", bits_before_cc_frame, params.rs_params.bits_after_rs);

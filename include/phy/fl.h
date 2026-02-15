@@ -283,10 +283,12 @@ namespace openldacs::phy::link::fl {
 
         static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
         static RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params);
-        static VecU8 blockInterleaver(const std::vector<RsEncodedUnit> &units,
-                                      const CodingParams &coding_params);
-        itpp::bvec convCode(const VecU8 &input, const CodingParams &coding_params) const;
+        static itpp::ivec blockInterleaver(const std::vector<RsEncodedUnit> &units,
+                                           const CodingParams &coding_params);
+        itpp::imat blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params);
+        itpp::bvec convCode(const itpp::ivec &input, const CodingParams &coding_params) const;
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
+        static itpp::vec helicalDeinterleaver(const itpp::vec &in, const CodingParams &p);
 
         // modulation
         void modulate(BlockBuffer &block, ModulationType mod_type);
@@ -367,15 +369,34 @@ namespace openldacs::phy::link::fl {
                 itpp::mat sigma2_sum;
                 equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
 
-                itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时的
+                const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
 
-                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 2});
-                itpp::mat LLR_int = itpp::reshape(demod, params.int_bits_size, demod.size() / params.int_bits_size);
+                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 2}); // 临时参数
 
+                itpp::vec LLR_int = itpp::cvectorize(demod);
+
+                if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
+                    SPDLOG_ERROR("unmatched size for helical inteleaver");
+                    return;
+                }
+
+                itpp::vec deint = helicalDeinterleaver(LLR_int, params);
+                deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
+
+                itpp::bvec vit_dec = params.cc.decode_tail(deint);
+                // std::cout << vit_dec.mid(523,623) << std::endl;
+
+                if (vit_dec.size() % params.rs_params.bits_after_rs ) {
+                    throw std::runtime_error("unmatched size for rs decoder");
+                }
+
+                itpp::ivec block_int = bitsToBytesMSB(vit_dec);
+
+                blockDeinterleaver(block_int, params);
 
             });
 
-        }r
+        }
 
         void submit(PhySdu sdu, CMS cms) override;
 

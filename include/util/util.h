@@ -60,59 +60,81 @@ namespace openldacs::util {
         return P;
     }
 
-    static std::vector<std::size_t> makeHelicalPerm(std::size_t a, std::size_t b) {
-        if (a == 0 || b == 0) throw std::invalid_argument("a and b must be > 0");
-        const std::size_t N = a * b;
+    // static std::vector<std::size_t> makeHelicalPerm(std::size_t a, std::size_t b) {
+    //     if (a == 0 || b == 0) throw std::invalid_argument("a and b must be > 0");
+    //     const std::size_t N = a * b;
+    //
+    //     std::vector<std::size_t> perm(N, 0);
+    //
+    //     for (std::size_t l = 0; l < a; ++l) {
+    //         for (std::size_t n = 0; n < b; ++n) {
+    //             // 交织前索引 k：通常就是按行展开
+    //             const std::size_t k = l * b + n;
+    //             const std::size_t mk = b * ((3 * n + l) % a) + n;
+    //
+    //             if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
+    //             perm[k] = mk;
+    //         }
+    //     }
+    //
+    //     // 可选：检查是否为真置换（0..N-1 各一次）
+    //     std::vector<std::size_t> chk = perm;
+    //     std::sort(chk.begin(), chk.end());
+    //     for (std::size_t i = 0; i < N; ++i) {
+    //         if (chk[i] != i) throw std::runtime_error("perm is not a permutation; check formula");
+    //     }
+    //     return perm;
+    // }
+    //
+    //
+    // static std::vector<int> interleaveHelical(int int_size, std::size_t a, std::size_t b) {
+    //
+    //     std::vector<int> in(int_size);
+    //     std::iota(in.begin(), in.end(), 1);  // 从1开始填充
+    //
+    //     const std::size_t N = a * b;
+    //     if (in.size() != N) throw std::invalid_argument("input size must be a*b");
+    //     const auto perm = makeHelicalPerm(a, b);
+    //
+    //     std::vector<int> out(N);
+    //     for (std::size_t k = 0; k < N; ++k) {
+    //         out[perm[k]] = in[k];
+    //     }
+    //     return out;
+    // }
+    //
+    static itpp::bvec bytesToBitsMSB(const itpp::ivec &input) {
+        // std::cout << input.left(100) << std::endl;
 
-        std::vector<std::size_t> perm(N, 0);
-
-        for (std::size_t l = 0; l < a; ++l) {
-            for (std::size_t n = 0; n < b; ++n) {
-                // 交织前索引 k：通常就是按行展开
-                const std::size_t k = l * b + n;
-                const std::size_t mk = b * ((3 * n + l) % a) + n;
-
-                if (mk >= N) throw std::runtime_error("mk out of range; check formula / (a,b)");
-                perm[k] = mk;
-            }
-        }
-
-        // 可选：检查是否为真置换（0..N-1 各一次）
-        std::vector<std::size_t> chk = perm;
-        std::sort(chk.begin(), chk.end());
-        for (std::size_t i = 0; i < N; ++i) {
-            if (chk[i] != i) throw std::runtime_error("perm is not a permutation; check formula");
-        }
-        return perm;
-    }
-
-
-    static std::vector<int> interleaveHelical(int int_size, std::size_t a, std::size_t b) {
-
-        std::vector<int> in(int_size);
-        std::iota(in.begin(), in.end(), 1);  // 从1开始填充
-
-        const std::size_t N = a * b;
-        if (in.size() != N) throw std::invalid_argument("input size must be a*b");
-        const auto perm = makeHelicalPerm(a, b);
-
-        std::vector<int> out(N);
-        for (std::size_t k = 0; k < N; ++k) {
-            out[perm[k]] = in[k];
-        }
-        return out;
-    }
-
-    static itpp::bvec bytesToBitsMSB(const VecU8 &input) {
         itpp::bvec b(8 * input.size());
         int k = 0;
-        for (const uint8_t x : input) {
+        for (int r = 0; r < input.size(); ++r) {
             for (int i = 7; i >= 0; --i) {      // MSB -> LSB
-                b(k++) = (x >> i) & 0x01;
+                b(k++) = (input(r) >> i) & 0x01;
             }
         }
         return b;
     }
+
+    static itpp::ivec bitsToBytesMSB(const itpp::bvec &bits) {
+        if (bits.size() % 8 != 0) {
+            throw std::runtime_error("bits size must be a multiple of 8");
+        }
+
+        itpp::ivec out(bits.size() / 8);
+        out.zeros();
+        for (int byte_idx = 0; byte_idx < out.size(); ++byte_idx) {
+            uint8_t x = 0;
+            for (int i = 0; i < 8; ++i) {
+                x = static_cast<uint8_t>((x << 1) | (bits(byte_idx * 8 + i) ? 1 : 0));
+            }
+            out(byte_idx) = x;
+        }
+        // std::cout << out.left(100) << std::endl;
+        return out;
+    }
+
+
 
     inline void dump_cvec_constellation(const itpp::cvec& v, const std::string& file_path) {
         std::ofstream ofs(file_path);

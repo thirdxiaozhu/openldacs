@@ -47,31 +47,47 @@ namespace openldacs::phy::link::fl {
         return unit;
     }
 
-    VecU8 FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,
-                                             const CodingParams &coding_params) {
+    itpp::ivec FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,
+                                                  const CodingParams &coding_params) {
         const size_t rows = coding_params.joint_frame * coding_params.pdu_per_frame;
         const size_t cols = units[0].rs_bytes.size();
 
-        std::vector<uint8_t> out;
-        out.reserve(rows * cols);
+        itpp::ivec out(rows * cols);
 
+        int count = 0;
         for (int i = 0; i < cols; ++i) {
             for (int j = 0; j < rows; ++j) {
-                out.push_back(units[j].rs_bytes[i]);
+                out(count++) = units[j].rs_bytes[i];
             }
         }
 
         return out;
     }
 
-    itpp::bvec FLChannelHandler::convCode(const VecU8 &input, const CodingParams &coding_params) const {
+    itpp::imat FLChannelHandler::blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params) {
+        const size_t rows = coding_params.joint_frame * coding_params.pdu_per_frame;
+        const size_t cols = input.size() / rows;
+
+        itpp::imat out = itpp::reshape(input, rows, cols);
+        std::cout << out << std::endl;
+        return out;
+    }
+
+
+    itpp::bvec FLChannelHandler::convCode(const itpp::ivec &input, const CodingParams &coding_params) const {
         const itpp::bvec bits_vec = bytesToBitsMSB(input);
         itpp::bvec bits_output;
+
+        // std::cout << bits_vec.mid(523, 623) << std::endl;
         coding_params.cc.encode_tail(bits_vec, bits_output);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
+
+        // SPDLOG_INFO("~~ {}", bits_vec.size());
 
         bits_output.set_size(frame_info_.n_data * coding_params.bits_per_symb * coding_params.joint_frame, true);
 
+
         // std::cout << bits_vec.size() << " " << bits_output.size() <<std::endl; // 原始bit长度 + 6个0
+        // std::cout << frame_info_.n_data << " " <<  coding_params.bits_per_symb << " " << coding_params.joint_frame <<std::endl; // 原始bit长度 + 6个0
         return bits_output;
     }
 
@@ -94,12 +110,29 @@ namespace openldacs::phy::link::fl {
             for (int n = 0; n < b; ++n) {
                 const int k = l * b + n;                       // input index
                 const int m = b * ((3 * n + l) % a) + n;       // output index
-                out[m] = input[k];
+                out(m) = input(k);
             }
         }
 
         return out;
     }
+
+    itpp::vec FLChannelHandler::helicalDeinterleaver(const itpp::vec &in, const CodingParams &p) {
+        const int a = p.h_inter_params.a, b = p.h_inter_params.b;
+        const int N = a * b;
+        if (in.size() != N) throw std::runtime_error("LLR size mismatch");
+
+        itpp::vec out(N);
+        for (int l = 0; l < a; ++l) {
+            for (int n = 0; n < b; ++n) {
+                const int k = l * b + n;                 // 原始位置
+                const int m = b * ((3 * n + l) % a) + n; // 交织后位置
+                out(k) = in(m);                           // 逆操作
+            }
+        }
+        return out;
+    }
+
 
     void FLChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) {
         switch (mod_type) {
@@ -290,10 +323,10 @@ namespace openldacs::phy::link::fl {
                               return a.sdu_index < b.sdu_index;
                           });
 
-        const VecU8 after_int = blockInterleaver(block.units, coding_params);
+        const itpp::ivec block_int = blockInterleaver(block.units, coding_params);
 
         // 字节层面转为bit层面
-        const itpp::bvec conv_bits = convCode(after_int, coding_params);
+        const itpp::bvec conv_bits = convCode(block_int, coding_params);
 
         const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
 
