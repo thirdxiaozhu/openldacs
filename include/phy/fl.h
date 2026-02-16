@@ -93,6 +93,9 @@ namespace openldacs::phy::link::fl {
                 std::vector<double> f_coarse;
 
                 c_sync_param_.coarseSync(f, t_coarse, f_coarse);
+                if (t_coarse.empty() || f_coarse.empty()) {
+                    return;
+                }
 
                 if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
                     ChRxCallbackType cb_value = cb.value();

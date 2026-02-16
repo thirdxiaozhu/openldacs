@@ -101,7 +101,7 @@ namespace openldacs::phy::link::fl {
         const size_t cols = input.size() / rows;
 
         itpp::imat out = itpp::reshape(input, rows, cols);
-        std::cout << out << std::endl;
+        // std::cout << out << std::endl;
         return out;
     }
 

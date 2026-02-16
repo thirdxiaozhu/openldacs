@@ -117,10 +117,10 @@ namespace openldacs::phy::device {
                                 to_sync_frame(i) = std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
                             }
 
-                            const int test_frame_start = 3400;
-                            for (int i = 0; i < fl_vec->size(); i++) {
-                                to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
-                            }
+                             //const int test_frame_start = 3400;
+                             //for (int i = 0; i < fl_vec->size(); i++) {
+                             //    to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
+                             //}
 
                             if (rx_callback_) {
                                 rx_callback_(to_sync_frame);
