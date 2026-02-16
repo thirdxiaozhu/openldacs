@@ -31,8 +31,18 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    RsEncodedUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
+    std::vector<VecU8> FLChannelHandler::derandomizer(const std::vector<VecU8> &input,
+                                                      const CodingParams &coding_params) {
+        std::vector<VecU8> output;
+        for (int i = 0; i < input.size(); ++i) {
+            VecU8 to_process = input[i];
+            randomizer(to_process, coding_params);
+            output.push_back(to_process);
+        }
+        return output;
+    }
 
+    RsEncodedUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
         RsEncodedUnit unit;
         unit.sdu_index = index;
 
@@ -45,6 +55,28 @@ namespace openldacs::phy::link::fl {
         unit.rs_bytes.assign(output.begin(), output.end());
 
         return unit;
+    }
+
+    std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
+        std::vector<VecU8> output;
+
+
+        if (input.cols() != coding_params.rs_params.n) {
+            throw std::runtime_error("Input size does not match reed-solomon params");
+        }
+
+        for (int i = 0; i < input.rows(); ++i) {
+            VecU8 input_vec;
+            VecU8 output_vec(coding_params.rs_params.k);
+            for (int j = 0; j < input.cols(); ++j) {
+                input_vec.push_back(input(i, j));
+            }
+
+            coding_params.rs_params.rs.rsDecode(input_vec, output_vec);
+            output.push_back(output_vec);
+        }
+
+        return output;
     }
 
     itpp::ivec FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,

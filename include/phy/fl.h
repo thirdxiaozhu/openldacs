@@ -282,7 +282,9 @@ namespace openldacs::phy::link::fl {
         virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
 
         static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
+        static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
         static RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params);
+        static std::vector<VecU8> rsDecoder(const itpp::imat &input, const CodingParams &coding_params);
         static itpp::ivec blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                            const CodingParams &coding_params);
         itpp::imat blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params);
@@ -384,7 +386,6 @@ namespace openldacs::phy::link::fl {
                 deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
 
                 itpp::bvec vit_dec = params.cc.decode_tail(deint);
-                // std::cout << vit_dec.mid(523,623) << std::endl;
 
                 if (vit_dec.size() % params.rs_params.bits_after_rs ) {
                     throw std::runtime_error("unmatched size for rs decoder");
@@ -392,7 +393,12 @@ namespace openldacs::phy::link::fl {
 
                 itpp::ivec block_int = bitsToBytesMSB(vit_dec);
 
-                blockDeinterleaver(block_int, params);
+                itpp::imat rs_coded = blockDeinterleaver(block_int, params);
+                std::vector<VecU8> random = rsDecoder(rs_coded, params);
+                std::vector<VecU8> data = derandomizer(random, params);
+
+                std::cout << data << std::endl;
+
 
             });
 
