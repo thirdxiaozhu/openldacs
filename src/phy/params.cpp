@@ -517,7 +517,7 @@ namespace openldacs::phy::params {
         angle = itpp::angle(P_shift);
     }
 
-    void FineSyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, std::vector<double> &t_coarse, std::vector<double> &
+    void FineSyncParam::fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const std::vector<double> &t_coarse, const std::vector<double> &
                                      f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine) {
         const int symb_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
@@ -585,7 +585,7 @@ namespace openldacs::phy::params {
             std::cout << f_fine << std::endl;
     }
 
-    void FineSyncParam::fineSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, std::vector<double> &t_fine, std
+    void FineSyncParam::fineSync(const itpp::cvec &input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, std::vector<double> &t_fine, std
                                  ::vector<double> &f_fine) {
         itpp::vec M;
         itpp::vec angle_P;
@@ -602,7 +602,6 @@ namespace openldacs::phy::params {
         std::vector<double> t_fine_c;
         std::vector<double> f_fine_c;
         if (config.getRole() == AS) { // FL rx
-            int n_ofdm_symb = ofdm_symb_;
             t_fine_c = t_fine;
             f_fine_c = f_fine;
         } else { // RL rx

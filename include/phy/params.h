@@ -398,7 +398,7 @@ namespace openldacs::phy::params {
         explicit FineSyncParam(const int ofdm_symb) : ofdm_symb_(ofdm_symb) {
         }
 
-        void synchronisation(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, itpp::cmat &data_time) {
+        void synchronisation(const itpp::cvec &input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, itpp::cmat &data_time) {
             std::vector<double> t_fine;
             std::vector<double> f_fine;
 
@@ -407,10 +407,10 @@ namespace openldacs::phy::params {
         }
     private:
         int ofdm_symb_;
-        void fineSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse, std::vector<double> &t_fine, std
+        void fineSync(const itpp::cvec &input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, std::vector<double> &t_fine, std
                       ::vector<double> &f_fine);
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;
-        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, std::vector<double> &t_coarse, std::vector<double> &
+        void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const std::vector<double> &t_coarse, const std::vector<double> &
                           f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine);
 
         void blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine, itpp::cmat &data_time);

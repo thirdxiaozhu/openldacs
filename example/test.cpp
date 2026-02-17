@@ -43,16 +43,21 @@ int main() {
 
     const PhyService PhySer(device::DeviceType::USRP);
 
+    uint32_t sf_id = 0;
+    uint16_t mf_id = 0;
+
+
     // for (int i = 0; i < 1000; i++) {
         for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
             PhySdu sdu = {
                 .direction = DirectionType::FL,
-                .sf_id = 1,
-                .mf_id = 1,
+                .sf_id = sf_id,
+                .mf_id = mf_id,
                 .sdu_index = sdu_ind,
                 .acm_id = 0,
                 .channel = FL_DCH,
             };
+
             sdu.payload.resize(91);
             for (int j = 0; j < sdu.payload.size(); j++) {
                 sdu.payload[j] = j % 256;
