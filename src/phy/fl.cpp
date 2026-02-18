@@ -10,7 +10,7 @@
 
 namespace openldacs::phy::link::fl {
 
-    FLChannelHandler& PhyFl::getHandler(const CHANNEL type) const {
+    FLChannelHandler& PhyFl::getHandler(const ChannelSlot type) const {
         switch (type) {
             case BCCH1_3:   return *bc13_;
             case BCCH2:     return *bc2_;
@@ -447,7 +447,7 @@ namespace openldacs::phy::link::fl {
 
         itpp::cmat frame_mat(n_fft + n_cp, mat_cols);
         frame_mat.set_rows(0, window_part);
-        frame_mat.set_rows(n_ws, mat_with_cp.get_cols(0, mat_cols));
+        frame_mat.set_rows(n_ws, mat_with_cp.get_cols(0, mat_cols - 1));
 
         itpp::cvec frames_symbols(frame_mat.size());
         frames_symbols.set_subvector(0, itpp::cvectorize(frame_mat));

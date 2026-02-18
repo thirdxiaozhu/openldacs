@@ -740,15 +740,15 @@ namespace openldacs::phy::params {
     struct CodingTable {
         std::map<CodingKey, CodingParams> coding_table;
         FrameInfo& frame_info_;
-        CHANNEL ch_;
+        ChannelSlot ch_;
 
         // CodingTable(FrameInfo &frame_info) : frame_info_(frame_info) {}
-        CodingTable(FrameInfo &frame_info, std::initializer_list<CodingKey> keys, const CHANNEL ch) : frame_info_(frame_info), ch_(ch) {
+        CodingTable(FrameInfo &frame_info, std::initializer_list<CodingKey> keys, const ChannelSlot ch) : frame_info_(frame_info), ch_(ch) {
             initCodingTable(keys, ch);
         }
 
-        CodingParams setCodingParams(CodingKey key, CHANNEL ch) const;
-        void initCodingTable(std::initializer_list<CodingKey> keys, CHANNEL ch);
+        CodingParams setCodingParams(CodingKey key, ChannelSlot ch) const;
+        void initCodingTable(std::initializer_list<CodingKey> keys, ChannelSlot ch);
 
         const CodingParams &getCodingParams(const CodingKey &key) const {
             return coding_table.at(key);
@@ -802,7 +802,7 @@ namespace openldacs::phy::params {
         }
     };
 
-    inline CodingParams get_initial_coding_param(const CodingKey &key, CHANNEL ch) {
+    inline CodingParams get_initial_coding_param(const CodingKey &key, ChannelSlot ch) {
         bool is_found = false;
         const CodingParams *params_ptr = nullptr;
 

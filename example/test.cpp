@@ -16,12 +16,15 @@ using namespace openldacs;
 using namespace openldacs::phy::config;
 using namespace openldacs::phy::link::fl;
 
-void test_fl(const PhyService &ser) {
-    for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
+uint32_t sf_id = 0;
+uint8_t mf_id = 0;
+
+void test_fl(const PhyService &ser, const uint8_t sdu_start) {
+    for (uint8_t sdu_ind = sdu_start; sdu_ind < sdu_start + 6; sdu_ind++) {
         PhySdu sdu = {
             .direction = FL,
-            .sf_id = 0,
-            .mf_id = 0,
+            .sf_id = sf_id,
+            .mf_id = mf_id,
             .sdu_index = sdu_ind,
             .acm_id = 0,
             .channel = FL_DCH,
@@ -39,8 +42,8 @@ void test_fl(const PhyService &ser) {
 void test_bc13(const PhyService &ser) {
     PhySdu sdu = {
         .direction = FL,
-        .sf_id = 0,
-        .mf_id = 0,
+        .sf_id = sf_id,
+        .mf_id = mf_id,
         .sdu_index = 0,
         .acm_id = 0,
         .channel = BCCH1_3,
@@ -57,8 +60,8 @@ void test_bc13(const PhyService &ser) {
 void test_bc2(const PhyService &ser) {
     PhySdu sdu = {
         .direction = FL,
-        .sf_id = 0,
-        .mf_id = 0,
+        .sf_id = sf_id,
+        .mf_id = mf_id,
         .sdu_index = 0,
         .acm_id = 0,
         .channel = BCCH2,
@@ -76,8 +79,8 @@ void test_cc(const PhyService &ser) {
     for (uint8_t sdu_ind = 13; sdu_ind <= 21; sdu_ind++) {
         PhySdu sdu = {
             .direction = FL,
-            .sf_id = 0,
-            .mf_id = 0,
+            .sf_id = sf_id,
+            .mf_id = mf_id,
             .sdu_index = sdu_ind,
             .acm_id = 0,
             .channel = CCCH_DCH,
@@ -119,10 +122,22 @@ int main() {
 
     const PhyService phy_ser(device::DeviceType::USRP);
 
-    // test_fl(phy_ser);
-    // test_bc13(phy_ser);
-    // test_bc2(phy_ser);
-    test_cc(phy_ser);
+    int times = 2;
+    while (times--) {
+        test_bc13(phy_ser);
+        test_bc2(phy_ser);
+        test_bc13(phy_ser);
+        for (int i = 0; i < 4; i++) {
+            test_fl(phy_ser, 1);
+            test_fl(phy_ser, 7);
+            test_cc(phy_ser);
+            test_fl(phy_ser, 22);
+            mf_id++;
+        }
+        mf_id = 0;
+        sf_id++;
+    }
+
 
     // 3) 主线程阻塞等待信号
     std::cout << "Press Ctrl+C to exit...\n";
@@ -131,6 +146,7 @@ int main() {
         std::cerr << "sigwait failed\n";
         return 1;
     }
+
 
     SPDLOG_WARN("[signal] received: {}", sig);
 

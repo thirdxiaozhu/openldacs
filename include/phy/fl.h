@@ -121,7 +121,7 @@ namespace openldacs::phy::link::fl {
         }
 
         // 各信道注册
-        void registerRecvHandler(CHANNEL channel, ChRxCallbackType callback) {
+        void registerRecvHandler(ChannelSlot channel, ChRxCallbackType callback) {
             rx_handlers_.emplace(channel, callback);
         }
 
@@ -130,7 +130,7 @@ namespace openldacs::phy::link::fl {
         device::DevPtr& dev_;
         CoarseSyncParam c_sync_param_;
         SyncStateMachine sync_state_;
-        std::map<CHANNEL, std::optional<ChRxCallbackType>> rx_handlers_;
+        std::map<ChannelSlot, std::optional<ChRxCallbackType>> rx_handlers_;
     };
 
     class PhySink {
@@ -145,21 +145,25 @@ namespace openldacs::phy::link::fl {
                             bf = bc13_queue_.pop_blocking();
                             switch (current_channel_) {
                                 case ChannelState::BCCH1: {
+                                    SPDLOG_INFO("BC1");
                                     current_channel_ = ChannelState::BCCH2;
                                     break;
                                 }
                                 case ChannelState::BCCH3: {
+                                    SPDLOG_INFO("BC3");
                                     current_channel_ = ChannelState::DATA;
                                     break;
                                 }
                                 default: {
                                     SPDLOG_WARN("Invalid State");
+                                    current_channel_ = ChannelState::BCCH1;
                                     continue;
                                 }
                             }
                             break;
                         }
                         case ChannelState::BCCH2: {
+                                    SPDLOG_INFO("BC2");
                             bf = bc2_queue_.pop_blocking();
                             current_channel_ = ChannelState::BCCH3;
                             break;
@@ -167,37 +171,41 @@ namespace openldacs::phy::link::fl {
                         case ChannelState::DATA: {
 
                             if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
+                                SPDLOG_INFO("CC FL DATA");
                                 bf = cc_fl_data_queue_.pop_blocking();
-                            }else {
+                            } else {
+                                SPDLOG_INFO("FL DATA");
                                 bf = fl_data_queue_.pop_blocking();
                             }
 
                             if (fl_counter == DATA_PER_MF * MF_PER_SF) {
                                 current_channel_ = ChannelState::BCCH1;
+                                fl_counter = 0;
                             }
-
                             break;
                         }
                         default: {
+                            SPDLOG_WARN("Invalid State");
+                            current_channel_ = ChannelState::BCCH1;
                             break;
                         }
                     }
-
 
                     // const auto bf = fl_data_queue_.pop_blocking();
                     // const auto bf = bc13_queue_.pop_blocking();
                     // const auto bf = bc2_queue_.pop_blocking();
                     // const auto bf = cc_fl_data_queue_.pop_blocking();
                     if (!bf) {
+                        SPDLOG_WARN("Buffer is null");
                         continue;
                     }
                     const itpp::cvec tx_vecs = windowing(bf.value());
-                    dev->sendData(tx_vecs, util::Priority::HIGH);
+                    // dev->sendData(tx_vecs, util::Priority::HIGH);
                 }
             });
         }
 
-        void enqueue(const BlockBuffer &buffer, const CHANNEL ch) {
+        void enqueue(const BlockBuffer &buffer, const ChannelSlot ch) {
             switch (ch) {
                 case BCCH1_3:
                     bc13_queue_.push(buffer);
@@ -214,7 +222,6 @@ namespace openldacs::phy::link::fl {
                 default:
                     throw std::runtime_error("Invalid channel");
             }
-            // data_queue_.push(buffer);
         }
 
         ~PhySink() {
@@ -222,7 +229,6 @@ namespace openldacs::phy::link::fl {
             bc2_queue_.close();
             fl_data_queue_.close();
             cc_fl_data_queue_.close();
-            // data_queue_.close();
             sink_worker_.requestStop();
             sink_worker_.joinAndRethrow();
         }
@@ -244,7 +250,6 @@ namespace openldacs::phy::link::fl {
         BoundedQueue<BlockBuffer> bc2_queue_;
         BoundedQueue<BlockBuffer> cc_fl_data_queue_;
         BoundedQueue<BlockBuffer> fl_data_queue_;
-        // BoundedQueue<BlockBuffer> data_queue_;
         Worker sink_worker_;
         std::optional<itpp::cvec> prev_post_;
         ChannelState current_channel_ = ChannelState::BCCH1;
@@ -278,7 +283,7 @@ namespace openldacs::phy::link::fl {
         std::unique_ptr<BC2Handler> bc2_;
         std::unique_ptr<FLDataHandler> data_;
 
-        [[nodiscard]] FLChannelHandler &getHandler(CHANNEL type) const;
+        [[nodiscard]] FLChannelHandler &getHandler(ChannelSlot type) const;
     };
 
     struct BlockKeyHash {

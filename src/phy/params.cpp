@@ -133,7 +133,7 @@ namespace openldacs::phy::params {
     }
 
 
-    CodingParams CodingTable::setCodingParams(CodingKey key, CHANNEL ch) const {
+    CodingParams CodingTable::setCodingParams(CodingKey key, ChannelSlot ch) const {
         CodingParams params = get_initial_coding_param(key, ch);
 
         auto [cms, joint_frame] = key;
@@ -191,7 +191,7 @@ namespace openldacs::phy::params {
         return params;
     }
 
-    void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys, CHANNEL ch) {
+    void CodingTable::initCodingTable(const std::initializer_list<CodingKey> keys, ChannelSlot ch) {
         for (const auto& key : keys) {
             coding_table.try_emplace(key, setCodingParams(key, ch));
         }
