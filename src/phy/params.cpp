@@ -150,8 +150,8 @@ namespace openldacs::phy::params {
         params.cc.set_puncture_matrix(util::puncpatToMatrix2output(params.puncpat));
 
 
-        SPDLOG_INFO("N_symbols: {}; N_bits_per_symbol: {}； N_frame_tile_joint: {}", frame_info.n_data, params.bits_per_symb,joint_frame);
-        int bits_coded_frame = frame_info.n_data * params.bits_per_symb * joint_frame;
+        SPDLOG_INFO("N_symbols: {}; N_bits_per_symbol: {}； N_frame_tile_joint: {}", frame_info_.n_data, params.bits_per_symb,joint_frame);
+        int bits_coded_frame = frame_info_.n_data * params.bits_per_symb * joint_frame;
         SPDLOG_INFO("N_bits_coded_frame: {}; N_cc_cod: {}；", bits_coded_frame, params.cc_cod);
         int bits_with_pad = bits_coded_frame / params.cc_cod;
         SPDLOG_INFO("N_bits_with_pad: {}; b: {}； a: {}", bits_with_pad, params.b, params.a);
@@ -597,7 +597,7 @@ namespace openldacs::phy::params {
         fineSyncCalc(M, angle_P, t_coarse, f_coarse, t_fine, f_fine);
     }
 
-    void FineSyncParam::blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine, itpp::cmat &data_time) {
+    void FineSyncParam::blanking_block(const itpp::cvec &input, const std::vector<double> &t_fine, const std::vector<double> &f_fine, itpp::cmat &data_time) {
         const auto &config = OpenLdacsConfig::getInstance();
         std::vector<double> t_fine_c;
         std::vector<double> f_fine_c;

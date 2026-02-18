@@ -230,13 +230,13 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler {
     public:
         virtual ~FLChannelHandler() = default;
-        virtual void submit(PhySdu sdu, CMS cms) = 0;  // user-specific
+        void submitData(PhySdu sdu, const CodingParams &coding_params);  // user-specific
         virtual void submit(PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const FrameInfo& frame() const noexcept { return frame_info_; }
 
-        CMS get_cms() const {
+        CMS getCms() const {
             return default_cms_;
         }
         void set_cms(const CMS cms) {
@@ -245,8 +245,8 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : device_(dev), config_(config), frame_info_(ofdm_symb), coding_table_(frame_info_),
-              QPSK_modulator_(ModulationType::QPSK), QAM16_modulator_(ModulationType::QAM16),
+            : device_(dev), config_(config), frame_info_(ofdm_symb), QPSK_modulator_(ModulationType::QPSK),
+              QAM16_modulator_(ModulationType::QAM16),
               QAM64_modulator_(ModulationType::QAM64), channel_est_(frame_info_, ofdm_symb),
               equalizer_(frame_info_, dev, ofdm_symb), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb) {
         }
@@ -256,7 +256,6 @@ namespace openldacs::phy::link::fl {
         PhyFl::FLConfig& config_;
 
         FrameInfo frame_info_;
-        CodingTable coding_table_;
         LdacsModulator QPSK_modulator_;
         LdacsModulator QAM16_modulator_;
         LdacsModulator QAM64_modulator_;
@@ -266,6 +265,8 @@ namespace openldacs::phy::link::fl {
         CMS default_cms_ = CMS::QPSK_R12;
         int ofdm_symb_;
         FineSyncParam f_sync;
+
+        virtual const CodingTable &getCodingTable() const = 0;
 
 
         static size_t getInterleaverCount(const PhySdu &sdu) {
@@ -278,11 +279,8 @@ namespace openldacs::phy::link::fl {
             }
         }
 
-        virtual void initCodingTable() = 0;
-
-
         // channel coding
-        virtual void channelCoding(BlockBuffer &block, const CodingParams &coding_params) = 0;
+        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) const;
 
         static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
         static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
@@ -299,7 +297,8 @@ namespace openldacs::phy::link::fl {
         void modulate(BlockBuffer &block, ModulationType mod_type);
 
         itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const;
-        virtual void subcarrierAllocation(BlockBuffer &block, int joint_frame) = 0;
+        // virtual void subcarrierAllocation(BlockBuffer &block, int joint_frame) = 0;
+        void subcarrierAllocation(BlockBuffer &block, const int joint_frame);
         static void matrixIfft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
@@ -312,55 +311,51 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
-            initCodingTable();
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
             });
         }
-        void submit(PhySdu sdu, CMS cms) override;
+        // void submit(PhySdu sdu, const CodingParams &coding_params) override;
         void submit(PhySdu sdu) override;
-    private:
-        void initCodingTable() override {
-            coding_table_.initCodingTable({
-                                              {CMS::QPSK_R12, 1},
-                                          }, BCCH1_3);
-        };
-        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-
-        void subcarrierAllocation(BlockBuffer &block, const int joint_frame) override {
+        const CodingTable& getCodingTable() const override{
+            return coding_table_;
         }
+    private:
+        CodingTable coding_table_{
+            frame_info_, {
+                    {CMS::QPSK_R12, 1},
+                },
+                BCCH1_3
+            };
     };
 
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
-            initCodingTable();
-
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
             });
         }
-        void submit(PhySdu sdu, CMS cms) override;
+        // void submit(PhySdu sdu, const CodingParams &coding_params) override;
         void submit(PhySdu sdu) override;
+        const CodingTable& getCodingTable() const override{
+            return coding_table_;
+        }
     private:
-        void initCodingTable() override {
-            coding_table_.initCodingTable({
-                                              {CMS::QPSK_R12, 1},
-                                          }, BCCH2);
-        }
-        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override{};
-
-        void subcarrierAllocation(BlockBuffer &block, const int joint_frame) override {
-        }
+        CodingTable coding_table_{
+            frame_info_, {
+                {CMS::QPSK_R12, 1},
+            },
+            BCCH2
+        };
     };
 
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            initCodingTable();
 
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 itpp::cmat data_time;
@@ -407,24 +402,26 @@ namespace openldacs::phy::link::fl {
 
         }
 
-        void submit(PhySdu sdu, CMS cms) override;
+        // void submit(PhySdu sdu, const CodingParams &coding_params) override;
 
         void submit(PhySdu sdu) override;
-    private:
-        void initCodingTable() override {
-            coding_table_.initCodingTable({
-                                              {CMS::QPSK_R12, 2},
-                                              // {CMS::QPSK_R12, 3},
-                                              // {CMS::QPSK_R23, 2},
-                                              // {CMS::QPSK_R23, 3},
-                                              // {CMS::QPSK_R34, 2},
-                                              // {CMS::QPSK_R34, 3},
-                                          }, FL_DCH);
+
+        const CodingTable& getCodingTable() const override{
+            return coding_table_;
         }
 
-        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) override;
-
-        void subcarrierAllocation(BlockBuffer &block, int joint_frame) override;
+    private:
+        CodingTable coding_table_{
+            frame_info_, {
+                {CMS::QPSK_R12, 2},
+                // {CMS::QPSK_R12, 3},
+                // {CMS::QPSK_R23, 2},
+                // {CMS::QPSK_R23, 3},
+                // {CMS::QPSK_R34, 2},
+                // {CMS::QPSK_R34, 3},
+            },
+            FL_DCH
+        };
     };
 }
 

@@ -250,16 +250,7 @@ namespace openldacs::phy::link::fl {
         return sig_down * scale_c;
     }
 
-    void BC1_3Handler::submit(const PhySdu sdu, CMS cms) {
-        std::cout << sdu.payload;
-    }
-
     void BC1_3Handler::submit(const PhySdu sdu) {
-        std::cout << sdu.payload;
-    }
-
-
-    void BC2Handler::submit(const PhySdu sdu, CMS cms) {
         std::cout << sdu.payload;
     }
 
@@ -267,8 +258,7 @@ namespace openldacs::phy::link::fl {
         std::cout << sdu.payload;
     }
 
-    void FLDataHandler::submit(const PhySdu sdu, CMS cms) {
-        const CodingParams &coding_params = coding_table_.getCodingParams({cms, sdu.channel==CCCH_DCH ? 3 : 2});
+    void FLChannelHandler::submitData(const PhySdu sdu, const CodingParams &coding_params) {
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -302,30 +292,11 @@ namespace openldacs::phy::link::fl {
 
                 channelCoding(block, coding_params);
                 modulate(block, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
-                // dump_cvec_constellation(block.mod_vec, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
-                dump_cmat_constellation(block.mod_vec, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
+                // dump_cmat_constellation(block.mod_vec, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
                 subcarrierAllocation(block, coding_params.joint_frame);
                 matrixIfft(block);
                 config_.sink_.enqueue(block, sdu.channel);
-
-                // dump_ofdm_mag_per_symbol(frames_freq, "/home/jiaxv/ldacs/openldacs/dump/freqmag");
-
-
-                // for (const auto &vec : tx_vecs) {
-                //     device_->sendData(vec, sdu.channel == CCCH ? Priority::HIGH : Priority::NORMAL);
-                // }
-                //
-                // // 测试接收
-                // itpp::cvec recv_data = tx_vecs[0]; //后面要给他扩大随机长度，所有扩大的位置用零填充
-                // synchronisation(recv_data);
-
-                // itpp::cmat frames_freq2 = matrix_fft(frames_time);
-                // itpp::cmat diff = frames_freq2 - frames_freq;
-                // // 最大绝对误差（看最坏点）
-                // double max_err = max(max(abs(diff)));
-                // std::cout << "max_err = " << max_err << "\n";
-                // std::cout << std::endl;
             }
             // unlock
         }
@@ -333,22 +304,30 @@ namespace openldacs::phy::link::fl {
 
     void FLDataHandler::submit(const PhySdu sdu) {
         switch (sdu.channel) {
-            case CCCH_DCH:
-                submit(sdu, CMS::QPSK_R12);
-                break;
-            case FL_DCH:
+            case CCCH_DCH: {
+                const CodingParams &coding_params = coding_table_.getCodingParams({
+                    CMS::QPSK_R12, 3
+                });
+                submitData(sdu, coding_params);
+            }
+            break;
+            case FL_DCH: {
                 if (sdu.acm_id == 0) {
-                    submit(sdu, default_cms_);
-                }else {
+                    const CodingParams &coding_params = coding_table_.getCodingParams({
+                        getCms(), 2
+                    });
+                    submitData(sdu, coding_params);
+                } else {
                     // user-specific channel coding
                 }
-                break;
+            }
+            break;
             default:
                 throw std::runtime_error("Unsupported channel type in FLDATAHandlr");
         }
     }
 
-    void FLDataHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) {
+    void FLChannelHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) const {
 
         std::ranges::sort(block.units,
                           [](const RsEncodedUnit& a, const RsEncodedUnit& b){
@@ -367,7 +346,7 @@ namespace openldacs::phy::link::fl {
 
 
 
-    void FLDataHandler::subcarrierAllocation(BlockBuffer &block, const int joint_frame) {
+    void FLChannelHandler::subcarrierAllocation(BlockBuffer &block, const int joint_frame) {
         int input_ind = 0;
 
         if (block.mod_vec.size() != frame_info_.n_data * joint_frame) {

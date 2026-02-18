@@ -107,7 +107,7 @@ namespace openldacs::phy::device {
                         fl_vec = fl_to_trans_.pop();
 
                         if (fl_vec.has_value()) {
-                            // 生成高斯白噪声替代原来的补零
+                            // 生成高斯白噪声
                             itpp::cvec to_sync_frame(16200);
                             std::random_device rd;
                             std::mt19937 gen(rd());

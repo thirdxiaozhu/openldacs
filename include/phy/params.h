@@ -413,7 +413,7 @@ namespace openldacs::phy::params {
         void fineSyncCalc(const itpp::vec &M, const itpp::vec &angle_P, const std::vector<double> &t_coarse, const std::vector<double> &
                           f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine);
 
-        void blanking_block(const itpp::cvec &input, std::vector<double> &t_fine, std::vector<double> &f_fine, itpp::cmat &data_time);
+        void blanking_block(const itpp::cvec &input, const std::vector<double> &t_fine, const std::vector<double> &f_fine, itpp::cmat &data_time);
         void correct_rx_singal_time(const itpp::cvec &input, std::vector<double> &t, std::vector<double> &f, itpp::cmat &data_time);
     };
 
@@ -740,9 +740,13 @@ namespace openldacs::phy::params {
 
     struct CodingTable {
         std::map<CodingKey, CodingParams> coding_table;
-        FrameInfo& frame_info;
+        FrameInfo& frame_info_;
+        CHANNEL ch_;
 
-        CodingTable(FrameInfo &frame_info) : frame_info(frame_info) {}
+        // CodingTable(FrameInfo &frame_info) : frame_info_(frame_info) {}
+        CodingTable(FrameInfo &frame_info, std::initializer_list<CodingKey> keys, const CHANNEL ch) : frame_info_(frame_info), ch_(ch) {
+            initCodingTable(keys, ch);
+        }
 
         CodingParams setCodingParams(CodingKey key, CHANNEL ch) const;
         void initCodingTable(std::initializer_list<CodingKey> keys, CHANNEL ch);
