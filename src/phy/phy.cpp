@@ -15,5 +15,4 @@ namespace openldacs::phy {
     void PhyService::sendFlData(const PhySdu &sdu) const {
         config_.PhyFL->processPacket(sdu);
     }
-
 }

@@ -60,7 +60,6 @@ namespace openldacs::phy::link::fl {
     std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
         std::vector<VecU8> output;
 
-
         if (input.cols() != coding_params.rs_params.n) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
@@ -81,7 +80,7 @@ namespace openldacs::phy::link::fl {
 
     itpp::ivec FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,
                                                   const CodingParams &coding_params) {
-        const size_t rows = coding_params.joint_frame * coding_params.pdu_per_frame;
+        const size_t rows = coding_params.joint_frame * coding_params.n_pdus;
         const size_t cols = units[0].rs_bytes.size();
 
         itpp::ivec out(rows * cols);
@@ -97,7 +96,7 @@ namespace openldacs::phy::link::fl {
     }
 
     itpp::imat FLChannelHandler::blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params) {
-        const size_t rows = coding_params.joint_frame * coding_params.pdu_per_frame;
+        const size_t rows = coding_params.joint_frame * coding_params.n_pdus;
         const size_t cols = input.size() / rows;
 
         itpp::imat out = itpp::reshape(input, rows, cols);
@@ -251,14 +250,22 @@ namespace openldacs::phy::link::fl {
     }
 
     void BC1_3Handler::submit(const PhySdu sdu) {
-        std::cout << sdu.payload;
+        const CodingParams &coding_params = coding_table_.getCodingParams({
+            CMS::QPSK_R12, 1
+        });
+        submitData(sdu, coding_params);
     }
 
     void BC2Handler::submit(const PhySdu sdu) {
-        std::cout << sdu.payload;
+        const CodingParams &coding_params = coding_table_.getCodingParams({
+            CMS::QPSK_R12, 1
+        });
+        submitData(sdu, coding_params);
     }
 
-    void FLChannelHandler::submitData(const PhySdu sdu, const CodingParams &coding_params) {
+    void FLChannelHandler::submitData(const PhySdu& sdu, const CodingParams &coding_params) {
+
+
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -278,7 +285,7 @@ namespace openldacs::phy::link::fl {
             auto &buf = block_map_[key];
             if (buf.units.empty()) {
                 buf.interleaver_count = int_count;
-            buf.is_cc = sdu.channel == CCCH_DCH;
+                buf.is_cc = sdu.channel == CCCH_DCH;
             }
             if (buf.interleaver_count != int_count) {
                 throw std::runtime_error("Interleaver count does not match");
@@ -342,6 +349,7 @@ namespace openldacs::phy::link::fl {
         const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
 
         block.coded_bits = helical_bits;
+
     }
 
 

@@ -12,10 +12,87 @@
 
 using  namespace  openldacs::phy;
 
+using namespace openldacs;
+using namespace openldacs::phy::config;
+using namespace openldacs::phy::link::fl;
+
+void test_fl(const PhyService &ser) {
+    for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
+        PhySdu sdu = {
+            .direction = FL,
+            .sf_id = 0,
+            .mf_id = 0,
+            .sdu_index = sdu_ind,
+            .acm_id = 0,
+            .channel = FL_DCH,
+        };
+
+        sdu.payload.resize(91);
+        for (int j = 0; j < sdu.payload.size(); j++) {
+            sdu.payload[j] = j % 256;
+        }
+
+        ser.sendFlData(sdu);
+    }
+}
+
+void test_bc13(const PhyService &ser) {
+    PhySdu sdu = {
+        .direction = FL,
+        .sf_id = 0,
+        .mf_id = 0,
+        .sdu_index = 0,
+        .acm_id = 0,
+        .channel = BCCH1_3,
+    };
+
+    sdu.payload.resize(66);
+    for (int j = 0; j < sdu.payload.size(); j++) {
+        sdu.payload[j] = j % 256;
+    }
+
+    ser.sendFlData(sdu);
+}
+
+void test_bc2(const PhyService &ser) {
+    PhySdu sdu = {
+        .direction = FL,
+        .sf_id = 0,
+        .mf_id = 0,
+        .sdu_index = 0,
+        .acm_id = 0,
+        .channel = BCCH2,
+    };
+
+    sdu.payload.resize(125);
+    for (int j = 0; j < sdu.payload.size(); j++) {
+        sdu.payload[j] = j % 256;
+    }
+
+    ser.sendFlData(sdu);
+}
+
+void test_cc(const PhyService &ser) {
+    for (uint8_t sdu_ind = 13; sdu_ind <= 21; sdu_ind++) {
+        PhySdu sdu = {
+            .direction = FL,
+            .sf_id = 0,
+            .mf_id = 0,
+            .sdu_index = sdu_ind,
+            .acm_id = 0,
+            .channel = CCCH_DCH,
+        };
+
+        sdu.payload.resize(91);
+        for (int j = 0; j < sdu.payload.size(); j++) {
+            sdu.payload[j] = j % 256;
+        }
+
+        ser.sendFlData(sdu);
+    }
+}
+
 int main() {
-    using namespace openldacs;
-    using namespace openldacs::phy::config;
-    using namespace openldacs::phy::link::fl;
 
     const auto& config = OpenLdacsConfig::getInstance();
     std::cout << config.getRole() << std::endl;
@@ -27,7 +104,6 @@ int main() {
     sigaddset(&set, SIGTERM);
 
     pthread_sigmask(SIG_BLOCK, &set, nullptr);
-
 
     std::cout << "n_fft = " << n_fft << std::endl;
     std::cout << "n_cp = " << n_cp << std::endl;
@@ -41,31 +117,12 @@ int main() {
     std::cout << "t_u = " << t_u << std::endl;
     std::cout << "t_symb = " << t_symb << std::endl;
 
-    const PhyService PhySer(device::DeviceType::USRP);
+    const PhyService phy_ser(device::DeviceType::USRP);
 
-    uint32_t sf_id = 0;
-    uint16_t mf_id = 0;
-
-
-    // for (int i = 0; i < 1000; i++) {
-        for (uint8_t sdu_ind = 1; sdu_ind <= 6; sdu_ind++) {
-            PhySdu sdu = {
-                .direction = DirectionType::FL,
-                .sf_id = sf_id,
-                .mf_id = mf_id,
-                .sdu_index = sdu_ind,
-                .acm_id = 0,
-                .channel = FL_DCH,
-            };
-
-            sdu.payload.resize(91);
-            for (int j = 0; j < sdu.payload.size(); j++) {
-                sdu.payload[j] = j % 256;
-            }
-
-            PhySer.sendFlData(sdu);
-        }
-    // }
+    // test_fl(phy_ser);
+    // test_bc13(phy_ser);
+    // test_bc2(phy_ser);
+    test_cc(phy_ser);
 
     // 3) 主线程阻塞等待信号
     std::cout << "Press Ctrl+C to exit...\n";

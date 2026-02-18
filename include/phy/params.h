@@ -379,7 +379,6 @@ namespace openldacs::phy::params {
         SyncState state_ = SyncState::ACQUIRE;
     };
 
-
     struct SyncParam {
         int corr_len1 = config::n_fft / 2 + config::n_g + config::n_ws / 2;
         int corr_diff1 = config::n_fft / 2;
@@ -703,7 +702,7 @@ namespace openldacs::phy::params {
         double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
         int rs_per_pdu = 1;
 
-        int pdu_per_frame = 3;
+        // int pdu_per_frame = 3;
         int bits_per_symb = 2;
         int bits_per_pdu = 0;
         int bytes_per_pdu = 0;
@@ -730,7 +729,7 @@ namespace openldacs::phy::params {
         int cc_cod = 1;
         int interleaver = 1;
 
-        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params, int n_pdus): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)),n_pdus(n_pdus) {
+        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params, int n_pdus): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)),n_pdus(n_pdus){
         }
     };
 
@@ -816,7 +815,6 @@ namespace openldacs::phy::params {
             }
             return false;
         };
-
 
         switch (ch) {
             case BCCH1_3:

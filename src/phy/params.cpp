@@ -628,7 +628,7 @@ namespace openldacs::phy::params {
         int symb_bamc = cp_sample + fft_sample;
         int frame_length_td = symb_bamc * ofdm_symb_;
         // int num_frames = round(input.size() / frame_length_td);
-        int num_frames = 2; //临时的
+        int num_frames = 3; //临时的
 
         data_time.set_size(fft_sample, num_frames * ofdm_symb_);
 
@@ -639,6 +639,7 @@ namespace openldacs::phy::params {
         for (int i = 0; i < num_frames; i++) {
             int t_current = static_cast<int>(std::round(t[i]));
             double f_current = f[i];
+
 
             // 计算当前帧的提取索引范围
             // MATLAB: data_ind = t_fine + (0:frame_length-1) - N_cp*r_up

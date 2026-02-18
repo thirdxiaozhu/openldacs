@@ -27,6 +27,8 @@ namespace openldacs::util {
 
         void rsDecode(const std::vector<uint8_t> &input, std::vector<uint8_t> &output) const {
 
+            SPDLOG_INFO("??? {}", input.size());
+
             if (correct_reed_solomon_decode(reed_solomon_, input.data(), n_, output.data()) == -1) {
                 throw std::runtime_error("reed solomon decode failed");
             }
