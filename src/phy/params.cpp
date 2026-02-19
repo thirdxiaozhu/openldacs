@@ -239,14 +239,30 @@ namespace openldacs::phy::params {
         freq2 = static_cast<double>(config::n_fft * sync.upsample_rate) / sync.corr_diff2 / (2 * M_PI) * angle2;
     }
 
+    double CoarseSyncParam::calcPeakThreshold(const itpp::vec &metric) const {
+        if (metric.length() == 0) {
+            return sync.threshold_peak;
+        }
+
+        const double metric_max = itpp::max(metric);
+        const double relative_threshold = sync.threshold_peak_ratio * metric_max;
+        const double clamped_threshold = std::max(
+            sync.threshold_peak_floor,
+            std::min(sync.threshold_peak, relative_threshold)
+        );
+
+        return clamped_threshold;
+    }
+
     void CoarseSyncParam::findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values) {
         // std::vector<int> peak_indices;
         // std::vector<double> peak_values;
         const int min_dist = static_cast<int>(std::round(0.75 * (config::n_fft + config::n_cp) * sync.upsample_rate));
+        const double threshold = calcPeakThreshold(M1);
 
         std::vector<int> peak_ind_all;
         for (int i = 0; i < M1.size(); ++i) {
-            if (M1(i) > sync.threshold_peak) {
+            if (M1(i) > threshold) {
                 peak_ind_all.push_back(i);
             }
         }
@@ -289,6 +305,7 @@ namespace openldacs::phy::params {
         constexpr double relation_value = 0.7;
         const int nom_dist = (config::n_fft + config::n_cp) * sync.upsample_rate;
         const int tol = config::n_cp * sync.upsample_rate;
+        const double threshold_m2 = calcPeakThreshold(M2);
 
         double peak_value1 = 0.0;
         int peak_ind1 = 0;
@@ -334,7 +351,7 @@ namespace openldacs::phy::params {
                  peak_value3) / (peak_values[0] + peak_value1 + peak_value3));
 
             //   freq synchronization
-            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_value1 +
+            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
                                 freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
 
             if (!peak_indices.empty()) {
@@ -370,7 +387,7 @@ namespace openldacs::phy::params {
             int peak_ind3 = 0;
             getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
 
-            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > sync.threshold_peak) {
+            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > threshold_m2) {
                 //   time synchronization
                 reliable_peak = std::round(
                     (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
@@ -381,7 +398,7 @@ namespace openldacs::phy::params {
                                     freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
             }else {
                 getPeak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
-                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > sync.threshold_peak) {
+                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > threshold_m2) {
 
                     //   time synchronization
                     reliable_peak = std::round(

@@ -388,7 +388,10 @@ namespace openldacs::phy::params {
 
         int upsample_rate = 1;
         int t_upsample = config::t_sample / upsample_rate;
+        // Coarse-sync peak threshold: clamp(relative * max(metric), floor, absolute cap)
         double threshold_peak = 0.4;
+        double threshold_peak_ratio = 0.5;
+        double threshold_peak_floor = 0.15;
     };
 
     struct FineSyncParam {
@@ -436,6 +439,7 @@ namespace openldacs::phy::params {
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
         void getPeak(const itpp::vec &input, int start, int end, double &peak_value, int &peak_ind);
+        double calcPeakThreshold(const itpp::vec &metric) const;
     };
 
     struct ChannelEstimate {
