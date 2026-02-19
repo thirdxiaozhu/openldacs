@@ -114,20 +114,18 @@ namespace openldacs::phy::device {
                             std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
 
                             for (int i = 0; i < 16200; i++) {
-                                to_sync_frame(i) = std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                                to_sync_frame(i) = std::complex<double>(dis(gen), dis(gen)) * 0.2; // 缩放因子可根据需要调整
                             }
 
                              const int test_frame_start = 3400;
                              for (int i = 0; i < fl_vec->size(); i++) {
-                                 to_sync_frame(test_frame_start + i) = fl_vec.value()[i];
+                                 to_sync_frame(test_frame_start + i) += fl_vec.value()[i];
                              }
 
                             if (rx_callback_) {
                                 rx_callback_(to_sync_frame);
-                                // sync_param_.synchronisation(to_sync_frame);
                             }
                         }
-
 
                         // while (!fl_to_trans_.try_pop(fl_vec)) {
                         //     std::this_thread::sleep_for(std::chrono::milliseconds(1));

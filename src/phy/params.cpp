@@ -224,12 +224,12 @@ namespace openldacs::phy::params {
         M2.zeros();
         M2.set_subvector(sync_offset, pre_M2.left(pre_M2.length() - sync_offset));
 
-        // itpp::vec v = abs(M1);
-        // std::filesystem::create_directories("dump");
-        // std::ofstream ofs("dump/corr_peak.csv");
-        // for (int i = 0; i < v.length(); ++i) {
-        //     ofs << i << "," << v(i) << "\n";
-        // }
+        itpp::vec v = abs(M1);
+        std::filesystem::create_directories("dump");
+        std::ofstream ofs("dump/corr_peak.csv");
+        for (int i = 0; i < v.length(); ++i) {
+            ofs << i << "," << v(i) << "\n";
+        }
 
         angle2.set_length(pre_angle_metric2.length());
         angle2.zeros();
@@ -628,7 +628,7 @@ namespace openldacs::phy::params {
         int symb_bamc = cp_sample + fft_sample;
         int frame_length_td = symb_bamc * ofdm_symb_;
         // int num_frames = round(input.size() / frame_length_td);
-        int num_frames = 3; //临时的
+        int num_frames = 2; //临时的
 
         data_time.set_size(fft_sample, num_frames * ofdm_symb_);
 

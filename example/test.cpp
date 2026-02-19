@@ -20,6 +20,11 @@ uint32_t sf_id = 0;
 uint8_t mf_id = 0;
 
 void test_fl(const PhyService &ser, const uint8_t sdu_start) {
+
+    if (sdu_start % 3 != 1) {
+        throw std::runtime_error("sdu_start must be 1 7 22");
+    }
+
     for (uint8_t sdu_ind = sdu_start; sdu_ind < sdu_start + 6; sdu_ind++) {
         PhySdu sdu = {
             .direction = FL,
@@ -122,22 +127,23 @@ int main() {
 
     const PhyService phy_ser(device::DeviceType::USRP);
 
-    int times = 2;
-    while (times--) {
-        test_bc13(phy_ser);
-        test_bc2(phy_ser);
-        test_bc13(phy_ser);
-        for (int i = 0; i < 4; i++) {
-            test_fl(phy_ser, 1);
-            test_fl(phy_ser, 7);
-            test_cc(phy_ser);
-            test_fl(phy_ser, 22);
-            mf_id++;
-        }
-        mf_id = 0;
-        sf_id++;
-    }
+    // int times = 2;
+    // while (times--) {
+    //     test_bc13(phy_ser);
+    //     test_bc2(phy_ser);
+    //     test_bc13(phy_ser);
+    //     for (int i = 0; i < 4; i++) {
+    //         test_fl(phy_ser, 1);
+    //         test_fl(phy_ser, 7);
+    //         test_cc(phy_ser);
+    //         test_fl(phy_ser, 22);
+    //         mf_id++;
+    //     }
+    //     mf_id = 0;
+    //     sf_id++;
+    // }
 
+    test_fl(phy_ser, 1);
 
     // 3) 主线程阻塞等待信号
     std::cout << "Press Ctrl+C to exit...\n";

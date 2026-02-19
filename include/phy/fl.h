@@ -138,60 +138,60 @@ namespace openldacs::phy::link::fl {
         explicit PhySink(device::DevPtr& dev): dev_(dev){
             sink_worker_.start([&] {
                 while (!sink_worker_.stop_requested()) {
-                    std::optional<BlockBuffer> bf;
-                    switch (current_channel_) {
-                        case ChannelState::BCCH1:
-                        case ChannelState::BCCH3: {
-                            bf = bc13_queue_.pop_blocking();
-                            switch (current_channel_) {
-                                case ChannelState::BCCH1: {
-                                    SPDLOG_INFO("BC1");
-                                    current_channel_ = ChannelState::BCCH2;
-                                    break;
-                                }
-                                case ChannelState::BCCH3: {
-                                    SPDLOG_INFO("BC3");
-                                    current_channel_ = ChannelState::DATA;
-                                    break;
-                                }
-                                default: {
-                                    SPDLOG_WARN("Invalid State");
-                                    current_channel_ = ChannelState::BCCH1;
-                                    continue;
-                                }
-                            }
-                            break;
-                        }
-                        case ChannelState::BCCH2: {
-                                    SPDLOG_INFO("BC2");
-                            bf = bc2_queue_.pop_blocking();
-                            current_channel_ = ChannelState::BCCH3;
-                            break;
-                        }
-                        case ChannelState::DATA: {
+                    // std::optional<BlockBuffer> bf;
+                    // switch (current_channel_) {
+                    //     case ChannelState::BCCH1:
+                    //     case ChannelState::BCCH3: {
+                    //         bf = bc13_queue_.pop_blocking();
+                    //         switch (current_channel_) {
+                    //             case ChannelState::BCCH1: {
+                    //                 SPDLOG_INFO("BC1");
+                    //                 current_channel_ = ChannelState::BCCH2;
+                    //                 break;
+                    //             }
+                    //             case ChannelState::BCCH3: {
+                    //                 SPDLOG_INFO("BC3");
+                    //                 current_channel_ = ChannelState::DATA;
+                    //                 break;
+                    //             }
+                    //             default: {
+                    //                 SPDLOG_WARN("Invalid State");
+                    //                 current_channel_ = ChannelState::BCCH1;
+                    //                 continue;
+                    //             }
+                    //         }
+                    //         break;
+                    //     }
+                    //     case ChannelState::BCCH2: {
+                    //                 SPDLOG_INFO("BC2");
+                    //         bf = bc2_queue_.pop_blocking();
+                    //         current_channel_ = ChannelState::BCCH3;
+                    //         break;
+                    //     }
+                    //     case ChannelState::DATA: {
+                    //
+                    //         if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
+                    //             SPDLOG_INFO("CC FL DATA");
+                    //             bf = cc_fl_data_queue_.pop_blocking();
+                    //         } else {
+                    //             SPDLOG_INFO("FL DATA");
+                    //             bf = fl_data_queue_.pop_blocking();
+                    //         }
+                    //
+                    //         if (fl_counter == DATA_PER_MF * MF_PER_SF) {
+                    //             current_channel_ = ChannelState::BCCH1;
+                    //             fl_counter = 0;
+                    //         }
+                    //         break;
+                    //     }
+                    //     default: {
+                    //         SPDLOG_WARN("Invalid State");
+                    //         current_channel_ = ChannelState::BCCH1;
+                    //         break;
+                    //     }
+                    // }
 
-                            if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
-                                SPDLOG_INFO("CC FL DATA");
-                                bf = cc_fl_data_queue_.pop_blocking();
-                            } else {
-                                SPDLOG_INFO("FL DATA");
-                                bf = fl_data_queue_.pop_blocking();
-                            }
-
-                            if (fl_counter == DATA_PER_MF * MF_PER_SF) {
-                                current_channel_ = ChannelState::BCCH1;
-                                fl_counter = 0;
-                            }
-                            break;
-                        }
-                        default: {
-                            SPDLOG_WARN("Invalid State");
-                            current_channel_ = ChannelState::BCCH1;
-                            break;
-                        }
-                    }
-
-                    // const auto bf = fl_data_queue_.pop_blocking();
+                    const auto bf = fl_data_queue_.pop_blocking();
                     // const auto bf = bc13_queue_.pop_blocking();
                     // const auto bf = bc2_queue_.pop_blocking();
                     // const auto bf = cc_fl_data_queue_.pop_blocking();
@@ -200,7 +200,7 @@ namespace openldacs::phy::link::fl {
                         continue;
                     }
                     const itpp::cvec tx_vecs = windowing(bf.value());
-                    // dev->sendData(tx_vecs, util::Priority::HIGH);
+                    dev->sendData(tx_vecs, util::Priority::HIGH);
                 }
             });
         }
@@ -510,7 +510,7 @@ namespace openldacs::phy::link::fl {
 
                 const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
 
-                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 3}); // 临时参数
+                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 2}); // 临时参数
 
                 itpp::vec LLR_int = itpp::cvectorize(demod);
 
