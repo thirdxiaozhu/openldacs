@@ -14,6 +14,7 @@
 #include "util/worker.h"
 
 namespace openldacs::phy::device {
+    using cd = std::complex<double>;
 
     enum class DeviceType : int {
         USRP = 0,
@@ -31,13 +32,13 @@ namespace openldacs::phy::device {
 
     class Device {
     public:
-        using RxCallbackType = std::function<void(itpp::cvec)>;
+        using RxCallbackType = std::function<void(VecCD)>;
 
         void sendData(const itpp::cvec &data, const util::Priority pri) {
-            fl_to_trans_.push(util::cvecToComplexDoubleVec(data), pri);
+            fl_to_trans_.push(util::cvecToCdVecNormalize(data), pri);
         }
 
-        void registerRxCallback(const RxCallbackType &cb) {
+        void registerRxCallback(const std::function<void(VecCD)> &cb) {
             rx_callback_ = cb;
         }
 
@@ -96,7 +97,6 @@ namespace openldacs::phy::device {
                 if (!tx_stream_ || !rx_stream_) {
                         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
                 }
-                bool first_trans = true;
                 while (!trans_worker_.stop_requested()) {
                     std::optional<VecCD> fl_vec;
                     std::optional<VecCD> rl_vec;
@@ -107,20 +107,17 @@ namespace openldacs::phy::device {
                         fl_vec = fl_to_trans_.pop();
 
                         if (fl_vec.has_value()) {
+
+                            VecCD to_sync_frame = fl_vec.value();
+
                             // 生成高斯白噪声
-                            itpp::cvec to_sync_frame(16200);
                             std::random_device rd;
                             std::mt19937 gen(rd());
                             std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
 
-                            for (int i = 0; i < 16200; i++) {
-                                to_sync_frame(i) = std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                            for (int i = 0; i < fl_vec->size(); i++) {
+                                to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
                             }
-
-                             const int test_frame_start = 3400;
-                             for (int i = 0; i < fl_vec->size(); i++) {
-                                 to_sync_frame(test_frame_start + i) += fl_vec.value()[i];
-                             }
 
                             if (rx_callback_) {
                                 rx_callback_(to_sync_frame);
@@ -160,40 +157,40 @@ namespace openldacs::phy::device {
             });
             //
             // recv_worker_.start([&] {
-            //     // 接收缓冲区
-            //     VecCD buff(recv_samples_);
-            //     uhd::rx_metadata_t md;
-            //
-            //     // 启动连续流
-            //     uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
-            //     stream_cmd.stream_now = true;
-            //     rx_stream_->issue_stream_cmd(stream_cmd);
-            //
-            //     while (!trans_worker_.stop_requested()) {
-            //         size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0);
-            //
-            //         // 错误处理
-            //         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
-            //             std::cerr << "[RX] 超时" << std::endl;
-            //             continue;
-            //         }
-            //         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
-            //             std::cerr << "[RX] 溢出 (O)" << std::endl;
-            //             continue;
-            //         }
-            //         if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-            //             std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
-            //             break;
-            //         }
-            //
-            //         // 复制数据到队列
-            //         VecCD data(buff.begin(), buff.begin() + num_rx);
-            //         // if (!data_queue.push(std::move(data))) {
-            //         //     std::cerr << "[RX] 队列满，丢弃数据" << std::endl;
-            //         // }
-            //     }
-            //     const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
-            //     rx_stream_->issue_stream_cmd(stop_cmd);
+            //     // // 接收缓冲区
+            //     // VecCD buff(recv_samples_);
+            //     // uhd::rx_metadata_t md;
+            //     //
+            //     // // 启动连续流
+            //     // uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+            //     // stream_cmd.stream_now = true;
+            //     // rx_stream_->issue_stream_cmd(stream_cmd);
+            //     //
+            //     // while (!trans_worker_.stop_requested()) {
+            //     //     size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0);
+            //     //
+            //     //     // 错误处理
+            //     //     if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+            //     //         std::cerr << "[RX] 超时" << std::endl;
+            //     //         continue;
+            //     //     }
+            //     //     if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
+            //     //         std::cerr << "[RX] 溢出 (O)" << std::endl;
+            //     //         continue;
+            //     //     }
+            //     //     if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+            //     //         std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
+            //     //         break;
+            //     //     }
+            //     //
+            //     //     // 复制数据到队列
+            //     //     VecCD data(buff.begin(), buff.begin() + num_rx);
+            //     //     // if (!data_queue.push(std::move(data))) {
+            //     //     //     std::cerr << "[RX] 队列满，丢弃数据" << std::endl;
+            //     //     // }
+            //     // }
+            //     // const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
+            //     // rx_stream_->issue_stream_cmd(stop_cmd);
             // });
         }
 

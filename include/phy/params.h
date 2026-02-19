@@ -6,6 +6,7 @@
 #define OPENLDACS_PARAMS_H
 
 #include <utility>
+#include <boost/circular_buffer.hpp>
 
 #include "config.h"
 #include "device.h"
@@ -230,6 +231,44 @@ namespace openldacs::phy::params {
         void composeFrame();
     };
 
+    class SampleBuffer {
+    public:
+        explicit SampleBuffer(std::size_t capacity) : buffer_(capacity) {
+        }
+        explicit SampleBuffer() : buffer_(150000) {
+        }
+
+        bool try_push(const VecCD &value) {
+            if (buffer_.full() || buffer_.size() + value.size() > buffer_.capacity()) return false;
+            for (auto i : value) {
+                buffer_.push_back(i);
+            }
+            return true;
+        }
+
+        std::optional<VecCD> try_pop(const size_t n_samples) {
+            if (buffer_.empty() || n_samples > buffer_.size()) return std::nullopt;
+            VecCD value;
+            for (int i = 0; i < n_samples; ++i) {
+                value.push_back(buffer_.front());
+                buffer_.pop_front();
+            }
+            return value;
+        }
+
+        void clear() { buffer_.clear(); }
+        [[nodiscard]] std::size_t size() const { return buffer_.size(); }
+        [[nodiscard]] std::size_t capacity() const { return buffer_.capacity(); }
+        [[nodiscard]] bool empty() const { return buffer_.empty(); }
+        [[nodiscard]] bool full() const { return buffer_.full(); }
+
+    private:
+        boost::circular_buffer<cd> buffer_;
+        cd *front() { return buffer_.empty() ? nullptr : &buffer_.front(); }
+        [[nodiscard]] const cd *front() const { return buffer_.empty() ? nullptr : &buffer_.front(); }
+    };
+
+
     class LdacsModulator {
     public:
         explicit LdacsModulator(const ModulationType mod_type) : modulator_(make_ldacs_symbols(mod_type), make_bits2symbols(mod_type)) {
@@ -352,6 +391,8 @@ namespace openldacs::phy::params {
             return symbols;
         }
     };
+
+
 
     class SyncStateMachine {
     public:

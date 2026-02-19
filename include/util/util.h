@@ -188,7 +188,7 @@ namespace openldacs::util {
     }
 
 
-    static void normialize_cvec(itpp::cvec &cvec) {
+    static void normalize_cvec(itpp::cvec &cvec) {
         double max_val = itpp::max(abs(cvec));
         if (max_val > 0) {
              cvec /= max_val;
@@ -196,17 +196,26 @@ namespace openldacs::util {
     }
 
 
-    static VecCD cvecToComplexDoubleVec(itpp::cvec cvec) {
+    static VecCD cvecToCdVecNormalize(const itpp::cvec &cvec) {
         VecCD ret;
+        itpp::cvec input = cvec;
 
         // 先归一化
-        normialize_cvec(cvec);
+        normalize_cvec(input);
 
-        for (int i = 0; i < cvec.size(); ++i) {
-            ret.push_back(cvec(i));
+        for (int i = 0; i < input.size(); ++i) {
+            ret.push_back(input(i));
         }
 
         return ret;
+    }
+
+    static itpp::cvec cdVecToCvec(const VecCD &vec) {
+        itpp::cvec in_f(vec.size());
+        for (int i = 0; i < vec.size(); i++) {
+            in_f(i) = vec[i];
+        }
+        return in_f;
     }
 
 

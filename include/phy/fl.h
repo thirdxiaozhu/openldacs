@@ -87,36 +87,79 @@ namespace openldacs::phy::link::fl {
 
         explicit PhySource(device::DevPtr& dev): dev_(dev){
 
+            ////////////////////////////////////////////////////
+            VecCD test_padding;
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+
+            for (int i = 0; i < 3400; i++) {
+                test_padding.push_back(std::complex<double>(dis(gen), dis(gen)) * 0.1) ; // 缩放因子可根据需要调整
+            }
+            sample_buffer.try_push(test_padding);
+            ////////////////////////////////////////////////////
+
             // 向dev注册接收回调队列
-            dev->registerRxCallback([this](const itpp::cvec &f) {
-                std::vector<double> t_coarse;
-                std::vector<double> f_coarse;
+            dev->registerRxCallback([this](const VecCD &f) {
+                sample_buffer.try_push(f);
+            });
 
-                c_sync_param_.coarseSync(f, t_coarse, f_coarse);
-                if (t_coarse.empty() || f_coarse.empty()) {
-                    return;
-                }
+            source_worker_.start([&] {
 
-                if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
-                    ChRxCallbackType cb_value = cb.value();
-                    cb_value(f, t_coarse, f_coarse);
-                }else {
-                    throw std::runtime_error("No callback registered");
-                }
+                while (!source_worker_.stop_requested()) {
 
-                // switch (sync_state_.get_state()) {
-                //     case SyncState::ACQUIRE:
-                //         // ACQUIRE用来做BC1-BC2-BC3的同步
-                //         // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
-                //         // 对BC帧进行精同步，完成后状态机转换为TRACK
-                //         frameSync(input);
-                //         break;
-                //     case SyncState::TRACK:
-                //         // 无需做粗同步，直接根据帧长找同步点，并进行精同步
-                //         sync_state_.set_state(SyncState::ACQUIRE);
-                //         break;
-                // }
+                    if (sync_state_.get_state() == SyncState::ACQUIRE) {
+                        std::optional<VecCD> buf = sample_buffer.try_pop(acquire_sample);
+                        if (!buf.has_value())   continue;
 
+                        const VecCD& buf_val = buf.value();
+                        itpp::cvec in_f = cdVecToCvec(buf_val);
+
+
+                    }
+
+
+
+
+
+
+                    std::optional<VecCD> buf = sample_buffer.try_pop(8100);
+                    if (!buf.has_value()) {
+                        continue;
+                    }
+
+                    const VecCD& buf_val = buf.value();
+                    itpp::cvec in_f = cdVecToCvec(buf_val);
+
+                    std::vector<double> t_coarse;
+                    std::vector<double> f_coarse;
+
+                    c_sync_param_.coarseSync(in_f, t_coarse, f_coarse);
+                    if (t_coarse.empty() || f_coarse.empty()) {
+                        return;
+                    }
+
+                    if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
+                        ChRxCallbackType cb_value = cb.value();
+                        cb_value(in_f, t_coarse, f_coarse);
+                    }else {
+                        throw std::runtime_error("No callback registered");
+                    }
+
+                    // switch (sync_state_.get_state()) {
+                    //     case SyncState::ACQUIRE:
+                    //         // ACQUIRE用来做BC1-BC2-BC3的同步
+                    //         // 即： 做一次粗同步，找到BC1-2-3的同步符号，如果没找到就舍弃，一直找直到确定位置
+                    //         // 对BC帧进行精同步，完成后状态机转换为TRACK
+                    //         frameSync(input);
+                    //         break;
+                    //     case SyncState::TRACK:
+                    //         // 无需做粗同步，直接根据帧长找同步点，并进行精同步
+                    //         sync_state_.set_state(SyncState::ACQUIRE);
+                    //         break;
+                    // }
+
+                    }
             });
         }
 
@@ -125,12 +168,18 @@ namespace openldacs::phy::link::fl {
             rx_handlers_.emplace(channel, callback);
         }
 
-        ~PhySource() = default;
+        ~PhySource() {
+            source_worker_.requestStop();
+            source_worker_.joinAndRethrow();
+        }
     private:
         device::DevPtr& dev_;
         CoarseSyncParam c_sync_param_;
         SyncStateMachine sync_state_;
         std::map<ChannelSlot, std::optional<ChRxCallbackType>> rx_handlers_;
+        SampleBuffer sample_buffer;
+        Worker source_worker_;
+        constexpr static int acquire_sample = 5000;
     };
 
     class PhySink {
@@ -138,60 +187,60 @@ namespace openldacs::phy::link::fl {
         explicit PhySink(device::DevPtr& dev): dev_(dev){
             sink_worker_.start([&] {
                 while (!sink_worker_.stop_requested()) {
-                    // std::optional<BlockBuffer> bf;
-                    // switch (current_channel_) {
-                    //     case ChannelState::BCCH1:
-                    //     case ChannelState::BCCH3: {
-                    //         bf = bc13_queue_.pop_blocking();
-                    //         switch (current_channel_) {
-                    //             case ChannelState::BCCH1: {
-                    //                 SPDLOG_INFO("BC1");
-                    //                 current_channel_ = ChannelState::BCCH2;
-                    //                 break;
-                    //             }
-                    //             case ChannelState::BCCH3: {
-                    //                 SPDLOG_INFO("BC3");
-                    //                 current_channel_ = ChannelState::DATA;
-                    //                 break;
-                    //             }
-                    //             default: {
-                    //                 SPDLOG_WARN("Invalid State");
-                    //                 current_channel_ = ChannelState::BCCH1;
-                    //                 continue;
-                    //             }
-                    //         }
-                    //         break;
-                    //     }
-                    //     case ChannelState::BCCH2: {
-                    //                 SPDLOG_INFO("BC2");
-                    //         bf = bc2_queue_.pop_blocking();
-                    //         current_channel_ = ChannelState::BCCH3;
-                    //         break;
-                    //     }
-                    //     case ChannelState::DATA: {
-                    //
-                    //         if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
-                    //             SPDLOG_INFO("CC FL DATA");
-                    //             bf = cc_fl_data_queue_.pop_blocking();
-                    //         } else {
-                    //             SPDLOG_INFO("FL DATA");
-                    //             bf = fl_data_queue_.pop_blocking();
-                    //         }
-                    //
-                    //         if (fl_counter == DATA_PER_MF * MF_PER_SF) {
-                    //             current_channel_ = ChannelState::BCCH1;
-                    //             fl_counter = 0;
-                    //         }
-                    //         break;
-                    //     }
-                    //     default: {
-                    //         SPDLOG_WARN("Invalid State");
-                    //         current_channel_ = ChannelState::BCCH1;
-                    //         break;
-                    //     }
-                    // }
+                    std::optional<BlockBuffer> bf;
+                    switch (current_channel_) {
+                        case ChannelState::BCCH1:
+                        case ChannelState::BCCH3: {
+                            bf = bc13_queue_.pop_blocking();
+                            switch (current_channel_) {
+                                case ChannelState::BCCH1: {
+                                    SPDLOG_INFO("BC1");
+                                    current_channel_ = ChannelState::BCCH2;
+                                    break;
+                                }
+                                case ChannelState::BCCH3: {
+                                    SPDLOG_INFO("BC3");
+                                    current_channel_ = ChannelState::DATA;
+                                    break;
+                                }
+                                default: {
+                                    SPDLOG_WARN("Invalid State");
+                                    current_channel_ = ChannelState::BCCH1;
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+                        case ChannelState::BCCH2: {
+                                    SPDLOG_INFO("BC2");
+                            bf = bc2_queue_.pop_blocking();
+                            current_channel_ = ChannelState::BCCH3;
+                            break;
+                        }
+                        case ChannelState::DATA: {
 
-                    const auto bf = fl_data_queue_.pop_blocking();
+                            if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
+                                SPDLOG_INFO("CC FL DATA");
+                                bf = cc_fl_data_queue_.pop_blocking();
+                            } else {
+                                SPDLOG_INFO("FL DATA");
+                                bf = fl_data_queue_.pop_blocking();
+                            }
+
+                            if (fl_counter == DATA_PER_MF * MF_PER_SF) {
+                                current_channel_ = ChannelState::BCCH1;
+                                fl_counter = 0;
+                            }
+                            break;
+                        }
+                        default: {
+                            SPDLOG_WARN("Invalid State");
+                            current_channel_ = ChannelState::BCCH1;
+                            break;
+                        }
+                    }
+
+                    // const auto bf = fl_data_queue_.pop_blocking();
                     // const auto bf = bc13_queue_.pop_blocking();
                     // const auto bf = bc2_queue_.pop_blocking();
                     // const auto bf = cc_fl_data_queue_.pop_blocking();

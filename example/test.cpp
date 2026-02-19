@@ -129,9 +129,9 @@ int main() {
 
     // int times = 2;
     // while (times--) {
-    //     test_bc13(phy_ser);
-    //     test_bc2(phy_ser);
-    //     test_bc13(phy_ser);
+    test_bc13(phy_ser);
+    test_bc2(phy_ser);
+    test_bc13(phy_ser);
     //     for (int i = 0; i < 4; i++) {
     //         test_fl(phy_ser, 1);
     //         test_fl(phy_ser, 7);
@@ -143,7 +143,7 @@ int main() {
     //     sf_id++;
     // }
 
-    test_fl(phy_ser, 1);
+    // test_fl(phy_ser, 1);
 
     // 3) 主线程阻塞等待信号
     std::cout << "Press Ctrl+C to exit...\n";
