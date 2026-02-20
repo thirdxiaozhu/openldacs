@@ -108,43 +108,75 @@ namespace openldacs::phy::link::fl {
 
                 while (!source_worker_.stop_requested()) {
 
+                    // 同步阶段
                     if (sync_state_.get_state() == SyncState::ACQUIRE) {
-                        std::optional<VecCD> buf = sample_buffer.try_pop(acquire_sample);
-                        if (!buf.has_value())   continue;
+                        itpp::cvec curr_buf;
+                        while (!source_worker_.stop_requested()) {
+                            auto t0 = std::chrono::high_resolution_clock::now();
 
-                        const VecCD& buf_val = buf.value();
-                        itpp::cvec in_f = cdVecToCvec(buf_val);
+                            std::vector<double> t_coarse;
+                            std::vector<double> f_coarse;
 
+                            std::optional<VecCD> buf = sample_buffer.try_pop(acquire_sample);
+                            if (!buf.has_value()) continue;
 
+                            curr_buf.ins(curr_buf.size(), cdVecToCvec(buf.value())); //拼接到后面
+
+                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                            switch (t_coarse.size()) {
+                                case 0:
+                                    continue;
+                                case 1:
+                                    curr_buf.shift_left(t_coarse[0] - threshold);
+                                    continue;
+                                case 2: {
+                                    if (double interval = t_coarse[1] - t_coarse[0]; !inRange(interval, bcch13_sample, threshold)) {
+                                        curr_buf.shift_left(t_coarse[1] - threshold);
+                                    }else {
+                                        curr_buf.shift_left(t_coarse[0] - threshold);
+                                    }
+                                    continue;
+                                }
+                                case 3: {
+                                    if (double interval = t_coarse[2] - t_coarse[1]; !inRange(interval, bcch2_sample, threshold)) {
+                                        curr_buf.shift_left(t_coarse[2] - threshold);
+                                    }
+                                    continue;
+                                }
+                                case 4: {
+                                    SPDLOG_INFO("!!!!!!!!!!!!!!!!!!!!");
+                                    if (double interval = t_coarse[3] - t_coarse[2]; !inRange(interval, bcch13_sample, threshold)) {
+                                        curr_buf.shift_left(t_coarse[3] - threshold);
+                                    }
+                                    auto t1 = std::chrono::high_resolution_clock::now();
+                                    auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+                                    SPDLOG_INFO(" {} us", us);
+
+                                    break;
+
+                                }
+                                default: {
+                                    continue;
+                                }
+                            }
+                        }
+                        return 0;
                     }
 
-
-
-
-
-
-                    std::optional<VecCD> buf = sample_buffer.try_pop(8100);
-                    if (!buf.has_value()) {
-                        continue;
-                    }
-
-                    const VecCD& buf_val = buf.value();
-                    itpp::cvec in_f = cdVecToCvec(buf_val);
-
-                    std::vector<double> t_coarse;
-                    std::vector<double> f_coarse;
-
-                    c_sync_param_.coarseSync(in_f, t_coarse, f_coarse);
-                    if (t_coarse.empty() || f_coarse.empty()) {
-                        return;
-                    }
-
-                    if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
-                        ChRxCallbackType cb_value = cb.value();
-                        cb_value(in_f, t_coarse, f_coarse);
-                    }else {
-                        throw std::runtime_error("No callback registered");
-                    }
+                    // std::optional<VecCD> buf = sample_buffer.try_pop(8100);
+                    // if (!buf.has_value()) {
+                    //     continue;
+                    // }
+                    //
+                    // const VecCD& buf_val = buf.value();
+                    // itpp::cvec in_f = cdVecToCvec(buf_val);
+                    //
+                    // if (const auto cb = rx_handlers_.at(FL_DCH); cb.has_value()) {
+                    //     ChRxCallbackType cb_value = cb.value();
+                    //     cb_value(in_f, t_coarse, f_coarse);
+                    // }else {
+                    //     throw std::runtime_error("No callback registered");
+                    // }
 
                     // switch (sync_state_.get_state()) {
                     //     case SyncState::ACQUIRE:
@@ -161,6 +193,22 @@ namespace openldacs::phy::link::fl {
 
                     }
             });
+        }
+
+        size_t coarseSync(int sample_length, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+            std::optional<VecCD> buf = sample_buffer.try_pop(sample_length);
+            if (!buf.has_value()) return 0;
+
+            const VecCD& buf_val = buf.value();
+            itpp::cvec in_f = cdVecToCvec(buf_val);
+
+            c_sync_param_.coarseSync(in_f, t_coarse, f_coarse);
+            if (t_coarse.empty() || f_coarse.empty()) {
+                return 0;
+            }
+
+            std::cout << t_coarse << std::endl;
+            return t_coarse.size();
         }
 
         // 各信道注册
@@ -180,6 +228,9 @@ namespace openldacs::phy::link::fl {
         SampleBuffer sample_buffer;
         Worker source_worker_;
         constexpr static int acquire_sample = 5000;
+        constexpr static double bcch13_sample = 1125.0; // 75 * 15
+        constexpr static double bcch2_sample = 1950.0; // 75 * 26
+        constexpr static double threshold = 20.0; // 75 * 26
     };
 
     class PhySink {

@@ -132,6 +132,7 @@ int main() {
     test_bc13(phy_ser);
     test_bc2(phy_ser);
     test_bc13(phy_ser);
+    test_fl(phy_ser, 1);
     //     for (int i = 0; i < 4; i++) {
     //         test_fl(phy_ser, 1);
     //         test_fl(phy_ser, 7);

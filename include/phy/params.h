@@ -5,6 +5,8 @@
 #ifndef OPENLDACS_PARAMS_H
 #define OPENLDACS_PARAMS_H
 
+#include <condition_variable>
+#include <mutex>
 #include <utility>
 #include <boost/circular_buffer.hpp>
 
@@ -239,16 +241,20 @@ namespace openldacs::phy::params {
         }
 
         bool try_push(const VecCD &value) {
+            std::lock_guard<std::mutex> lk(m_);
             if (buffer_.full() || buffer_.size() + value.size() > buffer_.capacity()) return false;
-            for (auto i : value) {
+            for (const auto &i : value) {
                 buffer_.push_back(i);
             }
+            cv_.notify_one();
             return true;
         }
 
         std::optional<VecCD> try_pop(const size_t n_samples) {
+            std::lock_guard<std::mutex> lk(m_);
             if (buffer_.empty() || n_samples > buffer_.size()) return std::nullopt;
             VecCD value;
+            value.reserve(n_samples);
             for (int i = 0; i < n_samples; ++i) {
                 value.push_back(buffer_.front());
                 buffer_.pop_front();
@@ -256,16 +262,44 @@ namespace openldacs::phy::params {
             return value;
         }
 
-        void clear() { buffer_.clear(); }
-        [[nodiscard]] std::size_t size() const { return buffer_.size(); }
+        template <class Rep, class Period>
+        std::optional<VecCD> wait_pop_for(const size_t n_samples,
+                                          const std::chrono::duration<Rep, Period> &timeout) {
+            std::unique_lock<std::mutex> lk(m_);
+            const bool ready = cv_.wait_for(lk, timeout, [&] { return buffer_.size() >= n_samples; });
+            if (!ready) return std::nullopt;
+
+            VecCD value;
+            value.reserve(n_samples);
+            for (int i = 0; i < n_samples; ++i) {
+                value.push_back(buffer_.front());
+                buffer_.pop_front();
+            }
+            return value;
+        }
+
+        void clear() {
+            std::lock_guard<std::mutex> lk(m_);
+            buffer_.clear();
+        }
+        [[nodiscard]] std::size_t size() const {
+            std::lock_guard<std::mutex> lk(m_);
+            return buffer_.size();
+        }
         [[nodiscard]] std::size_t capacity() const { return buffer_.capacity(); }
-        [[nodiscard]] bool empty() const { return buffer_.empty(); }
-        [[nodiscard]] bool full() const { return buffer_.full(); }
+        [[nodiscard]] bool empty() const {
+            std::lock_guard<std::mutex> lk(m_);
+            return buffer_.empty();
+        }
+        [[nodiscard]] bool full() const {
+            std::lock_guard<std::mutex> lk(m_);
+            return buffer_.full();
+        }
 
     private:
+        mutable std::mutex m_;
+        std::condition_variable cv_;
         boost::circular_buffer<cd> buffer_;
-        cd *front() { return buffer_.empty() ? nullptr : &buffer_.front(); }
-        [[nodiscard]] const cd *front() const { return buffer_.empty() ? nullptr : &buffer_.front(); }
     };
 
 

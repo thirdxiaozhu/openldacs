@@ -5,6 +5,8 @@
 #ifndef OPENLDACS_UTIL_H
 #define OPENLDACS_UTIL_H
 #include "openldacs.h"
+#include <cmath>
+#include <type_traits>
 
 namespace openldacs::util {
 
@@ -187,14 +189,22 @@ namespace openldacs::util {
         return out;
     }
 
-
     static void normalize_cvec(itpp::cvec &cvec) {
         double max_val = itpp::max(abs(cvec));
         if (max_val > 0) {
-             cvec /= max_val;
+            cvec /= max_val;
         }
     }
 
+    template <typename T>
+    static bool inRange(const T input, const T target, const T threshold) {
+        static_assert(std::is_arithmetic_v<T>, "T must be an arithmetic type");
+
+        const long double input_ld = static_cast<long double>(input);
+        const long double target_ld = static_cast<long double>(target);
+        const long double threshold_ld = std::fabs(static_cast<long double>(threshold));
+        return std::fabs(input_ld - target_ld) <= threshold_ld;
+    }
 
     static VecCD cvecToCdVecNormalize(const itpp::cvec &cvec) {
         VecCD ret;
