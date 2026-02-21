@@ -10,6 +10,10 @@
 
 namespace openldacs::phy::link {
 
+    constexpr static int CC_DATA_IDX = 3-1; // 0-base
+    constexpr static int MF_PER_SF = 4;
+    constexpr static int DATA_PER_MF = 4;
+
     class LinkBase {
     public:
 

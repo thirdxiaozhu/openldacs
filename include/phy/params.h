@@ -237,7 +237,7 @@ namespace openldacs::phy::params {
     public:
         explicit SampleBuffer(std::size_t capacity) : buffer_(capacity) {
         }
-        explicit SampleBuffer() : buffer_(150000) {
+        explicit SampleBuffer() : buffer_(1500000) {
         }
 
         bool try_push(const VecCD &value) {
