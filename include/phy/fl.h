@@ -202,24 +202,24 @@ namespace openldacs::phy::link::fl {
 
                     switch (current_channel_) {
                         case ChannelState::BCCH1: {
-                            curr_buf = getSamples(bcch13_sample + 2 * threshold);
-                            popSamplesTo(bcch13_sample + threshold);
+                            curr_buf = getSamples(bcch13_sample + threshold);
+                            popSamplesTo(bcch13_sample);
                             current_channel_ = ChannelState::BCCH2;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, BCCH1_3);
                             break;
                         }
                         case ChannelState::BCCH2: {
-                            curr_buf = getSamples(bcch2_sample + 2 * threshold);
-                            popSamplesTo(bcch2_sample + threshold);
+                            curr_buf = getSamples(bcch2_sample + threshold);
+                            popSamplesTo(bcch2_sample);
                             current_channel_ = ChannelState::BCCH3;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, BCCH2);
                             break;
                         }
                         case ChannelState::BCCH3: {
-                            curr_buf = getSamples(bcch2_sample + 2 * threshold);
-                            popSamplesTo(bcch2_sample + threshold);
+                            curr_buf = getSamples(bcch2_sample + threshold);
+                            popSamplesTo(bcch2_sample );
                             current_channel_ = ChannelState::DATA;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, BCCH1_3);
@@ -230,8 +230,8 @@ namespace openldacs::phy::link::fl {
                                 case 0:
                                 case 1:
                                 case 3: {
-                                    curr_buf = getSamples(data_sample2 + 2 * threshold);
-                                    popSamplesTo(data_sample2 + threshold);
+                                    curr_buf = getSamples(data_sample2 + threshold);
+                                    popSamplesTo(data_sample2);
                                     if (fl_counter % DATA_PER_MF == 3) {
                                         if (mf_counter++ % MF_PER_SF == 3) {
                                             current_channel_ = ChannelState::BCCH1;
@@ -240,8 +240,8 @@ namespace openldacs::phy::link::fl {
                                     break;
                                 }
                                 case 2: {
-                                    curr_buf = getSamples(data_sample3 + 2 * threshold);
-                                    popSamplesTo(data_sample3 + threshold);
+                                    curr_buf = getSamples(data_sample3 + threshold);
+                                    popSamplesTo(data_sample3);
                                     break;
                                 }
                                 default: {
@@ -249,7 +249,6 @@ namespace openldacs::phy::link::fl {
                                 }
                             }
 
-                            SPDLOG_INFO("!!!!!!!!!!!! {}", curr_buf.size());
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
 
@@ -687,6 +686,11 @@ namespace openldacs::phy::link::fl {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
+
+                if (t_coarse.size() != 2 && f_coarse.size() != 3) {
+                    throw std::runtime_error("unmatched size for coarse sync");
+                }
+
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
                 const itpp::cmat data_freq_up = matrixFft(data_time);
@@ -700,12 +704,12 @@ namespace openldacs::phy::link::fl {
 
                 const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
 
-                const CodingParams& params = coding_table_.getCodingParams({default_cms_, 2}); // 临时参数
+                const CodingParams& params = coding_table_.getCodingParams({default_cms_, t_coarse.size()}); // 临时参数
 
                 itpp::vec LLR_int = itpp::cvectorize(demod);
 
                 if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
-                    SPDLOG_ERROR("unmatched size for helical inteleaver");
+                    SPDLOG_ERROR("unmatched size for helical inteleaver {} {}", LLR_int.size(), params.h_inter_params.int_bits_size_);
                     return;
                 }
 
