@@ -127,29 +127,29 @@ int main() {
 
     const PhyService phy_ser(device::DeviceType::USRP);
 
-    test_bc13(phy_ser);
-    test_bc2(phy_ser);
-    test_bc13(phy_ser);
-    test_fl(phy_ser, 1);
-    test_fl(phy_ser, 7);
-    test_cc(phy_ser);
-    test_fl(phy_ser, 22);
+    // test_bc13(phy_ser);
+    // test_bc2(phy_ser);
+    // test_bc13(phy_ser);
+    // test_fl(phy_ser, 1);
+    // test_fl(phy_ser, 7);
+    // test_cc(phy_ser);
+    // test_fl(phy_ser, 22);
 
-    // int times = 2;
-    // while (times--) {
-    //     test_bc13(phy_ser);
-    //     test_bc2(phy_ser);
-    //     test_bc13(phy_ser);
-    //     for (int i = 0; i < 4; i++) {
-    //         test_fl(phy_ser, 1);
-    //         test_fl(phy_ser, 7);
-    //         test_cc(phy_ser);
-    //         test_fl(phy_ser, 22);
-    //         mf_id++;
-    //     }
-    //     mf_id = 0;
-    //     sf_id++;
-    // }
+    int times = 2;
+    while (times--) {
+        test_bc13(phy_ser);
+        test_bc2(phy_ser);
+        test_bc13(phy_ser);
+        for (int i = 0; i < 4; i++) {
+            test_fl(phy_ser, 1);
+            test_fl(phy_ser, 7);
+            test_cc(phy_ser);
+            test_fl(phy_ser, 22);
+            mf_id++;
+        }
+        mf_id = 0;
+        sf_id++;
+    }
 
     // test_fl(phy_ser, 1);
 

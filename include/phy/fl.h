@@ -218,8 +218,8 @@ namespace openldacs::phy::link::fl {
                             break;
                         }
                         case ChannelState::BCCH3: {
-                            curr_buf = getSamples(bcch2_sample + threshold);
-                            popSamplesTo(bcch2_sample );
+                            curr_buf = getSamples(bcch13_sample + threshold);
+                            popSamplesTo(bcch13_sample );
                             current_channel_ = ChannelState::DATA;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, BCCH1_3);
