@@ -7,7 +7,10 @@
 #pragma once
 
 
+#include <algorithm>
+#include <chrono>
 #include <queue>
+#include <thread>
 #include <itpp/base/matfunc.h>
 
 #include "config.h"
@@ -83,7 +86,7 @@ namespace openldacs::phy::link::fl {
 
     class PhySource {
     public:
-        using ChRxCallbackType = std::function<void(const itpp::cvec &, std::vector<double> &, std::vector<double> &)>;
+        using ChRxCallbackType = std::function<void(const itpp::cvec &, const std::vector<double> &, const std::vector<double> &)>;
 
         explicit PhySource(device::DevPtr& dev): dev_(dev){
 
@@ -96,72 +99,110 @@ namespace openldacs::phy::link::fl {
             for (int i = 0; i < 3400; i++) {
                 test_padding.push_back(std::complex<double>(dis(gen), dis(gen)) * 0.1) ; // 缩放因子可根据需要调整
             }
-            sample_buffer.try_push(test_padding);
+            if (!sample_buffer.try_push(test_padding)) {
+                SPDLOG_WARN("SampleBuffer full, drop test padding: {} samples", test_padding.size());
+            }
             ////////////////////////////////////////////////////
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([this](const VecCD &f) {
-                sample_buffer.try_push(f);
+                if (!sample_buffer.try_push(f)) {
+                    SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
+                }
             });
 
             source_worker_.start([&] {
 
                 while (!source_worker_.stop_requested()) {
-
                     // 同步阶段
-                    if (sync_state_.get_state() == SyncState::ACQUIRE) {
-                        itpp::cvec curr_buf;
-                        while (!source_worker_.stop_requested()) {
-                            auto t0 = std::chrono::high_resolution_clock::now();
+                    if (sync_state_.get_state() != SyncState::ACQUIRE) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        continue;
+                    }
 
+                    itpp::cvec curr_buf;
+                    // try {
+                    //     curr_buf = getSamples(acquire_sample);
+                    // } catch (const std::exception &e) {
+                    //     SPDLOG_ERROR("fineSync failed: {}", e.what());
+                    //     continue;
+                    // }
+
+                    if (sync_state_.get_state() == SyncState::ACQUIRE) {
+
+                        while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
                             std::vector<double> t_coarse;
                             std::vector<double> f_coarse;
 
-                            std::optional<VecCD> buf = sample_buffer.try_pop(acquire_sample);
-                            if (!buf.has_value()) continue;
+                            curr_buf = getSamples(acquire_sample);
 
-                            curr_buf.ins(curr_buf.size(), cdVecToCvec(buf.value())); //拼接到后面
-
+                            const auto t0 = std::chrono::high_resolution_clock::now();
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+
+                            SPDLOG_INFO("{} ", t_coarse.size());
+
                             switch (t_coarse.size()) {
                                 case 0:
                                     continue;
                                 case 1:
-                                    curr_buf.shift_left(t_coarse[0] - threshold);
+                                    popSamples(t_coarse[0] - threshold);
                                     continue;
                                 case 2: {
-                                    if (double interval = t_coarse[1] - t_coarse[0]; !inRange(interval, bcch13_sample, threshold)) {
-                                        curr_buf.shift_left(t_coarse[1] - threshold);
-                                    }else {
-                                        curr_buf.shift_left(t_coarse[0] - threshold);
+                                    if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
+                                        interval, bcch13_sample, threshold)) {
+                                        popSamples(t_coarse[1] - threshold);
+                                    } else {
+                                        popSamples(t_coarse[0] - threshold);
                                     }
                                     continue;
                                 }
                                 case 3: {
-                                    if (double interval = t_coarse[2] - t_coarse[1]; !inRange(interval, bcch2_sample, threshold)) {
-                                        curr_buf.shift_left(t_coarse[2] - threshold);
+                                    if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
+                                        interval, bcch2_sample, threshold)) {
+                                        popSamples(t_coarse[2] - threshold);
                                     }
                                     continue;
                                 }
                                 case 4: {
-                                    SPDLOG_INFO("!!!!!!!!!!!!!!!!!!!!");
-                                    if (double interval = t_coarse[3] - t_coarse[2]; !inRange(interval, bcch13_sample, threshold)) {
-                                        curr_buf.shift_left(t_coarse[3] - threshold);
+                                    if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
+                                        interval, bcch13_sample, threshold)) {
+                                        popSamples(t_coarse[3] - threshold);
                                     }
-                                    auto t1 = std::chrono::high_resolution_clock::now();
-                                    auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-                                    SPDLOG_INFO(" {} us", us);
 
+                                    SPDLOG_INFO("Super frame coarse sync has finished!");
+
+                                    try {
+                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1), std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1), BCCH1_3);
+                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2), std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2), BCCH2);
+                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin() + 2, t_coarse.begin() + 3), std::vector<double>(f_coarse.begin() + 2, f_coarse.begin() + 3), BCCH1_3);
+                                    }catch (std::exception &e) {
+                                        SPDLOG_ERROR("fineSync failed: {}", e.what());
+                                        continue; // 或者切回 ACQUIRE 状态
+                                    }
+
+                                    // shift_left_safe(t_coarse[3] -  threshold); // 获取下一帧的数个样本
+                                    // getSamples(data_sample2 + 2 * threshold - curr_buf.size());
+                                    // SPDLOG_INFO("{}", curr_buf.size());
+                                    // c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                    // fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
+
+                                    sync_state_.set_state(SyncState::TRACK);
+                                    const auto t1 = std::chrono::high_resolution_clock::now();
+                                    const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).
+                                            count();
+                                    SPDLOG_INFO("coarseSync {} us", us);
                                     break;
-
                                 }
                                 default: {
+                                    // 对异常峰值数量回退到最新峰值附近，避免缓冲持续膨胀
+                                    popSamples(t_coarse.back() - threshold);
                                     continue;
                                 }
                             }
                         }
-                        return 0;
                     }
+
+
 
                     // std::optional<VecCD> buf = sample_buffer.try_pop(8100);
                     // if (!buf.has_value()) {
@@ -191,8 +232,36 @@ namespace openldacs::phy::link::fl {
                     //         break;
                     // }
 
-                    }
+                }
             });
+        }
+
+        itpp::cvec getSamples(const size_t size) {
+            std::optional<VecCD> buf = sample_buffer.wait_get_for(
+                size, std::chrono::milliseconds(acquire_wait_timeout_ms));
+            if (!buf.has_value()) {
+                throw std::runtime_error("No samples available");
+            }
+
+            return cdVecToCvec(buf.value());
+
+            // curr_buf.ins(curr_buf.size(), cdVecToCvec(buf.value())); // 拼接到后面
+            // if (curr_buf.size() > acquire_buffer_limit) {
+            //     curr_buf.shift_left(curr_buf.size() - acquire_buffer_limit);
+            // }
+        }
+
+        void popSamples(const size_t size) {
+            sample_buffer.popFront(size);
+        }
+
+        void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {
+            if (const auto cb = rx_handlers_.at(ch); cb.has_value()) {
+                const ChRxCallbackType cb_value = cb.value();
+                cb_value(in_f, t_coarse, f_coarse);
+            }else {
+                throw std::runtime_error("No callback registered");
+            }
         }
 
         size_t coarseSync(int sample_length, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
@@ -221,16 +290,29 @@ namespace openldacs::phy::link::fl {
             source_worker_.joinAndRethrow();
         }
     private:
+        enum class SourceChannelState {
+            BCCH1,
+            BCCH2,
+            BCCH3,
+            FL_DATA,
+            CC_DATA,
+        };
+
         device::DevPtr& dev_;
         CoarseSyncParam c_sync_param_;
         SyncStateMachine sync_state_;
         std::map<ChannelSlot, std::optional<ChRxCallbackType>> rx_handlers_;
         SampleBuffer sample_buffer;
         Worker source_worker_;
+        SourceChannelState current_channel_ = SourceChannelState::FL_DATA;
         constexpr static int acquire_sample = 5000;
+        constexpr static double threshold = 50.0;
+        constexpr static int acquire_buffer_limit = acquire_sample * 8;
+        constexpr static int acquire_wait_timeout_ms = 60;
         constexpr static double bcch13_sample = 1125.0; // 75 * 15
         constexpr static double bcch2_sample = 1950.0; // 75 * 26
-        constexpr static double threshold = 20.0; // 75 * 26
+        constexpr static double data_sample2 = 8100.0; // 75 * 26
+        constexpr static double data_sample3 = 12150.0; // 75 * 26
     };
 
     class PhySink {
@@ -240,35 +322,35 @@ namespace openldacs::phy::link::fl {
                 while (!sink_worker_.stop_requested()) {
                     std::optional<BlockBuffer> bf;
                     switch (current_channel_) {
-                        case ChannelState::BCCH1:
-                        case ChannelState::BCCH3: {
+                        case SinkChannelState::BCCH1:
+                        case SinkChannelState::BCCH3: {
                             bf = bc13_queue_.pop_blocking();
                             switch (current_channel_) {
-                                case ChannelState::BCCH1: {
+                                case SinkChannelState::BCCH1: {
                                     SPDLOG_INFO("BC1");
-                                    current_channel_ = ChannelState::BCCH2;
+                                    current_channel_ = SinkChannelState::BCCH2;
                                     break;
                                 }
-                                case ChannelState::BCCH3: {
+                                case SinkChannelState::BCCH3: {
                                     SPDLOG_INFO("BC3");
-                                    current_channel_ = ChannelState::DATA;
+                                    current_channel_ = SinkChannelState::DATA;
                                     break;
                                 }
                                 default: {
                                     SPDLOG_WARN("Invalid State");
-                                    current_channel_ = ChannelState::BCCH1;
+                                    current_channel_ = SinkChannelState::BCCH1;
                                     continue;
                                 }
                             }
                             break;
                         }
-                        case ChannelState::BCCH2: {
+                        case SinkChannelState::BCCH2: {
                                     SPDLOG_INFO("BC2");
                             bf = bc2_queue_.pop_blocking();
-                            current_channel_ = ChannelState::BCCH3;
+                            current_channel_ = SinkChannelState::BCCH3;
                             break;
                         }
-                        case ChannelState::DATA: {
+                        case SinkChannelState::DATA: {
 
                             if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
                                 SPDLOG_INFO("CC FL DATA");
@@ -279,14 +361,14 @@ namespace openldacs::phy::link::fl {
                             }
 
                             if (fl_counter == DATA_PER_MF * MF_PER_SF) {
-                                current_channel_ = ChannelState::BCCH1;
+                                current_channel_ = SinkChannelState::BCCH1;
                                 fl_counter = 0;
                             }
                             break;
                         }
                         default: {
                             SPDLOG_WARN("Invalid State");
-                            current_channel_ = ChannelState::BCCH1;
+                            current_channel_ = SinkChannelState::BCCH1;
                             break;
                         }
                     }
@@ -334,7 +416,7 @@ namespace openldacs::phy::link::fl {
         }
 
     private:
-        enum class ChannelState {
+        enum class SinkChannelState {
             BCCH1,
             BCCH2,
             BCCH3,
@@ -352,7 +434,7 @@ namespace openldacs::phy::link::fl {
         BoundedQueue<BlockBuffer> fl_data_queue_;
         Worker sink_worker_;
         std::optional<itpp::cvec> prev_post_;
-        ChannelState current_channel_ = ChannelState::BCCH1;
+        SinkChannelState current_channel_ = SinkChannelState::BCCH1;
 
         uint8_t fl_counter = 0;
 
@@ -476,7 +558,7 @@ namespace openldacs::phy::link::fl {
     public:
         explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
 
-            config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
+            config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
                 const itpp::cmat data_freq_up = matrixFft(data_time);
@@ -536,7 +618,7 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
-            config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, std::vector<double> &t_coarse, std::vector<double> &f_coarse){
+            config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 itpp::cmat data_time;
                 f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
                 const itpp::cmat data_freq_up = matrixFft(data_time);

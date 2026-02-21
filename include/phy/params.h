@@ -263,7 +263,7 @@ namespace openldacs::phy::params {
         }
 
         template <class Rep, class Period>
-        std::optional<VecCD> wait_pop_for(const size_t n_samples,
+        std::optional<VecCD> wait_get_for(const size_t n_samples,
                                           const std::chrono::duration<Rep, Period> &timeout) {
             std::unique_lock<std::mutex> lk(m_);
             const bool ready = cv_.wait_for(lk, timeout, [&] { return buffer_.size() >= n_samples; });
@@ -271,11 +271,13 @@ namespace openldacs::phy::params {
 
             VecCD value;
             value.reserve(n_samples);
-            for (int i = 0; i < n_samples; ++i) {
-                value.push_back(buffer_.front());
-                buffer_.pop_front();
-            }
+
+            std::copy_n(buffer_.begin(), n_samples, std::back_inserter(value));
             return value;
+        }
+
+        void popFront(const size_t size) {
+            buffer_.erase_begin(std::min(size, buffer_.size()));
         }
 
         void clear() {
@@ -466,7 +468,7 @@ namespace openldacs::phy::params {
         // Coarse-sync peak threshold: clamp(relative * max(metric), floor, absolute cap)
         double threshold_peak = 0.4;
         double threshold_peak_ratio = 0.5;
-        double threshold_peak_floor = 0.15;
+        double threshold_peak_floor = 0.3;
     };
 
     struct FineSyncParam {
