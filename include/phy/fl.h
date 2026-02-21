@@ -96,19 +96,19 @@ namespace openldacs::phy::link::fl {
 
         explicit PhySource(device::DevPtr& dev): dev_(dev){
 
-            ////////////////////////////////////////////////////
-            VecCD test_padding;
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
-
-            for (int i = 0; i < 3400; i++) {
-                test_padding.push_back(std::complex<double>(dis(gen), dis(gen)) * 0.1) ; // 缩放因子可根据需要调整
-            }
-            if (!sample_buffer.try_push(test_padding)) {
-                SPDLOG_WARN("SampleBuffer full, drop test padding: {} samples", test_padding.size());
-            }
-            ////////////////////////////////////////////////////
+            // ////////////////////////////////////////////////////
+            // VecCD test_padding;
+            // std::random_device rd;
+            // std::mt19937 gen(rd());
+            // std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+            //
+            // for (int i = 0; i < 3400; i++) {
+            //     test_padding.push_back(std::complex<double>(dis(gen), dis(gen)) * 0.1) ; // 缩放因子可根据需要调整
+            // }
+            // if (!sample_buffer.try_push(test_padding)) {
+            //     SPDLOG_WARN("SampleBuffer full, drop test padding: {} samples", test_padding.size());
+            // }
+            // ////////////////////////////////////////////////////
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([this](const VecCD &f) {

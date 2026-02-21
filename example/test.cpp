@@ -135,7 +135,7 @@ int main() {
     // test_cc(phy_ser);
     // test_fl(phy_ser, 22);
 
-    int times = 2;
+    int times = 10;
     while (times--) {
         test_bc13(phy_ser);
         test_bc2(phy_ser);
