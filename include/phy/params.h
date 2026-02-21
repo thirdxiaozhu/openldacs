@@ -276,8 +276,8 @@ namespace openldacs::phy::params {
             return value;
         }
 
-        void popFront(const size_t size) {
-            buffer_.erase_begin(std::min(size, buffer_.size()));
+        void popFront(const size_t sz) {
+            buffer_.erase_begin(std::min(sz, buffer_.size()));
         }
 
         void clear() {
@@ -482,6 +482,7 @@ namespace openldacs::phy::params {
             std::vector<double> f_fine;
 
             fineSync(input, t_coarse, f_coarse, t_fine, f_fine);
+
             blanking_block(input, t_fine, f_fine, data_time);
         }
     private:
@@ -506,6 +507,8 @@ namespace openldacs::phy::params {
         itpp::vec freq2;
 
         void coarseSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+            t_coarse.clear();
+            f_coarse.clear();
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
         }

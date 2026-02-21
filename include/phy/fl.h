@@ -127,13 +127,13 @@ namespace openldacs::phy::link::fl {
                     //     SPDLOG_ERROR("fineSync failed: {}", e.what());
                     //     continue;
                     // }
+                    std::vector<double> t_coarse;
+                    std::vector<double> f_coarse;
+
 
                     if (sync_state_.get_state() == SyncState::ACQUIRE) {
 
                         while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
-                            std::vector<double> t_coarse;
-                            std::vector<double> f_coarse;
-
                             curr_buf = getSamples(acquire_sample);
 
                             const auto t0 = std::chrono::high_resolution_clock::now();
@@ -145,31 +145,31 @@ namespace openldacs::phy::link::fl {
                                 case 0:
                                     continue;
                                 case 1:
-                                    popSamples(t_coarse[0] - threshold);
+                                    popSamplesTo(t_coarse[0] - threshold);
                                     continue;
                                 case 2: {
                                     if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
                                         interval, bcch13_sample, threshold)) {
-                                        popSamples(t_coarse[1] - threshold);
+                                        popSamplesTo(t_coarse[1] - threshold);
                                     } else {
-                                        popSamples(t_coarse[0] - threshold);
+                                        popSamplesTo(t_coarse[0] - threshold);
                                     }
                                     continue;
                                 }
                                 case 3: {
                                     if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
                                         interval, bcch2_sample, threshold)) {
-                                        popSamples(t_coarse[2] - threshold);
+                                        popSamplesTo(t_coarse[2] - threshold);
                                     }
                                     continue;
                                 }
                                 case 4: {
                                     if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
                                         interval, bcch13_sample, threshold)) {
-                                        popSamples(t_coarse[3] - threshold);
+                                        popSamplesTo(t_coarse[3] - threshold);
+                                        continue;
                                     }
 
-                                    SPDLOG_INFO("Super frame coarse sync has finished!");
 
                                     try {
                                         fineSync(curr_buf, std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1), std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1), BCCH1_3);
@@ -180,13 +180,12 @@ namespace openldacs::phy::link::fl {
                                         continue; // 或者切回 ACQUIRE 状态
                                     }
 
-                                    // shift_left_safe(t_coarse[3] -  threshold); // 获取下一帧的数个样本
-                                    // getSamples(data_sample2 + 2 * threshold - curr_buf.size());
-                                    // SPDLOG_INFO("{}", curr_buf.size());
-                                    // c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                                    // fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
+                                    SPDLOG_INFO("Super frame sync has finished!");
+
+                                    popSamplesTo(t_coarse[3] - threshold); // 获取下一帧的数个样本
 
                                     sync_state_.set_state(SyncState::TRACK);
+                                    current_channel_ = SourceChannelState::FL_DATA;
                                     const auto t1 = std::chrono::high_resolution_clock::now();
                                     const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).
                                             count();
@@ -195,13 +194,21 @@ namespace openldacs::phy::link::fl {
                                 }
                                 default: {
                                     // 对异常峰值数量回退到最新峰值附近，避免缓冲持续膨胀
-                                    popSamples(t_coarse.back() - threshold);
+                                    popSamplesTo(t_coarse.back() - threshold);
                                     continue;
                                 }
+                            }
+
+                            if (sync_state_.get_state() == SyncState::TRACK && current_channel_ == SourceChannelState::FL_DATA) {
+                                break;
                             }
                         }
                     }
 
+                    curr_buf = getSamples(data_sample2 + 2 * threshold);
+                    SPDLOG_INFO("{}", curr_buf.size());
+                    c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                    fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
 
 
                     // std::optional<VecCD> buf = sample_buffer.try_pop(8100);
@@ -237,6 +244,8 @@ namespace openldacs::phy::link::fl {
         }
 
         itpp::cvec getSamples(const size_t size) {
+
+
             std::optional<VecCD> buf = sample_buffer.wait_get_for(
                 size, std::chrono::milliseconds(acquire_wait_timeout_ms));
             if (!buf.has_value()) {
@@ -251,8 +260,8 @@ namespace openldacs::phy::link::fl {
             // }
         }
 
-        void popSamples(const size_t size) {
-            sample_buffer.popFront(size);
+        void popSamplesTo(const uint32_t pos) {
+            sample_buffer.popFront(pos);
         }
 
         void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {

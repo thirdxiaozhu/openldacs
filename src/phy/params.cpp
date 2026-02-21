@@ -645,7 +645,7 @@ namespace openldacs::phy::params {
         int symb_bamc = cp_sample + fft_sample;
         int frame_length_td = symb_bamc * ofdm_symb_;
         // int num_frames = round(input.size() / frame_length_td);
-        int num_frames = 1; //临时的
+        int num_frames = t.size();
 
         data_time.set_size(fft_sample, num_frames * ofdm_symb_);
 
