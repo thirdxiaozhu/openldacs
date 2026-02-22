@@ -52,6 +52,7 @@ namespace openldacs {
     using MVecU8 = std::vector<std::vector<uint8_t>>;
     using VecU8 = std::vector<uint8_t>;
     using VecCD = std::vector<std::complex<double>>;
+    using VecCF = std::vector<std::complex<float>>;
 
     class OpenLdacsConfig {
     public:

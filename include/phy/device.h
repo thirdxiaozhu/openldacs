@@ -14,6 +14,7 @@
 #include "util/worker.h"
 
 namespace openldacs::phy::device {
+    using namespace openldacs::util;
     using cd = std::complex<double>;
 
     enum class DeviceType : int {
@@ -22,8 +23,8 @@ namespace openldacs::phy::device {
     };
 
     enum RoleChannel : uint8_t {
-        AS_CHANNEL = 0x00,
-        GS_CHANNEL = 0x01,
+        FL_CHANNEL = 0x00,
+        RL_CHANNEL = 0x01,
     };
 
     constexpr int CAP_HIGH = 512;
@@ -90,12 +91,15 @@ namespace openldacs::phy::device {
             tx_args_("fc32"),
             rx_args_("fc32")
         {
-            // setupDevice();
+            setupDevice();
 
             trans_worker_.start([&] {
-                std::unique_lock<std::mutex> lk(trans_worker_.mutex());
+
+                bool first_trans = true;
+
                 if (!tx_stream_ || !rx_stream_) {
                         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
+                        return;
                 }
                 while (!trans_worker_.stop_requested()) {
                     std::optional<VecCD> fl_vec;
@@ -105,100 +109,104 @@ namespace openldacs::phy::device {
                     }
                     if (role_ & GS) {
                         fl_vec = fl_to_trans_.pop();
+                        if (!fl_vec.has_value())    continue;
 
-                        if (fl_vec.has_value()) {
-
-                            VecCD to_sync_frame = fl_vec.value();
-
-                            // 生成高斯白噪声
-                            std::random_device rd;
-                            std::mt19937 gen(rd());
-                            std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
-
-                            for (int i = 0; i < fl_vec->size(); i++) {
-                                to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
-                            }
-
-                            if (rx_callback_) {
-                                rx_callback_(to_sync_frame);
-                            }
-                        }
-
-                        // while (!fl_to_trans_.try_pop(fl_vec)) {
-                        //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                        //     if (trans_worker_.stop_requested()) {
-                        //         break;
+                        // if (fl_vec.has_value()) {
+                        //
+                        //     VecCD to_sync_frame = fl_vec.value();
+                        //
+                        //     // 生成高斯白噪声
+                        //     std::random_device rd;
+                        //     std::mt19937 gen(rd());
+                        //     std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+                        //
+                        //     for (int i = 0; i < fl_vec->size(); i++) {
+                        //         to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                        //     }
+                        //
+                        //     if (rx_callback_) {
+                        //         rx_callback_(to_sync_frame);
                         //     }
                         // }
-                        //
-                        // if (trans_worker_.stop_requested()) {
-                        //     break;
-                        // }
-                        // fl_vec = fl_to_trans_.pop();
                     }
 
-                    // std::vector<std::complex<double> *> buffs = {
-                    //     fl_vec.data(),
-                    //     fl_vec.data()
-                    // };
-                    //
-                    // uhd::tx_metadata_t md;
-                    // md.start_of_burst = first_trans;
-                    // md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
-                    //
-                    // tx_stream_->send(buffs, fl_vec.size(), md);
-                    // first_trans = false;
+
+                    if (!fl_vec.has_value() || fl_vec->empty()) {
+                        continue;
+                    }
+
+                    // 降级为float，以满足fc32
+                    VecCF fl_vec_cf(fl_vec.value().begin(), fl_vec.value().end());
+
+                    const auto* tx_data = static_cast<const void*>(fl_vec_cf.data());
+                    const std::vector<const void*> buffs_vec{tx_data, nullptr}; // 当前只有FL
+                    uhd::tx_streamer::buffs_type buffs(buffs_vec);
+
+                    uhd::tx_metadata_t md;
+                    md.start_of_burst = first_trans;
+                    md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
+
+                    tx_stream_->send(buffs, fl_vec_cf.size(), md);
+                    first_trans = false;
                 }
 
                 // 退出循环后，发送结束标记
-                // uhd::tx_metadata_t md_end;
-                // md_end.end_of_burst = true;
-                // tx_stream_->send("", 0, md_end);
+                uhd::tx_metadata_t md_end;
+                md_end.end_of_burst = true;
+                tx_stream_->send("", 0, md_end);
             });
-            //
-            // recv_worker_.start([&] {
-            //     // // 接收缓冲区
-            //     // VecCD buff(recv_samples_);
-            //     // uhd::rx_metadata_t md;
-            //     //
-            //     // // 启动连续流
-            //     // uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
-            //     // stream_cmd.stream_now = true;
-            //     // rx_stream_->issue_stream_cmd(stream_cmd);
-            //     //
-            //     // while (!trans_worker_.stop_requested()) {
-            //     //     size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0);
-            //     //
-            //     //     // 错误处理
-            //     //     if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
-            //     //         std::cerr << "[RX] 超时" << std::endl;
-            //     //         continue;
-            //     //     }
-            //     //     if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
-            //     //         std::cerr << "[RX] 溢出 (O)" << std::endl;
-            //     //         continue;
-            //     //     }
-            //     //     if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-            //     //         std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
-            //     //         break;
-            //     //     }
-            //     //
-            //     //     // 复制数据到队列
-            //     //     VecCD data(buff.begin(), buff.begin() + num_rx);
-            //     //     // if (!data_queue.push(std::move(data))) {
-            //     //     //     std::cerr << "[RX] 队列满，丢弃数据" << std::endl;
-            //     //     // }
-            //     // }
-            //     // const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
-            //     // rx_stream_->issue_stream_cmd(stop_cmd);
-            // });
+
+            recv_worker_.start([&] {
+                // 接收缓冲区
+                VecCF buff(recv_samples_);
+                uhd::rx_metadata_t md;
+
+                // 启动连续流
+                uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+                stream_cmd.stream_now = true;
+                rx_stream_->issue_stream_cmd(stream_cmd);
+
+                while (!recv_worker_.stop_requested()) {
+                    // const auto t0 = std::chrono::high_resolution_clock::now();
+                    size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0); //测试阶段单fl通道
+                    // const auto t1 = std::chrono::high_resolution_clock::now();
+                    // const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).
+                    //         count();
+                    // SPDLOG_INFO("recv {} ns", ns);
+
+                    // 错误处理
+                    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+                        std::cerr << "[RX] 超时" << std::endl;
+                        continue;
+                    }
+                    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
+                        std::cerr << "[RX] 溢出 (O)" << std::endl;
+                        continue;
+                    }
+                    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+                        std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
+                        break;
+                    }
+
+                    // 复制数据到队列
+                    VecCD data(buff.begin(), buff.begin() + num_rx);
+
+                    std::cout << data << std::endl;
+
+                    // if (!data_queue.push(std::move(data))) {
+                    //     std::cerr << "[RX] 队列满，丢弃数据" << std::endl;
+                    // }
+                }
+                const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
+                rx_stream_->issue_stream_cmd(stop_cmd);
+            });
         }
 
         ~USRP() override {
         }
     private:
-        static constexpr int recv_samples_ = 16384;
-        const std::string args_ = "type=b200,serial=3459F45";   // 也可以加 serial=xxxx 3459f45
+        static constexpr int recv_samples_ = 4096;
+        const std::string args_ = "type=b200,serial=192113";   // 也可以加 serial=xxxx 3459f45
         std::shared_ptr<uhd::usrp::multi_usrp> usrp_;
         uhd::stream_args_t tx_args_;
         uhd::stream_args_t rx_args_;
