@@ -96,7 +96,6 @@ namespace openldacs::phy::device {
             trans_worker_.start([&] {
 
                 bool first_trans = true;
-
                 if (!tx_stream_ || !rx_stream_) {
                         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
                         return;
@@ -111,25 +110,25 @@ namespace openldacs::phy::device {
                         fl_vec = fl_to_trans_.pop();
                         if (!fl_vec.has_value())    continue;
 
-                        // if (fl_vec.has_value()) {
-                        //
-                        //     VecCD to_sync_frame = fl_vec.value();
-                        //
-                        //     // 生成高斯白噪声
-                        //     std::random_device rd;
-                        //     std::mt19937 gen(rd());
-                        //     std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
-                        //
-                        //     for (int i = 0; i < fl_vec->size(); i++) {
-                        //         to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
-                        //     }
-                        //
-                        //     if (rx_callback_) {
-                        //         rx_callback_(to_sync_frame);
-                        //     }
-                        // }
-                    }
-
+                    //     if (fl_vec.has_value()) {
+                    //
+                    //         VecCD to_sync_frame = fl_vec.value();
+                    //
+                    //         // 生成高斯白噪声
+                    //         std::random_device rd;
+                    //         std::mt19937 gen(rd());
+                    //         std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+                    //
+                    //         for (int i = 0; i < fl_vec->size(); i++) {
+                    //             to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                    //         }
+                    //
+                    //         if (rx_callback_) {
+                    //             rx_callback_(to_sync_frame);
+                    //         }
+                    //     }
+                    // }
+                }
 
                     if (!fl_vec.has_value() || fl_vec->empty()) {
                         continue;
@@ -138,16 +137,32 @@ namespace openldacs::phy::device {
                     // 降级为float，以满足fc32
                     VecCF fl_vec_cf(fl_vec.value().begin(), fl_vec.value().end());
 
-                    const auto* tx_data = static_cast<const void*>(fl_vec_cf.data());
-                    const std::vector<const void*> buffs_vec{tx_data, nullptr}; // 当前只有FL
-                    uhd::tx_streamer::buffs_type buffs(buffs_vec);
+                    size_t sent_total = 0;
+                    bool start_of_burst = first_trans;
+                    while (sent_total < fl_vec_cf.size() && !trans_worker_.stop_requested()) {
+                        uhd::tx_metadata_t md;
+                        md.start_of_burst = start_of_burst;
+                        md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
 
-                    uhd::tx_metadata_t md;
-                    md.start_of_burst = first_trans;
-                    md.end_of_burst = false;  // 如果没数据的话，会UUUUUU
+                        const size_t sent_now = tx_stream_->send(
+                            &fl_vec_cf[sent_total], fl_vec_cf.size() - sent_total, md, 1.0);
+                        if (sent_now == 0) {
+                            SPDLOG_WARN(
+                                "USRP TX send returned 0, drop remaining {} samples",
+                                fl_vec_cf.size() - sent_total);
+                            break;
+                        }
 
-                    tx_stream_->send(buffs, fl_vec_cf.size(), md);
-                    first_trans = false;
+                        sent_total += sent_now;
+                        start_of_burst = false;
+                    }
+
+                    if (sent_total < fl_vec_cf.size()) {
+                        SPDLOG_WARN("USRP TX short send: {}/{}", sent_total, fl_vec_cf.size());
+                    }
+                    if (sent_total > 0) {
+                        first_trans = false;
+                    }
                 }
 
                 // 退出循环后，发送结束标记
@@ -188,14 +203,10 @@ namespace openldacs::phy::device {
                         break;
                     }
 
-                    // 复制数据到队列
-                    VecCD data(buff.begin(), buff.begin() + num_rx);
-
-                    std::cout << data << std::endl;
-
-                    // if (!data_queue.push(std::move(data))) {
-                    //     std::cerr << "[RX] 队列满，丢弃数据" << std::endl;
-                    // }
+                    if (rx_callback_) {
+                        VecCD data(buff.begin(), buff.begin() + num_rx);
+                        rx_callback_(std::move(data));
+                    }
                 }
                 const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
                 rx_stream_->issue_stream_cmd(stop_cmd);

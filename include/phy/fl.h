@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <queue>
 #include <thread>
 #include <itpp/base/matfunc.h>
@@ -118,14 +119,11 @@ namespace openldacs::phy::link::fl {
             });
 
             source_worker_.start([&] {
-
                 while (!source_worker_.stop_requested()) {
                     // 同步阶段
-
                     itpp::cvec curr_buf;
                     std::vector<double> t_coarse;
                     std::vector<double> f_coarse;
-
 
                     if (sync_state_.get_state() == SyncState::ACQUIRE) {
                         while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
@@ -134,7 +132,7 @@ namespace openldacs::phy::link::fl {
                             const auto t0 = std::chrono::high_resolution_clock::now();
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
 
-                            SPDLOG_INFO("{} ", t_coarse.size());
+                            // SPDLOG_INFO("{} ", t_coarse.size());
 
                             switch (t_coarse.size()) {
                                 case 0:
@@ -264,8 +262,6 @@ namespace openldacs::phy::link::fl {
         }
 
         itpp::cvec getSamples(const size_t size) {
-
-
             std::optional<VecCD> buf = sample_buffer.wait_get_for(
                 size, std::chrono::milliseconds(acquire_wait_timeout_ms));
             if (!buf.has_value()) {
@@ -345,12 +341,10 @@ namespace openldacs::phy::link::fl {
                             bf = bc13_queue_.pop_blocking();
                             switch (current_channel_) {
                                 case ChannelState::BCCH1: {
-                                    SPDLOG_INFO("BC1");
                                     current_channel_ = ChannelState::BCCH2;
                                     break;
                                 }
                                 case ChannelState::BCCH3: {
-                                    SPDLOG_INFO("BC3");
                                     current_channel_ = ChannelState::DATA;
                                     break;
                                 }
@@ -363,7 +357,6 @@ namespace openldacs::phy::link::fl {
                             break;
                         }
                         case ChannelState::BCCH2: {
-                                    SPDLOG_INFO("BC2");
                             bf = bc2_queue_.pop_blocking();
                             current_channel_ = ChannelState::BCCH3;
                             break;
@@ -371,10 +364,8 @@ namespace openldacs::phy::link::fl {
                         case ChannelState::DATA: {
 
                             if (fl_counter++ % DATA_PER_MF == CC_DATA_IDX) {
-                                SPDLOG_INFO("CC FL DATA");
                                 bf = cc_fl_data_queue_.pop_blocking();
                             } else {
-                                SPDLOG_INFO("FL DATA");
                                 bf = fl_data_queue_.pop_blocking();
                             }
 
@@ -687,7 +678,7 @@ namespace openldacs::phy::link::fl {
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
             config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
 
-                if (t_coarse.size() != 2 && f_coarse.size() != 3) {
+                if (t_coarse.size() != 2 && t_coarse.size() != 3) {
                     throw std::runtime_error("unmatched size for coarse sync");
                 }
 

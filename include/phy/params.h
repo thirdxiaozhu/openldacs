@@ -507,6 +507,7 @@ namespace openldacs::phy::params {
         itpp::vec freq2;
 
         void coarseSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
+            SPDLOG_INFO("!!!!!!!!!!!! {} ", input.size());
             t_coarse.clear();
             f_coarse.clear();
             frameSync(input);

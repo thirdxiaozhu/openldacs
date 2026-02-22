@@ -149,6 +149,8 @@ int main() {
         }
         mf_id = 0;
         sf_id++;
+
+        // usleep(240000);
     }
 
     // test_fl(phy_ser, 1);
