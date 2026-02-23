@@ -622,7 +622,8 @@ namespace openldacs::phy::params {
             t_fine_c = t_fine;
             f_fine_c = f_fine;
         } else { // RL rx
-
+            t_fine_c = t_fine;
+            f_fine_c = f_fine;
         }
 
         correct_rx_singal_time(input, t_fine_c, f_fine_c, data_time);

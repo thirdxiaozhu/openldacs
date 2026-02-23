@@ -101,12 +101,12 @@ namespace openldacs::phy::link::fl {
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([&](const VecCD &f) {
-                // if (!sample_buffer.try_push(f)) {
-                //     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
-                // }
-                zmq::message_t message(f.size());
-                memcpy(message.data(), &f.front(), f.size());
-                publisher.send(message, zmq::send_flags::none);
+                if (!sample_buffer.try_push(f)) {
+                    SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
+                }
+                // zmq::message_t message(f.size());
+                // memcpy(message.data(), &f.front(), f.size());
+                // publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {
