@@ -95,27 +95,18 @@ namespace openldacs::phy::link::fl {
     public:
         using ChRxCallbackType = std::function<void(const itpp::cvec &, const std::vector<double> &, const std::vector<double> &)>;
 
-        explicit PhySource(device::DevPtr& dev): dev_(dev){
+        explicit PhySource(device::DevPtr& dev): dev_(dev), context(1), publisher(context, ZMQ_PUB) {
 
-            // ////////////////////////////////////////////////////
-            // VecCD test_padding;
-            // std::random_device rd;
-            // std::mt19937 gen(rd());
-            // std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
-            //
-            // for (int i = 0; i < 3400; i++) {
-            //     test_padding.push_back(std::complex<double>(dis(gen), dis(gen)) * 0.1) ; // 缩放因子可根据需要调整
-            // }
-            // if (!sample_buffer.try_push(test_padding)) {
-            //     SPDLOG_WARN("SampleBuffer full, drop test padding: {} samples", test_padding.size());
-            // }
-            // ////////////////////////////////////////////////////
+            publisher.bind("tcp://127.0.0.1:5555");
 
             // 向dev注册接收回调队列
-            dev->registerRxCallback([this](const VecCD &f) {
-                if (!sample_buffer.try_push(f)) {
-                    SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
-                }
+            dev->registerRxCallback([&](const VecCD &f) {
+                // if (!sample_buffer.try_push(f)) {
+                //     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
+                // }
+                zmq::message_t message(f.size());
+                memcpy(message.data(), &f.front(), f.size());
+                publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {
@@ -163,7 +154,6 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
 
-
                                     try {
                                         fineSync(curr_buf, std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1), std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1), BCCH1_3);
                                         fineSync(curr_buf, std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2), std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2), BCCH2);
@@ -174,7 +164,6 @@ namespace openldacs::phy::link::fl {
                                     }
 
                                     SPDLOG_INFO("Super frame sync has finished!");
-
                                     popSamplesTo(t_coarse[3] - threshold); // 获取下一帧的数个样本
 
                                     sync_state_.set_state(SyncState::TRACK);
@@ -284,22 +273,6 @@ namespace openldacs::phy::link::fl {
             }
         }
 
-        size_t coarseSync(int sample_length, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
-            std::optional<VecCD> buf = sample_buffer.try_pop(sample_length);
-            if (!buf.has_value()) return 0;
-
-            const VecCD& buf_val = buf.value();
-            itpp::cvec in_f = cdVecToCvec(buf_val);
-
-            c_sync_param_.coarseSync(in_f, t_coarse, f_coarse);
-            if (t_coarse.empty() || f_coarse.empty()) {
-                return 0;
-            }
-
-            std::cout << t_coarse << std::endl;
-            return t_coarse.size();
-        }
-
         // 各信道注册
         void registerRecvHandler(ChannelSlot channel, ChRxCallbackType callback) {
             rx_handlers_.emplace(channel, callback);
@@ -327,6 +300,9 @@ namespace openldacs::phy::link::fl {
         constexpr static double bcch2_sample = 1950.0; // 75 * 26
         constexpr static double data_sample2 = 8100.0; // 75 * 54 * 2
         constexpr static double data_sample3 = 12150.0; // 75 * 54 * 3
+
+        zmq::context_t context;
+        zmq::socket_t publisher;
     };
 
     class PhySink {

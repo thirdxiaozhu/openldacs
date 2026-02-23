@@ -7,6 +7,7 @@
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/thread.hpp>
 #include <algorithm>
+#include <cstdlib>
 
 #include "phy/phy.h"
 
@@ -40,14 +41,55 @@ namespace openldacs::phy::device {
                 rx_args_.channels = channels;
                 tx_stream_ = usrp_->get_tx_stream(tx_args_);
                 rx_stream_ = usrp_->get_rx_stream(rx_args_);
+
+                auto read_env_double = [](const char* key, const double fallback) {
+                        const char* value = std::getenv(key);
+                        if (value == nullptr || *value == '\0') {
+                                return fallback;
+                        }
+
+                        try {
+                                return std::stod(value);
+                        } catch (const std::exception&) {
+                                SPDLOG_WARN("Invalid env {}='{}', fallback to {}", key, value, fallback);
+                                return fallback;
+                        }
+                };
+
+                auto read_env_string = [](const char* key, const char* fallback) {
+                        const char* value = std::getenv(key);
+                        if (value == nullptr || *value == '\0') {
+                                return std::string(fallback);
+                        }
+                        return std::string(value);
+                };
+
+                const double tx_gain = read_env_double("OPENLDACS_USRP_TX_GAIN", tx_gain_);
+                const double rx_gain = read_env_double("OPENLDACS_USRP_RX_GAIN", rx_gain_);
+                const double tx_bw = read_env_double("OPENLDACS_USRP_TX_BW", rate_);
+                const double rx_bw = read_env_double("OPENLDACS_USRP_RX_BW", rate_);
+                const std::string tx_ant = read_env_string("OPENLDACS_USRP_TX_ANT", "TX/RX");
+                const std::string rx_ant = read_env_string("OPENLDACS_USRP_RX_ANT", "RX2");
+
+                SPDLOG_INFO(
+                    "USRP config: rate={} Hz, tx_gain={} dB, rx_gain={} dB, tx_bw={} Hz, rx_bw={} Hz, tx_ant={}, rx_ant={}",
+                    rate_,
+                    tx_gain,
+                    rx_gain,
+                    tx_bw,
+                    rx_bw,
+                    tx_ant,
+                    rx_ant);
                 for (const auto ch : channels) {
                         const bool use_rl_mapping = ch == RL_CHANNEL;
                         usrp_->set_tx_freq(uhd::tune_request_t(use_rl_mapping ? rl_freq_ : fl_freq_), ch);
                         usrp_->set_rx_freq(uhd::tune_request_t(use_rl_mapping ? rl_freq_ : fl_freq_), ch);
-                        usrp_->set_tx_gain(tx_gain_, ch);
-                        usrp_->set_rx_gain(rx_gain_, ch);
-                        usrp_->set_tx_antenna("TX/RX", ch);
-                        usrp_->set_rx_antenna("RX2", ch);
+                        usrp_->set_tx_gain(tx_gain, ch);
+                        usrp_->set_rx_gain(rx_gain, ch);
+                        usrp_->set_tx_bandwidth(tx_bw, ch);
+                        usrp_->set_rx_bandwidth(rx_bw, ch);
+                        usrp_->set_tx_antenna(tx_ant, ch);
+                        usrp_->set_rx_antenna(rx_ant, ch);
                 }
         }
 }
