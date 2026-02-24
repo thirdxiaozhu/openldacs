@@ -7,7 +7,7 @@
 #include "openldacs.h"
 
 namespace openldacs::util {
-    class Worker {
+class Worker {
 public:
     Worker() = default;
     ~Worker() {
@@ -51,6 +51,18 @@ public:
         if (eptr_) std::rethrow_exception(eptr_);
     }
 
+    // 用于析构/收尾路径：保证不抛异常，避免触发 std::terminate
+    void joinNoexcept(const char* worker_name = "Worker") noexcept {
+        if (t_.joinable()) {
+            try {
+                t_.join();
+            } catch (...) {
+                SPDLOG_ERROR("{} join failed with unknown exception", worker_name);
+            }
+        }
+        report_and_clear_exception(worker_name);
+    }
+
     // 提供给线程函数：检查是否需要停止
     bool stop_requested() const {
         return stop_.load(std::memory_order_relaxed);
@@ -67,12 +79,23 @@ public:
     std::condition_variable& cv() { return cv_; }
 
 private:
+    void report_and_clear_exception(const char* worker_name) noexcept {
+        if (!eptr_) {
+            return;
+        }
+        try {
+            std::rethrow_exception(eptr_);
+        } catch (const std::exception& e) {
+            SPDLOG_ERROR("{} captured exception: {}", worker_name, e.what());
+        } catch (...) {
+            SPDLOG_ERROR("{} captured unknown exception", worker_name);
+        }
+        eptr_ = nullptr;
+    }
+
     void stop_and_join_noexcept() noexcept {
         requestStop();
-        if (t_.joinable()) {
-            try { t_.join(); } catch (...) { /* join 不会抛，这里只是保险 */ }
-        }
-        // 析构不抛异常：eptr_ 留给显式 join_and_rethrow() 处理
+        joinNoexcept("Worker::~Worker");
     }
 
     std::thread t_;

@@ -20,6 +20,7 @@ namespace po = boost::program_options;
 
 int UHD_SAFE_MAIN(int argc, char* argv[])
 {
+    try {
     // program documentation string
     const std::string program_doc =
         "usage: tx_timed_samples [--help] [--args ARGS] [--secs SECS] [--nsamps NSAMPS]\n"
@@ -178,4 +179,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     std::cout << std::endl << "Done!" << std::endl << std::endl;
 
     return EXIT_SUCCESS;
+    } catch (const std::exception& e) {
+        std::cerr << "tests/usrp_tx fatal exception: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "tests/usrp_tx fatal unknown exception" << std::endl;
+        return EXIT_FAILURE;
+    }
 }

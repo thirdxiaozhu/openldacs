@@ -53,14 +53,14 @@ namespace openldacs::phy::device {
             return sigma_n_;
         }
 
-        virtual ~Device() {
+        virtual ~Device() noexcept {
             fl_to_trans_.close();
             trans_worker_.requestStop();
             recv_worker_.requestStop();
             tx_async_worker_.requestStop();
-            trans_worker_.joinAndRethrow();
-            recv_worker_.joinAndRethrow();
-            tx_async_worker_.joinAndRethrow();
+            trans_worker_.joinNoexcept("Device::trans_worker");
+            recv_worker_.joinNoexcept("Device::recv_worker");
+            tx_async_worker_.joinNoexcept("Device::tx_async_worker");
         }
     protected:
         explicit Device(const uint8_t role) : role_(role), fl_to_trans_(CAP_HIGH, CAP_NORM) {

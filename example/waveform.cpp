@@ -121,6 +121,7 @@ void sig_int_handler(int)
  **********************************************************************/
 int UHD_SAFE_MAIN(int argc, char* argv[])
 {
+    try {
     // program documentation string
     const std::string program_doc =
         "usage: tx_waveforms [-h] -r RATE -f FREQ [--args ARGS] [--spb SPB]\n"
@@ -529,4 +530,11 @@ int UHD_SAFE_MAIN(int argc, char* argv[])
     // finished
     std::cout << std::endl << "Done!" << std::endl << std::endl;
     return EXIT_SUCCESS;
+    } catch (const std::exception& e) {
+        std::cerr << "example/waveform fatal exception: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch (...) {
+        std::cerr << "example/waveform fatal unknown exception" << std::endl;
+        return EXIT_FAILURE;
+    }
 }

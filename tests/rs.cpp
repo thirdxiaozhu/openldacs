@@ -14,6 +14,7 @@
 #include <util/reed_solomon.h>
 
 int main() {
+    try {
     srand(time(NULL));
 
     size_t block_length = 101;
@@ -80,4 +81,11 @@ int main() {
     }
 
     return 0;
+    } catch (const std::exception& e) {
+        SPDLOG_ERROR("tests/rs fatal exception: {}", e.what());
+        return 1;
+    } catch (...) {
+        SPDLOG_ERROR("tests/rs fatal unknown exception");
+        return 1;
+    }
 }

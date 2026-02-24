@@ -115,6 +115,7 @@ namespace openldacs::phy::link::fl {
                 int sf_count = 0;
 
                 while (!source_worker_.stop_requested()) {
+                    try {
                     // 同步阶段
                     itpp::cvec curr_buf;
                     std::vector<double> t_coarse;
@@ -156,13 +157,19 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
 
-                                    try {
-                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1), std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1), BCCH1_3);
-                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2), std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2), BCCH2);
-                                        fineSync(curr_buf, std::vector<double>(t_coarse.begin() + 2, t_coarse.begin() + 3), std::vector<double>(f_coarse.begin() + 2, f_coarse.begin() + 3), BCCH1_3);
-                                    }catch (std::exception &e) {
-                                        SPDLOG_ERROR("fineSync failed: {}", e.what());
-                                        continue; // 或者切回 ACQUIRE 状态
+                                    if (!fineSyncSafe(curr_buf,
+                                        std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1),
+                                        std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1),
+                                        BCCH1_3, "acquire:bcch1")
+                                        || !fineSyncSafe(curr_buf,
+                                            std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2),
+                                            std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2),
+                                            BCCH2, "acquire:bcch2")
+                                        || !fineSyncSafe(curr_buf,
+                                            std::vector<double>(t_coarse.begin() + 2, t_coarse.begin() + 3),
+                                            std::vector<double>(f_coarse.begin() + 2, f_coarse.begin() + 3),
+                                            BCCH1_3, "acquire:bcch3")) {
+                                        continue;
                                     }
 
                                     SPDLOG_INFO("Super frame sync has finished!");
@@ -193,25 +200,31 @@ namespace openldacs::phy::link::fl {
                         case ChannelState::BCCH1: {
                             curr_buf = getSamples(bcch13_sample + threshold);
                             popSamplesTo(bcch13_sample);
-                            current_channel_ = ChannelState::BCCH2;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            fineSync(curr_buf, t_coarse, f_coarse, BCCH1_3);
+                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch1")) {
+                                continue;
+                            }
+                            current_channel_ = ChannelState::BCCH2;
                             break;
                         }
                         case ChannelState::BCCH2: {
                             curr_buf = getSamples(bcch2_sample + threshold);
                             popSamplesTo(bcch2_sample);
-                            current_channel_ = ChannelState::BCCH3;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            fineSync(curr_buf, t_coarse, f_coarse, BCCH2);
+                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH2, "track:bcch2")) {
+                                continue;
+                            }
+                            current_channel_ = ChannelState::BCCH3;
                             break;
                         }
                         case ChannelState::BCCH3: {
                             curr_buf = getSamples(bcch13_sample + threshold);
                             popSamplesTo(bcch13_sample );
-                            current_channel_ = ChannelState::DATA;
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            fineSync(curr_buf, t_coarse, f_coarse, BCCH1_3);
+                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch3")) {
+                                continue;
+                            }
+                            current_channel_ = ChannelState::DATA;
                             break;
                         }
                         case ChannelState::DATA: {
@@ -243,7 +256,9 @@ namespace openldacs::phy::link::fl {
 
                             // const auto t0 = std::chrono::high_resolution_clock::now();
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
+                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, FL_DCH, "track:data")) {
+                                continue;
+                            }
                             // const auto t1 = std::chrono::high_resolution_clock::now();
                             // const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).
                             //         count();
@@ -255,6 +270,17 @@ namespace openldacs::phy::link::fl {
                         default: {
                             throw std::runtime_error("Invalid channel state");
                         }
+                    }
+                    } catch (const std::exception& e) {
+                        SPDLOG_ERROR("PhySource worker iteration failed: {}", e.what());
+                        sync_state_.set_state(SyncState::ACQUIRE);
+                        current_channel_ = ChannelState::BCCH1;
+                        continue;
+                    } catch (...) {
+                        SPDLOG_ERROR("PhySource worker iteration failed: unknown exception");
+                        sync_state_.set_state(SyncState::ACQUIRE);
+                        current_channel_ = ChannelState::BCCH1;
+                        continue;
                     }
                 }
             });
@@ -275,12 +301,26 @@ namespace openldacs::phy::link::fl {
         }
 
         void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {
-            if (const auto cb = rx_handlers_.at(ch); cb.has_value()) {
-                const ChRxCallbackType cb_value = cb.value();
-                cb_value(in_f, t_coarse, f_coarse);
-            }else {
+            const auto it = rx_handlers_.find(ch);
+            if (it == rx_handlers_.end() || !it->second.has_value()) {
                 throw std::runtime_error("No callback registered");
             }
+            const ChRxCallbackType cb_value = it->second.value();
+            cb_value(in_f, t_coarse, f_coarse);
+        }
+
+        bool fineSyncSafe(const itpp::cvec &in_f, const std::vector<double> &t_coarse,
+                          const std::vector<double> &f_coarse, const ChannelSlot ch,
+                          const char* stage) const noexcept {
+            try {
+                fineSync(in_f, t_coarse, f_coarse, ch);
+                return true;
+            } catch (const std::exception& e) {
+                SPDLOG_ERROR("fineSync failed at {}: {}", stage, e.what());
+            } catch (...) {
+                SPDLOG_ERROR("fineSync failed at {}: unknown exception", stage);
+            }
+            return false;
         }
 
         // 各信道注册
@@ -288,9 +328,9 @@ namespace openldacs::phy::link::fl {
             rx_handlers_.emplace(channel, callback);
         }
 
-        ~PhySource() {
+        ~PhySource() noexcept {
             source_worker_.requestStop();
-            source_worker_.joinAndRethrow();
+            source_worker_.joinNoexcept("PhySource::source_worker");
         }
     private:
         device::DevPtr& dev_;
@@ -320,6 +360,7 @@ namespace openldacs::phy::link::fl {
         explicit PhySink(device::DevPtr& dev): dev_(dev){
             sink_worker_.start([&] {
                 while (!sink_worker_.stop_requested()) {
+                    try {
                     std::optional<BlockBuffer> bf;
                     switch (current_channel_) {
                         case ChannelState::BCCH1:
@@ -378,6 +419,13 @@ namespace openldacs::phy::link::fl {
                     }
                     const itpp::cvec tx_vecs = windowing(bf.value());
                     dev->sendData(tx_vecs, util::Priority::HIGH);
+                    } catch (const std::exception& e) {
+                        SPDLOG_ERROR("PhySink worker iteration failed: {}", e.what());
+                        continue;
+                    } catch (...) {
+                        SPDLOG_ERROR("PhySink worker iteration failed: unknown exception");
+                        continue;
+                    }
                 }
             });
         }
@@ -401,13 +449,13 @@ namespace openldacs::phy::link::fl {
             }
         }
 
-        ~PhySink() {
+        ~PhySink() noexcept {
             bc13_queue_.close();
             bc2_queue_.close();
             fl_data_queue_.close();
             cc_fl_data_queue_.close();
             sink_worker_.requestStop();
-            sink_worker_.joinAndRethrow();
+            sink_worker_.joinNoexcept("PhySink::sink_worker");
         }
 
     private:
