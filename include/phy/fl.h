@@ -104,12 +104,16 @@ namespace openldacs::phy::link::fl {
                 if (!sample_buffer.try_push(f)) {
                     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
                 }
+                SPDLOG_INFO("================ {}", sample_buffer.size());
                 // zmq::message_t message(f.size());
                 // memcpy(message.data(), &f.front(), f.size());
                 // publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {
+
+                int sf_count = 0;
+
                 while (!source_worker_.stop_requested()) {
                     // 同步阶段
                     itpp::cvec curr_buf;
@@ -122,8 +126,6 @@ namespace openldacs::phy::link::fl {
 
                             const auto t0 = std::chrono::high_resolution_clock::now();
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-
-                            // SPDLOG_INFO("{} ", t_coarse.size());
 
                             switch (t_coarse.size()) {
                                 case 0:
@@ -222,6 +224,9 @@ namespace openldacs::phy::link::fl {
                                     if (fl_counter % DATA_PER_MF == 3) {
                                         if (mf_counter++ % MF_PER_SF == 3) {
                                             current_channel_ = ChannelState::BCCH1;
+
+                                            SPDLOG_INFO("============== {} super frames", sf_count++);
+
                                         }
                                     }
                                     break;
@@ -236,8 +241,13 @@ namespace openldacs::phy::link::fl {
                                 }
                             }
 
+                            // const auto t0 = std::chrono::high_resolution_clock::now();
                             c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                             fineSync(curr_buf, t_coarse, f_coarse, FL_DCH);
+                            // const auto t1 = std::chrono::high_resolution_clock::now();
+                            // const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).
+                            //         count();
+                            // SPDLOG_INFO("recv {} ns", ns);
 
                             fl_counter++;
                             break;
@@ -570,7 +580,7 @@ namespace openldacs::phy::link::fl {
                 std::vector<VecU8> random = rsDecoder(rs_coded, params);
                 std::vector<VecU8> data = derandomizer(random, params);
 
-                std::cout << data << std::endl;
+                // std::cout << data << std::endl;
             });
         }
         void submit(PhySdu sdu) override;
@@ -630,7 +640,7 @@ namespace openldacs::phy::link::fl {
                 std::vector<VecU8> random = rsDecoder(rs_coded, params);
                 std::vector<VecU8> data = derandomizer(random, params);
 
-                std::cout << data << std::endl;
+                // std::cout << data << std::endl;
             });
         }
         void submit(PhySdu sdu) override;

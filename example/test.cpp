@@ -42,6 +42,7 @@ void test_fl(const PhyService &ser, const uint8_t sdu_start) {
 
         ser.sendFlData(sdu);
     }
+    usleep(12960);
 }
 
 void test_bc13(const PhyService &ser) {
@@ -60,6 +61,7 @@ void test_bc13(const PhyService &ser) {
     }
 
     ser.sendFlData(sdu);
+    usleep(1800);
 }
 
 void test_bc2(const PhyService &ser) {
@@ -78,6 +80,7 @@ void test_bc2(const PhyService &ser) {
     }
 
     ser.sendFlData(sdu);
+    usleep(3120);
 }
 
 void test_cc(const PhyService &ser) {
@@ -98,6 +101,7 @@ void test_cc(const PhyService &ser) {
 
         ser.sendFlData(sdu);
     }
+        usleep(19440);
 }
 
 int main() {
