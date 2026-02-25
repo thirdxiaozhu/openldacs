@@ -7,8 +7,11 @@
 
 #include "openldacs.h"
 #include "phy.h"
+#include "params.h"
 
 namespace openldacs::phy::link {
+
+    using namespace phy::params;
 
     constexpr static int CC_DATA_IDX = 3-1; // 0-base
     constexpr static int MF_PER_SF = 4;
@@ -24,6 +27,27 @@ namespace openldacs::phy::link {
     protected:
         // LinkType type_;
     private:
+    };
+
+    class ChannelHandler {
+
+
+        CMS getCms() const {
+            return default_cms_;
+        }
+        void set_cms(const CMS cms) {
+            default_cms_ = cms;
+        }
+    protected:
+        explicit ChannelHandler() : QPSK_modulator_(ModulationType::QPSK),
+              QAM16_modulator_(ModulationType::QAM16),
+              QAM64_modulator_(ModulationType::QAM64){
+        };
+
+        LdacsModulator QPSK_modulator_;
+        LdacsModulator QAM16_modulator_;
+        LdacsModulator QAM64_modulator_;
+        CMS default_cms_ = CMS::QPSK_R12;
     };
 }
 

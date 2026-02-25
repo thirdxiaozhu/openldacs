@@ -7,12 +7,6 @@
 #pragma once
 
 
-#include <algorithm>
-#include <chrono>
-#include <ctime>
-#include <queue>
-#include <thread>
-#include <itpp/base/matfunc.h>
 
 #include "config.h"
 #include "openldacs.h"
@@ -25,7 +19,6 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler;
     class BC2Handler;
     class FLDataHandler;
-    using namespace openldacs::util;
     using namespace phy::params;
 
     enum class ChannelState {
@@ -34,7 +27,6 @@ namespace openldacs::phy::link::fl {
         BCCH3,
         DATA,
     };
-
 
     // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
     struct RsEncodedUnit {
@@ -409,10 +401,6 @@ namespace openldacs::phy::link::fl {
                         }
                     }
 
-                    // const auto bf = fl_data_queue_.pop_blocking();
-                    // const auto bf = bc13_queue_.pop_blocking();
-                    // const auto bf = bc2_queue_.pop_blocking();
-                    // const auto bf = cc_fl_data_queue_.pop_blocking();
                     if (!bf) {
                         SPDLOG_WARN("Buffer is null");
                         continue;
@@ -516,7 +504,7 @@ namespace openldacs::phy::link::fl {
         }
     };
 
-    class FLChannelHandler {
+    class FLChannelHandler: public ChannelHandler{
     public:
         virtual ~FLChannelHandler() = default;
         void submitData(const PhySdu& sdu, const CodingParams &coding_params);  // user-specific
@@ -525,18 +513,9 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const FrameInfo& frame() const noexcept { return frame_info_; }
 
-        CMS getCms() const {
-            return default_cms_;
-        }
-        void set_cms(const CMS cms) {
-            default_cms_ = cms;
-        }
-
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : device_(dev), config_(config), frame_info_(ofdm_symb), QPSK_modulator_(ModulationType::QPSK),
-              QAM16_modulator_(ModulationType::QAM16),
-              QAM64_modulator_(ModulationType::QAM64), channel_est_(frame_info_, ofdm_symb),
+            : device_(dev), config_(config), frame_info_(ofdm_symb),  channel_est_(frame_info_, ofdm_symb),
               equalizer_(frame_info_, dev, ofdm_symb), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb) {
         }
 
@@ -545,13 +524,9 @@ namespace openldacs::phy::link::fl {
         PhyFl::FLConfig& config_;
 
         FrameInfo frame_info_;
-        LdacsModulator QPSK_modulator_;
-        LdacsModulator QAM16_modulator_;
-        LdacsModulator QAM64_modulator_;
         ChannelEstimate channel_est_;
         Equalizer equalizer_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
-        CMS default_cms_ = CMS::QPSK_R12;
         // CMS default_cms_ = CMS::QPSK_R34;
         int ofdm_symb_;
         FineSyncParam f_sync;
@@ -572,7 +547,7 @@ namespace openldacs::phy::link::fl {
         // modulation
         void modulate(BlockBuffer &block, ModulationType mod_type);
 
-        void subcarrierAllocation(BlockBuffer &block, const int joint_frame);
+        void subcarrierAllocation(BlockBuffer &block, int joint_frame);
         static void matrixIfft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
@@ -584,6 +559,9 @@ namespace openldacs::phy::link::fl {
         static std::vector<VecU8> rsDecoder(const itpp::imat &input, const CodingParams &coding_params);
         static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
         static itpp::vec helicalDeinterleaver(const itpp::vec &in, const CodingParams &p);
+
+        void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, ModulationType
+                         mod_type, const CodingParams &params);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
@@ -591,44 +569,8 @@ namespace openldacs::phy::link::fl {
         explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
-                itpp::cmat data_time;
-                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
-                const itpp::cmat data_freq_up = matrixFft(data_time);
-                const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
-
-                const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
-
-                itpp::cmat data_equ;
-                itpp::mat sigma2_sum;
-                equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
-
-                const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
-
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
-
-                itpp::vec LLR_int = itpp::cvectorize(demod);
-
-                if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
-                    SPDLOG_ERROR("unmatched size for helical inteleaver");
-                    return;
-                }
-
-                itpp::vec deint = helicalDeinterleaver(LLR_int, params);
-                deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
-
-                itpp::bvec vit_dec = params.cc.decode_tail(deint);
-
-                if (vit_dec.size() % params.rs_params.bits_after_rs ) {
-                    throw std::runtime_error("unmatched size for rs decoder");
-                }
-
-                itpp::ivec block_int = bitsToBytesMSB(vit_dec);
-
-                itpp::imat rs_coded = blockDeinterleaver(block_int, params);
-                std::vector<VecU8> random = rsDecoder(rs_coded, params);
-                std::vector<VecU8> data = derandomizer(random, params);
-
-                // std::cout << data << std::endl;
+                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
             });
         }
         void submit(PhySdu sdu) override;
@@ -638,57 +580,22 @@ namespace openldacs::phy::link::fl {
         size_t getInterleaverCount(const PhySdu &sdu) const override {
             return 1;
         }
+
     private:
         CodingTable coding_table_{
             frame_info_, {
-                    {CMS::QPSK_R12, 1},
-                },
-                BCCH1_3
-            };
+                {CMS::QPSK_R12, 1},
+            },
+            BCCH1_3
+        };
     };
 
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
-                itpp::cmat data_time;
-                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
-                const itpp::cmat data_freq_up = matrixFft(data_time);
-                const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
-
-                const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
-
-                itpp::cmat data_equ;
-                itpp::mat sigma2_sum;
-                equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
-
-                const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
-
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
-
-                itpp::vec LLR_int = itpp::cvectorize(demod);
-
-                if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
-                    SPDLOG_ERROR("unmatched size for helical inteleaver");
-                    return;
-                }
-
-                itpp::vec deint = helicalDeinterleaver(LLR_int, params);
-                deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
-
-                itpp::bvec vit_dec = params.cc.decode_tail(deint);
-
-                if (vit_dec.size() % params.rs_params.bits_after_rs ) {
-                    throw std::runtime_error("unmatched size for rs decoder");
-                }
-
-                itpp::ivec block_int = bitsToBytesMSB(vit_dec);
-
-                itpp::imat rs_coded = blockDeinterleaver(block_int, params);
-                std::vector<VecU8> random = rsDecoder(rs_coded, params);
-                std::vector<VecU8> data = derandomizer(random, params);
-
-                // std::cout << data << std::endl;
+                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
             });
         }
         void submit(PhySdu sdu) override;
@@ -716,44 +623,9 @@ namespace openldacs::phy::link::fl {
                     throw std::runtime_error("unmatched size for coarse sync");
                 }
 
-                itpp::cmat data_time;
-                f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
-                const itpp::cmat data_freq_up = matrixFft(data_time);
-                const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
-
-                const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
-
-                itpp::cmat data_equ;
-                itpp::mat sigma2_sum;
-                equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
-
-                const itpp::mat demod = demodulate(data_equ, sigma2_sum, ModulationType::QPSK); // 临时参数
-
                 const CodingParams& params = coding_table_.getCodingParams({default_cms_, t_coarse.size()}); // 临时参数
+                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
 
-                itpp::vec LLR_int = itpp::cvectorize(demod);
-
-                if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
-                    SPDLOG_ERROR("unmatched size for helical inteleaver {} {}", LLR_int.size(), params.h_inter_params.int_bits_size_);
-                    return;
-                }
-
-                itpp::vec deint = helicalDeinterleaver(LLR_int, params);
-                deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
-
-                itpp::bvec vit_dec = params.cc.decode_tail(deint);
-
-                if (vit_dec.size() % params.rs_params.bits_after_rs ) {
-                    throw std::runtime_error("unmatched size for rs decoder");
-                }
-
-                itpp::ivec block_int = bitsToBytesMSB(vit_dec);
-
-                itpp::imat rs_coded = blockDeinterleaver(block_int, params);
-                std::vector<VecU8> random = rsDecoder(rs_coded, params);
-                std::vector<VecU8> data = derandomizer(random, params);
-
-                std::cout << data << std::endl;
             });
         }
 

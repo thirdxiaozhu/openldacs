@@ -3,13 +3,9 @@
 //
 
 #include "phy/fl.h"
-#include "util/util.h"
 
-#include <itpp/itcomm.h>
-#include <correct.h>
 
 namespace openldacs::phy::link::fl {
-
     FLChannelHandler& PhyFl::getHandler(const ChannelSlot type) const {
         switch (type) {
             case BCCH1_3:   return *bc13_;
@@ -376,6 +372,47 @@ namespace openldacs::phy::link::fl {
             // 将当前帧矩阵复制到结果矩阵的对应列范围内
             block.frames_freq.set_cols(i * frame_matrix.cols(), frame_matrix);
         }
+    }
+
+
+    void FLChannelHandler::recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ModulationType
+                                       mod_type, const CodingParams &params) {
+        itpp::cmat data_time;
+        f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
+        const itpp::cmat data_freq_up = matrixFft(data_time);
+        const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
+
+        const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
+
+        itpp::cmat data_equ;
+        itpp::mat sigma2_sum;
+        equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
+
+        const itpp::mat demod = demodulate(data_equ, sigma2_sum, mod_type); // 临时参数
+
+        itpp::vec LLR_int = itpp::cvectorize(demod);
+
+        if (LLR_int.size() != params.h_inter_params.int_bits_size_) {
+            SPDLOG_ERROR("unmatched size for helical inteleaver");
+            return;
+        }
+
+        itpp::vec deint = helicalDeinterleaver(LLR_int, params);
+        deint.set_size(deint.size() - params.conv_params.pad_bits_after_cc, true);
+
+        itpp::bvec vit_dec = params.cc.decode_tail(deint);
+
+        if (vit_dec.size() % params.rs_params.bits_after_rs ) {
+            throw std::runtime_error("unmatched size for rs decoder");
+        }
+
+        itpp::ivec block_int = bitsToBytesMSB(vit_dec);
+
+        itpp::imat rs_coded = blockDeinterleaver(block_int, params);
+        std::vector<VecU8> random = rsDecoder(rs_coded, params);
+        std::vector<VecU8> data = derandomizer(random, params);
+
+        std::cout << data << std::endl;
     }
 
 

@@ -18,12 +18,18 @@
 #include <itpp/comm/punct_convcode.h>
 #include <itpp/base/vec.h>
 #include <itpp/base/mat.h>
+#include <itpp/itcomm.h>
 #include <map>
 #include <span>
 #include <fstream>
 #include <deque>
 #include <signal.h>
 #include <queue>
+#include <algorithm>
+#include <chrono>
+#include <ctime>
+#include <queue>
+#include <thread>
 
 namespace openldacs {
     enum class CMS : int {
@@ -42,6 +48,9 @@ namespace openldacs {
         BCCH2,
         CCCH_DCH,
         FL_DCH,
+        RACH,
+        DCCH,
+        RL_DCH,
     };
 
     enum ROLE: uint8_t{
