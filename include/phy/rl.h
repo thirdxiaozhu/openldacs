@@ -66,7 +66,7 @@ namespace openldacs::phy::link::rl {
             frame_info_, {
                     {CMS::QPSK_R12, 1},
                 },
-                BCCH1_3
+                RL_DCH
             };
     };
 
