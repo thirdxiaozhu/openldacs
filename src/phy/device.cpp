@@ -81,15 +81,14 @@ namespace openldacs::phy::device {
                     rx_ant);
 
                 for (auto ch : channels) {
-                        // const bool use_rl_mapping = ch == RL_CHANNEL;
-                        constexpr bool use_rl_mapping = false;
+                        const bool use_rl_mapping = ch == RL_CHANNEL;
 
                         uhd::tune_request_t tune_req(use_rl_mapping ? rl_freq_ : fl_freq_, lo_offset);
                         uhd::tune_result_t tx_res = usrp_->set_tx_freq(tune_req, ch);
                         uhd::tune_result_t rx_res = usrp_->set_rx_freq(tune_req, ch);
 
-                        usrp_->set_rx_dc_offset(true, ch);
-                        usrp_->set_rx_iq_balance(true, ch);
+                        // usrp_->set_rx_dc_offset(true, ch);
+                        // usrp_->set_rx_iq_balance(true, ch);
 
                         usrp_->set_tx_gain(tx_gain, ch);
                         usrp_->set_rx_gain(rx_gain, ch);
@@ -97,8 +96,6 @@ namespace openldacs::phy::device {
                         usrp_->set_rx_bandwidth(rx_bw, ch);
                         usrp_->set_tx_antenna(tx_ant, ch);
                         usrp_->set_rx_antenna(rx_ant, ch);
-
-                        SPDLOG_INFO("~~~~~~{} {} {} {}", tx_res.target_dsp_freq / 1e6, tx_res.target_rf_freq / 1e6, usrp_->get_tx_freq(ch), ch);
                 }
         }
 }

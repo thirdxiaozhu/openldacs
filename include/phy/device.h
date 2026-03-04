@@ -25,8 +25,8 @@ namespace openldacs::phy::device {
     };
 
     enum RoleChannel : uint8_t {
-        FL_CHANNEL = 0x01,
-        RL_CHANNEL = 0x00,
+        FL_CHANNEL = 0x00,
+        RL_CHANNEL = 0x01,
     };
 
     constexpr int CAP_HIGH = 512;
@@ -69,7 +69,7 @@ namespace openldacs::phy::device {
         uint8_t role_;
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         // Loopback debug defaults: keep TX low to avoid front-end saturation.
-        const double tx_gain_ = 10.0;
+        const double tx_gain_ = 80.0;
         const double rx_gain_ = 20.0;
 
         const double fl_freq_ = 1110e6;
@@ -174,6 +174,8 @@ namespace openldacs::phy::device {
                         uhd::tx_metadata_t md;
                         md.start_of_burst = start_of_burst;
                         md.end_of_burst = false; // 如果没数据的话，会UUUUUU
+                        // std::cout << fl_vec_cf << std::endl;
+
 
                         const size_t sent_now = tx_stream_->send(
                             &fl_vec_cf[sent_total], fl_vec_cf.size() - sent_total, md, 1.0);
@@ -278,7 +280,8 @@ namespace openldacs::phy::device {
         }
     private:
         static constexpr int recv_samples_ = 4096;
-        const std::string args_ = "type=b200,serial=192113";   // 也可以加 serial=xxxx 3459f45
+        // const std::string args_ = "type=b200,serial=192113";   // 也可以加 serial=xxxx 3459f45
+        const std::string args_ = "";   // 也可以加 serial=xxxx 3459f45
         std::shared_ptr<uhd::usrp::multi_usrp> usrp_;
         uhd::stream_args_t tx_args_;
         uhd::stream_args_t rx_args_;
