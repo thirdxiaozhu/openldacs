@@ -9,66 +9,66 @@
 
 namespace openldacs::phy::link::rl {
 
-    class RLChannelHandler;
-    class RAHandler;
-    class RLDataHandler;
-
-    class PhyRl final : public LinkBase {
-    public:
-        struct RLConfig {
-            explicit RLConfig(device::DevPtr& dev){
-            }
-        };
-
-        explicit PhyRl(device::DevPtr& dev)
-            :config_(dev),
-             ra_(std::make_unique<RAHandler>(config_, dev)),
-             data_(std::make_unique<RLDataHandler>(config_, dev)) {
-        }
-
-        void processPacket(const PhySdu &sdu) const override;
-
-    private:
-        RLConfig config_;
-        std::unique_ptr<RAHandler> ra_;
-        std::unique_ptr<RLDataHandler> data_;
-
-        [[nodiscard]] RLChannelHandler &getHandler(ChannelSlot type) const;
-    };
-
-    class RLChannelHandler: public ChannelHandler {
-
-    protected:
-        explicit RLChannelHandler(PhyRl::RLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : device_(dev), config_(config){
-        }
-
-        device::DevPtr& device_;
-        PhyRl::RLConfig& config_;
-    };
-
-    class RAHandler: public RLChannelHandler {
-    public:
-        explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_bc2_ofdm_symb) {
-        }
-    protected:
-
-    private:
-    };
-
-    class RLDataHandler: public RLChannelHandler {
-    public:
-        explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_bc2_ofdm_symb) {
-        }
-
-    private:
-        CodingTable coding_table_{
-            frame_info_, {
-                    {CMS::QPSK_R12, 1},
-                },
-                RL_DCH
-            };
-    };
+    // class RLChannelHandler;
+    // class RAHandler;
+    // class RLDataHandler;
+    //
+    // class PhyRl final : public LinkBase {
+    // public:
+    //     struct RLConfig {
+    //         explicit RLConfig(device::DevPtr& dev){
+    //         }
+    //     };
+    //
+    //     explicit PhyRl(device::DevPtr& dev)
+    //         :config_(dev),
+    //          ra_(std::make_unique<RAHandler>(config_, dev)),
+    //          data_(std::make_unique<RLDataHandler>(config_, dev)) {
+    //     }
+    //
+    //     void processPacket(const PhySdu &sdu) const override;
+    //
+    // private:
+    //     RLConfig config_;
+    //     std::unique_ptr<RAHandler> ra_;
+    //     std::unique_ptr<RLDataHandler> data_;
+    //
+    //     [[nodiscard]] RLChannelHandler &getHandler(ChannelSlot type) const;
+    // };
+    //
+    // class RLChannelHandler: public ChannelHandler {
+    //
+    // protected:
+    //     explicit RLChannelHandler(PhyRl::RLConfig &config, device::DevPtr &dev, const int ofdm_symb)
+    //         : device_(dev), config_(config){
+    //     }
+    //
+    //     device::DevPtr& device_;
+    //     PhyRl::RLConfig& config_;
+    // };
+    //
+    // class RAHandler: public RLChannelHandler {
+    // public:
+    //     explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_bc2_ofdm_symb) {
+    //     }
+    // protected:
+    //
+    // private:
+    // };
+    //
+    // class RLDataHandler: public RLChannelHandler {
+    // public:
+    //     explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_bc2_ofdm_symb) {
+    //     }
+    //
+    // private:
+    //     CodingTable coding_table_{
+    //         frame_info_, {
+    //                 {CMS::QPSK_R12, 1},
+    //             },
+    //             RL_DCH
+    //         };
+    // };
 
 
     //

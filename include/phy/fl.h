@@ -92,14 +92,14 @@ namespace openldacs::phy::link::fl {
             publisher.bind("tcp://127.0.0.1:5555");
 
             // 向dev注册接收回调队列
-            dev->registerRxCallback([&](const VecCD &f) {
-                if (!sample_buffer.try_push(f)) {
-                    SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
-                }
-                SPDLOG_INFO("================ {}", sample_buffer.size());
-                // zmq::message_t message(f.size());
-                // memcpy(message.data(), &f.front(), f.size());
-                // publisher.send(message, zmq::send_flags::none);
+            dev->registerRxCallback([&](const VecCF &f) {
+                // if (!sample_buffer.try_push(f)) {
+                //     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
+                // }
+                // SPDLOG_INFO("================ {}", sample_buffer.size());
+                zmq::message_t message(f.size() * sizeof(VecCF::value_type));
+                memcpy(message.data(), f.data(), message.size());
+                publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {
@@ -263,7 +263,7 @@ namespace openldacs::phy::link::fl {
                             throw std::runtime_error("Invalid channel state");
                         }
                     }
-                    } catch (const std::exception& e) {
+                    } catch (const std::exception &e) {
                         SPDLOG_ERROR("PhySource worker iteration failed: {}", e.what());
                         sync_state_.set_state(SyncState::ACQUIRE);
                         current_channel_ = ChannelState::BCCH1;

@@ -4,12 +4,12 @@
 
 #include "phy/rl.h"
 namespace openldacs::phy::link::rl {
-    RLChannelHandler& PhyRl::getHandler(const ChannelSlot type) const {
-        switch (type) {
-            case RACH:   return *ra_;
-            case DCCH:
-            case RL_DCH: return *data_;
-            default: throw std::runtime_error("Unknown RLType");
-        }
-    }
+    // RLChannelHandler& PhyRl::getHandler(const ChannelSlot type) const {
+    //     switch (type) {
+    //         case RACH:   return *ra_;
+    //         case DCCH:
+    //         case RL_DCH: return *data_;
+    //         default: throw std::runtime_error("Unknown RLType");
+    //     }
+    // }
 }

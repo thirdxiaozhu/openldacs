@@ -31,6 +31,7 @@ namespace openldacs::phy::link {
 
     class ChannelHandler {
 
+    protected:
 
         CMS getCms() const {
             return default_cms_;
@@ -38,7 +39,6 @@ namespace openldacs::phy::link {
         void set_cms(const CMS cms) {
             default_cms_ = cms;
         }
-    protected:
         explicit ChannelHandler() : QPSK_modulator_(ModulationType::QPSK),
               QAM16_modulator_(ModulationType::QAM16),
               QAM64_modulator_(ModulationType::QAM64){

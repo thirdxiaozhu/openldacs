@@ -42,10 +42,10 @@ blocks:
     min_len: '200'
     orient: QtCore.Qt.Horizontal
     rangeType: float
-    start: 25e8
+    start: 1110e6
     step: '50000000'
-    stop: 25e8
-    value: 25e8
+    stop: 1110e6
+    value: 1110e6
     widget: counter_slider
   states:
     bus_sink: false
@@ -58,7 +58,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '144000'
+    value: '625000'
   states:
     bus_sink: false
     bus_source: false
@@ -139,7 +139,7 @@ blocks:
     width9: '1'
     wintype: window.WIN_BLACKMAN_hARRIS
     ymax: '10'
-    ymin: '-140'
+    ymin: '-200'
   states:
     bus_sink: false
     bus_source: false
