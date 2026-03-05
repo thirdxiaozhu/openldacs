@@ -129,7 +129,7 @@ namespace openldacs::phy::device {
                             std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
 
                             for (int i = 0; i < fl_vec->size(); i++) {
-                                    to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
+                                    to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.2; // 缩放因子可根据需要调整
                             }
 
                             VecCF vf(to_sync_frame.begin(), to_sync_frame.end());

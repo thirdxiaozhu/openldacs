@@ -12,6 +12,7 @@
 #include "openldacs.h"
 #include "link.h"
 #include "params.h"
+#include <cmath>
 
 namespace openldacs::phy::link::fl {
 
@@ -105,197 +106,217 @@ namespace openldacs::phy::link::fl {
             source_worker_.start([&] {
 
                 int sf_count = 0;
+                auto resetToAcquire = [&](const char *reason, const double slide_samples = 0.0) {
+                    if (slide_samples > 0.0) {
+                        popSamplesTo(slide_samples);
+                    }
+                    SPDLOG_WARN("Reset to ACQUIRE: {}", reason);
+                    sync_state_.set_state(SyncState::ACQUIRE);
+                    current_channel_ = ChannelState::BCCH1;
+                    fl_counter = 0;
+                    mf_counter = 0;
+                    track_fail_streak_ = 0;
+                };
+                auto handleTrackFailure = [&](const char *stage) {
+                    ++track_fail_streak_;
+                    SPDLOG_WARN("Track sync failed at {}, streak={}", stage, track_fail_streak_);
+                    if (track_fail_streak_ >= track_reacquire_after_failures) {
+                        resetToAcquire("track failure limit reached", track_reacquire_slide_samples);
+                    }
+                };
 
                 while (!source_worker_.stop_requested()) {
                     try {
-                    // 同步阶段
-                    itpp::cvec curr_buf;
-                    std::vector<double> t_coarse;
-                    std::vector<double> f_coarse;
+                        // 同步阶段
+                        itpp::cvec curr_buf;
+                        std::vector<double> t_coarse;
+                        std::vector<double> f_coarse;
 
-                    if (sync_state_.get_state() == SyncState::ACQUIRE) {
-                        while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
-                            curr_buf = getSamples(acquire_sample);
+                        if (sync_state_.get_state() == SyncState::ACQUIRE) {
+                            while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
+                                curr_buf = getSamples(acquire_sample);
 
-                            const auto t0 = std::chrono::high_resolution_clock::now();
-                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                const auto t0 = std::chrono::high_resolution_clock::now();
+                                c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
 
-                            switch (t_coarse.size()) {
-                                case 0:
-                                    continue;
-                                case 1:
-                                    std::cout << "1 peak    " << t_coarse << std::endl;
-                                    for (int i = 0; i < 1; i++) {
-                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
+                                switch (t_coarse.size()) {
+                                    case 0: {
+                                        popSamplesTo(acquire_slide_samples);
+                                        continue;
                                     }
-                                    std::cout << std::endl;
+                                    case 1:
+                                        std::cout << "1 peak    " << t_coarse << std::endl;
 
-                                    popSamplesTo(t_coarse[0] - threshold);
-                                    continue;
-                                case 2: {
-                                    std::cout << "2 peaks    " << t_coarse << std::endl;
-                                    for (int i = 0; i < 2; i++) {
-                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
-                                    }
-                                    std::cout << std::endl;
+                                        popSamplesTo(
+                                            t_coarse[0] - threshold > 0.0
+                                                ? t_coarse[0] - threshold
+                                                : static_cast<double>(acquire_slide_samples));
+                                        continue;
+                                    case 2: {
+                                        std::cout << "2 peaks    " << t_coarse << std::endl;
 
-                                    if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
-                                        interval, bcch13_sample, threshold)) {
-                                        popSamplesTo(t_coarse[1] - threshold);
-                                    } else {
-                                        popSamplesTo(t_coarse[0] - threshold);
+                                        if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
+                                            interval, bcch13_sample, threshold)) {
+                                            popSamplesTo(t_coarse[1] - threshold);
+                                        } else {
+                                            popSamplesTo(t_coarse[0] - threshold);
+                                        }
+                                        continue;
                                     }
-                                    continue;
-                                }
-                                case 3: {
-                                    std::cout << "3 peaks    " << t_coarse << " ";
-                                    for (int i = 0; i < 3; i++) {
-                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
-                                    }
-                                    std::cout << std::endl;
+                                    case 3: {
+                                        std::cout << "3 peaks    " << t_coarse << " ";
 
-                                    if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
-                                        interval, bcch2_sample, threshold)) {
+                                        if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
+                                            interval, bcch2_sample, threshold)) {
+                                            popSamplesTo(t_coarse[2] - threshold);
+                                            continue;
+                                        }
                                         popSamplesTo(t_coarse[2] - threshold);
+                                        continue;
                                     }
-                                    continue;
+                                    case 4: {
+                                        std::cout << "4 peaks    " << t_coarse << std::endl;
+
+                                        if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
+                                            interval, bcch13_sample, threshold)) {
+                                            popSamplesTo(t_coarse[3] - threshold);
+                                            continue;
+                                        }
+
+                                        if (!fineSyncSafe(curr_buf,
+                                                          std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1),
+                                                          std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1),
+                                                          BCCH1_3, "acquire:bcch1")
+                                            || !fineSyncSafe(curr_buf,
+                                                             std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2),
+                                                             std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2),
+                                                             BCCH2, "acquire:bcch2")
+                                            || !fineSyncSafe(curr_buf,
+                                                             std::vector<double>(t_coarse.begin() + 2, t_coarse.begin() + 3),
+                                                             std::vector<double>(f_coarse.begin() + 2, f_coarse.begin() + 3),
+                                                             BCCH1_3, "acquire:bcch3")) {
+                                            popSamplesTo(acquire_slide_samples);
+                                            continue;
+                                        }
+
+                                        SPDLOG_INFO("Super frame sync has finished!");
+                                        popSamplesTo(t_coarse[3] - threshold); // 获取下一帧的数个样本
+
+                                        sync_state_.set_state(SyncState::TRACK);
+                                        current_channel_ = ChannelState::DATA;
+                                        fl_counter = 0;
+                                        mf_counter = 0;
+                                        track_fail_streak_ = 0;
+                                        const auto t1 = std::chrono::high_resolution_clock::now();
+                                        const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0)
+                                                            .count();
+                                        SPDLOG_INFO("coarseSync {} us", us);
+                                        break;
+                                    }
+                                    default: {
+                                        // 对异常峰值数量回退到最新峰值附近，避免缓冲持续膨胀
+                                        popSamplesTo(t_coarse.back() - threshold);
+                                        continue;
+                                    }
                                 }
-                                case 4: {
-                                    std::cout << "4 peaks    " << t_coarse << std::endl;
-                                    for (int i = 0; i < 4; i++) {
-                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
-                                    }
-                                    std::cout << std::endl;
 
-                                    if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
-                                        interval, bcch13_sample, threshold)) {
-                                        popSamplesTo(t_coarse[3] - threshold);
-                                        continue;
-                                    }
-
-                                    if (!fineSyncSafe(curr_buf,
-                                        std::vector<double>(t_coarse.begin(), t_coarse.begin() + 1),
-                                        std::vector<double>(f_coarse.begin(), f_coarse.begin() + 1),
-                                        BCCH1_3, "acquire:bcch1")
-                                        || !fineSyncSafe(curr_buf,
-                                            std::vector<double>(t_coarse.begin() + 1, t_coarse.begin() + 2),
-                                            std::vector<double>(f_coarse.begin() + 1, f_coarse.begin() + 2),
-                                            BCCH2, "acquire:bcch2")
-                                        || !fineSyncSafe(curr_buf,
-                                            std::vector<double>(t_coarse.begin() + 2, t_coarse.begin() + 3),
-                                            std::vector<double>(f_coarse.begin() + 2, f_coarse.begin() + 3),
-                                            BCCH1_3, "acquire:bcch3")) {
-                                        continue;
-                                    }
-
-                                    SPDLOG_INFO("Super frame sync has finished!");
-                                    popSamplesTo(t_coarse[3] - threshold); // 获取下一帧的数个样本
-
-                                    sync_state_.set_state(SyncState::TRACK);
-                                    current_channel_ = ChannelState::DATA;
-                                    const auto t1 = std::chrono::high_resolution_clock::now();
-                                    const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).
-                                            count();
-                                    SPDLOG_INFO("coarseSync {} us", us);
+                                if (sync_state_.get_state() == SyncState::TRACK) {
                                     break;
                                 }
-                                default: {
-                                    // 对异常峰值数量回退到最新峰值附近，避免缓冲持续膨胀
-                                    popSamplesTo(t_coarse.back() - threshold);
+                            }
+                        }
+
+                        if (sync_state_.get_state() != SyncState::TRACK) {
+                            continue;
+                        }
+
+                        switch (current_channel_) {
+                            case ChannelState::BCCH1: {
+                                curr_buf = getSamples(bcch13_sample + threshold);
+                                c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch1")) {
+                                    handleTrackFailure("track:bcch1");
                                     continue;
                                 }
-                            }
-
-                            if (sync_state_.get_state() == SyncState::TRACK) {
+                                popSamplesTo(bcch13_sample);
+                                track_fail_streak_ = 0;
+                                current_channel_ = ChannelState::BCCH2;
                                 break;
                             }
-                        }
-                    }
-
-                    switch (current_channel_) {
-                        case ChannelState::BCCH1: {
-                            curr_buf = getSamples(bcch13_sample + threshold);
-                            popSamplesTo(bcch13_sample);
-                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch1")) {
-                                continue;
+                            case ChannelState::BCCH2: {
+                                curr_buf = getSamples(bcch2_sample + threshold);
+                                c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH2, "track:bcch2")) {
+                                    handleTrackFailure("track:bcch2");
+                                    continue;
+                                }
+                                popSamplesTo(bcch2_sample);
+                                track_fail_streak_ = 0;
+                                current_channel_ = ChannelState::BCCH3;
+                                break;
                             }
-                            current_channel_ = ChannelState::BCCH2;
-                            break;
-                        }
-                        case ChannelState::BCCH2: {
-                            curr_buf = getSamples(bcch2_sample + threshold);
-                            popSamplesTo(bcch2_sample);
-                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH2, "track:bcch2")) {
-                                continue;
+                            case ChannelState::BCCH3: {
+                                curr_buf = getSamples(bcch13_sample + threshold);
+                                c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch3")) {
+                                    handleTrackFailure("track:bcch3");
+                                    continue;
+                                }
+                                popSamplesTo(bcch13_sample);
+                                track_fail_streak_ = 0;
+                                current_channel_ = ChannelState::DATA;
+                                break;
                             }
-                            current_channel_ = ChannelState::BCCH3;
-                            break;
-                        }
-                        case ChannelState::BCCH3: {
-                            curr_buf = getSamples(bcch13_sample + threshold);
-                            popSamplesTo(bcch13_sample );
-                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch3")) {
-                                continue;
-                            }
-                            current_channel_ = ChannelState::DATA;
-                            break;
-                        }
-                        case ChannelState::DATA: {
-                            switch (fl_counter % DATA_PER_MF) {
-                                case 0:
-                                case 1:
-                                case 3: {
-                                    curr_buf = getSamples(data_sample2 + threshold);
-                                    popSamplesTo(data_sample2);
-                                    if (fl_counter % DATA_PER_MF == 3) {
-                                        if (mf_counter++ % MF_PER_SF == 3) {
-                                            current_channel_ = ChannelState::BCCH1;
-
-                                            SPDLOG_INFO("============== {} super frames", sf_count++);
-
-                                        }
+                            case ChannelState::DATA: {
+                                const int data_slot = fl_counter % DATA_PER_MF;
+                                double consume_samples = 0.0;
+                                switch (data_slot) {
+                                    case 0:
+                                    case 1:
+                                    case 3: {
+                                        curr_buf = getSamples(data_sample2 + threshold);
+                                        consume_samples = data_sample2;
+                                        break;
                                     }
-                                    break;
+                                    case 2: {
+                                        curr_buf = getSamples(data_sample3 + threshold);
+                                        consume_samples = data_sample3;
+                                        break;
+                                    }
+                                    default: {
+                                        throw std::runtime_error("Invalid data slot");
+                                    }
                                 }
-                                case 2: {
-                                    curr_buf = getSamples(data_sample3 + threshold);
-                                    popSamplesTo(data_sample3);
-                                    break;
-                                }
-                                default: {
 
+                                c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
+                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, FL_DCH, "track:data")) {
+                                    handleTrackFailure("track:data");
+                                    continue;
                                 }
+
+                                popSamplesTo(consume_samples);
+                                track_fail_streak_ = 0;
+                                if (data_slot == 3) {
+                                    if (mf_counter % MF_PER_SF == MF_PER_SF - 1) {
+                                        current_channel_ = ChannelState::BCCH1;
+                                        SPDLOG_INFO("============== {} super frames", sf_count++);
+                                    }
+                                    mf_counter++;
+                                }
+                                fl_counter++;
+                                break;
                             }
-
-                            // const auto t0 = std::chrono::high_resolution_clock::now();
-                            c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                            if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, FL_DCH, "track:data")) {
-                                continue;
+                            default: {
+                                throw std::runtime_error("Invalid channel state");
                             }
-                            // const auto t1 = std::chrono::high_resolution_clock::now();
-                            // const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).
-                            //         count();
-                            // SPDLOG_INFO("recv {} ns", ns);
-
-                            fl_counter++;
-                            break;
                         }
-                        default: {
-                            throw std::runtime_error("Invalid channel state");
-                        }
-                    }
                     } catch (const std::exception &e) {
                         SPDLOG_ERROR("PhySource worker iteration failed: {}", e.what());
-                        sync_state_.set_state(SyncState::ACQUIRE);
-                        current_channel_ = ChannelState::BCCH1;
+                        resetToAcquire("worker iteration exception", track_reacquire_slide_samples);
                         continue;
                     } catch (...) {
                         SPDLOG_ERROR("PhySource worker iteration failed: unknown exception");
-                        sync_state_.set_state(SyncState::ACQUIRE);
-                        current_channel_ = ChannelState::BCCH1;
+                        resetToAcquire("worker iteration unknown exception", track_reacquire_slide_samples);
                         continue;
                     }
                 }
@@ -312,8 +333,11 @@ namespace openldacs::phy::link::fl {
             return cdVecToCvec(buf.value());
         }
 
-        void popSamplesTo(const uint32_t pos) {
-            sample_buffer.popFront(pos);
+        void popSamplesTo(const double pos) {
+            if (!std::isfinite(pos) || pos <= 0.0) {
+                return;
+            }
+            sample_buffer.popFront(static_cast<size_t>(std::llround(pos)));
         }
 
         void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {
@@ -362,10 +386,14 @@ namespace openldacs::phy::link::fl {
         constexpr static double threshold = 128.0;
         constexpr static int acquire_buffer_limit = acquire_sample * 8;
         constexpr static int acquire_wait_timeout_ms = 60;
+        constexpr static int acquire_slide_samples = acquire_sample / 4;
+        constexpr static int track_reacquire_after_failures = 3;
+        constexpr static int track_reacquire_slide_samples = acquire_sample / 8;
         constexpr static double bcch13_sample = 1125.0; // 75 * 15
         constexpr static double bcch2_sample = 1950.0; // 75 * 26
         constexpr static double data_sample2 = 8100.0; // 75 * 54 * 2
         constexpr static double data_sample3 = 12150.0; // 75 * 54 * 3
+        int track_fail_streak_ = 0;
 
         zmq::context_t context;
         zmq::socket_t publisher;
