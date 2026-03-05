@@ -868,12 +868,10 @@ namespace openldacs::phy::params {
     }
 
     void ChannelEstimate::line_int_2d(itpp::cmat &input) {
-        // SPDLOG_INFO("{} {} {}", input.size(), input.rows(), input.cols());
-        // TODO: 判断rl
-        //     if strcmp(transmission, 'rl')
-        //          N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
-        //     end
-
+        // 判断rl 等逻辑保留
+        // if strcmp(transmission, 'rl')
+        //      N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
+        // end
 
         const int total_cols = input.cols();
         if (total_cols % ofdm_symb_ != 0) {
@@ -886,19 +884,26 @@ namespace openldacs::phy::params {
 
         for (int i = 0; i < num_frames; ++i) {
             const int col_offset = i * ofdm_symb_;
+
             for (int k = 0; k < data_ind.size(); k++) {
                 const auto data_idx = data_ind[k];
                 const int dr = data_idx % n_fft;
                 const int dc = col_offset + data_idx / n_fft;
 
-                const auto& pilot_idx_vec = pilot_ind_cell[k];
-                const auto& pilot_dist_vec = pilot_dist_cell[k];
+                const auto &pilot_idx_vec = pilot_ind_cell[k];
+                const auto &pilot_dist_vec = pilot_dist_cell[k];
 
                 if (pilot_idx_vec.empty() || pilot_idx_vec.size() != pilot_dist_vec.size()) {
                     continue;
                 }
-                std::complex<double> acc(0.0, 0.0);
+
+                double acc_mag = 0.0;
+                double acc_phase = 0.0;
                 double wsum = 0.0;
+
+                // 用于记录参考相位，防止相位插值时发生 +180度和-180度的跳变抵消
+                bool ref_set = false;
+                double ref_phase = 0.0;
 
                 for (size_t m = 0; m < pilot_idx_vec.size(); ++m) {
                     if (pilot_dist_vec[m] <= eps) continue;
@@ -907,17 +912,49 @@ namespace openldacs::phy::params {
                     const int pr = pilot_idx_vec[m] % n_fft;
                     const int pc = col_offset + pilot_idx_vec[m] / n_fft;
 
-                    acc += w * input(pr, pc);
+                    std::complex<double> pilot_val = input(pr, pc);
+
+                    // 1. 提取第一个有效导频相位作为基准点
+                    if (!ref_set) {
+                        ref_phase = std::arg(pilot_val);
+                        ref_set = true;
+                    }
+
+                    // 2. 幅度直接加权累加
+                    acc_mag += w * std::abs(pilot_val);
+
+                    // 3. 相位解卷绕 (Phase Unwrapping)
+                    double phase = std::arg(pilot_val);
+                    // 强制将当前相位映射到与参考相位之差在 [-PI, PI] 之间
+                    while (phase - ref_phase > M_PI) {
+                        phase -= 2 * M_PI;
+                    }
+                    while (phase - ref_phase < -M_PI) {
+                        phase += 2 * M_PI;
+                    }
+
+                    // 相位加权累加
+                    acc_phase += w * phase;
                     wsum += w;
                 }
 
-                input(dr, dc) = (wsum > eps) ? (acc / wsum) : tiny;
+                if (wsum > eps) {
+                    double final_mag = acc_mag / wsum;
+                    double final_phase = acc_phase / wsum;
+                    // 4. 将插值后的幅度和相位重新组合成复数
+                    input(dr, dc) = std::polar(final_mag, final_phase);
+                } else {
+                    input(dr, dc) = tiny;
+                }
             }
         }
 
+        // 后处理：防止矩阵中出现绝对零值导致后续均衡除以 0
         for (int c = 0; c < input.cols(); ++c) {
             for (int r = 0; r < input.rows(); ++r) {
-                if (std::abs(input(r, c)) <= eps) input(r, c) = tiny;
+                if (std::abs(input(r, c)) <= eps) {
+                    input(r, c) = tiny;
+                }
             }
         }
     }

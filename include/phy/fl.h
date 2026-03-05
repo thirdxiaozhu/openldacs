@@ -112,7 +112,8 @@ namespace openldacs::phy::link::fl {
                     fl_counter = 0;
                     mf_counter = 0;
                     track_fail_streak_ = 0;
-                    track_timing_error_ = 0.0;
+                    track_pll_integrator_ = 0.0;
+                    track_pll_control_ = 0.0;
                 };
 
                 auto handleTrackFailure = [&](const char *stage, const double advance_samples) {
@@ -200,7 +201,8 @@ namespace openldacs::phy::link::fl {
                                         fl_counter = 0;
                                         mf_counter = 0;
                                         track_fail_streak_ = 0;
-                                        track_timing_error_ = 0.0;
+                                        track_pll_integrator_ = 0.0;
+                                        track_pll_control_ = 0.0;
                                         const auto t1 = std::chrono::high_resolution_clock::now();
                                         const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0)
                                                             .count();
@@ -431,26 +433,33 @@ namespace openldacs::phy::link::fl {
             }
 
             // 仅用“最后一个峰”的误差来估计本时隙末端定时漂移。
-            // 后续 correctedConsumeSamples() 会把它做低通滤波后反馈到 pop 步长。
+            // 后续 correctedConsumeSamples() 会把它送入 PI 跟踪环，反馈到 pop 步长。
             const double expected_tail = first_target + (expected_count - 1) * spacing;
             tail_error = t_selected.back() - expected_tail;
             return true;
         }
 
-        // 根据本次观测误差修正“应弹出的样本数”：
-        // 1) timing_error 先限幅，避免偶发错误峰导致过大步长跳变；
-        // 2) 对误差做一阶 IIR 平滑，降低抖动；
-        // 3) 用平滑后的误差修正 nominal_samples，得到下一次 pop 步长。
+        // 二阶 PI 定时跟踪环（type-II）：
+        // 1) 对本次观测误差 e(k) 限幅；
+        // 2) 通过积分支路更新状态（含 anti-windup 积分限幅）；
+        // 3) 用 u(k) = Kp*e(k) + I(k) 生成步长校正量，并做输出限幅；
+        // 4) 修正 nominal_samples，得到下一次 pop 步长。
         double correctedConsumeSamples(const double nominal_samples, const double timing_error) {
-            // 限制每次校正幅度，防止跟踪环路不稳定。
+            // 误差限幅，抑制离群峰导致的瞬时大跳变。
             const double clamped_error = std::clamp(
-                timing_error, -track_max_step_correction, track_max_step_correction);
+                timing_error, -track_pll_error_limit, track_pll_error_limit);
 
-            // 一阶低通：track_timing_error_ <- track_timing_error_ + alpha*(e - track_timing_error_)
-            // alpha 越大跟踪越快，越小越平滑。
-            track_timing_error_ += track_timing_alpha * (clamped_error - track_timing_error_);
+            // 积分环节（I 支路）+ anti-windup。
+            const double integrator_candidate = track_pll_integrator_ + track_pll_ki * clamped_error;
+            track_pll_integrator_ = std::clamp(
+                integrator_candidate, -track_pll_integrator_limit, track_pll_integrator_limit);
 
-            const double corrected = nominal_samples + track_timing_error_;
+            // PI 输出并限幅，避免一次修正步长过大。
+            const double control_candidate = track_pll_kp * clamped_error + track_pll_integrator_;
+            track_pll_control_ = std::clamp(
+                control_candidate, -track_pll_output_limit, track_pll_output_limit);
+
+            const double corrected = nominal_samples + track_pll_control_;
             // 数值保护：异常值时回退到名义步长，避免状态机失控。
             if (!std::isfinite(corrected)) {
                 return nominal_samples;
@@ -511,15 +520,19 @@ namespace openldacs::phy::link::fl {
         constexpr static int track_reacquire_after_failures = 3;
         constexpr static int track_reacquire_slide_samples = acquire_sample / 8;
         constexpr static double track_peak_window = 192.0;
-        constexpr static double track_max_step_correction = 96.0;
-        constexpr static double track_timing_alpha = 0.2;
+        constexpr static double track_pll_kp = 0.15;
+        constexpr static double track_pll_ki = 0.01;
+        constexpr static double track_pll_error_limit = 128.0;
+        constexpr static double track_pll_integrator_limit = 64.0;
+        constexpr static double track_pll_output_limit = 96.0;
         constexpr static double bcch13_sample = 1125.0; // 75 * 15
         constexpr static double bcch2_sample = 1950.0; // 75 * 26
         constexpr static double data_peak_spacing = 4050.0; // 75 * 54
         constexpr static double data_sample2 = 8100.0; // 75 * 54 * 2
         constexpr static double data_sample3 = 12150.0; // 75 * 54 * 3
         int track_fail_streak_ = 0;
-        double track_timing_error_ = 0.0;
+        double track_pll_integrator_ = 0.0;
+        double track_pll_control_ = 0.0;
 
         zmq::context_t context;
         zmq::socket_t publisher;
