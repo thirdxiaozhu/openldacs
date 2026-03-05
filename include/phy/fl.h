@@ -93,13 +93,13 @@ namespace openldacs::phy::link::fl {
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([&](const VecCF &f) {
-                // if (!sample_buffer.try_push(f)) {
-                //     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
-                // }
-                // SPDLOG_INFO("================ {}", sample_buffer.size());
-                zmq::message_t message(f.size() * sizeof(VecCF::value_type));
-                memcpy(message.data(), f.data(), message.size());
-                publisher.send(message, zmq::send_flags::none);
+                if (const VecCD vd(f.begin(), f.end()); !sample_buffer.try_push(vd)) {
+                    SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
+                }
+                SPDLOG_INFO("================ {}", sample_buffer.size());
+                // zmq::message_t message(f.size() * sizeof(VecCF::value_type));
+                // memcpy(message.data(), f.data(), message.size());
+                // publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {

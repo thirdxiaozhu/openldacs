@@ -224,12 +224,12 @@ namespace openldacs::phy::params {
         M2.zeros();
         M2.set_subvector(sync_offset, pre_M2.left(pre_M2.length() - sync_offset));
 
-        // itpp::vec v = abs(M1);
-        // std::filesystem::create_directories("dump");
-        // std::ofstream ofs("dump/corr_peak.csv");
-        // for (int i = 0; i < v.length(); ++i) {
-        //     ofs << i << "," << v(i) << "\n";
-        // }
+        itpp::vec v = abs(M1);
+        std::filesystem::create_directories("dump");
+        std::ofstream ofs("dump/corr_peak.csv");
+        for (int i = 0; i < v.length(); ++i) {
+            ofs << i << "," << v(i) << "\n";
+        }
 
         angle2.set_length(pre_angle_metric2.length());
         angle2.zeros();
@@ -538,8 +538,8 @@ namespace openldacs::phy::params {
                                      f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine) {
         const int symb_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
-        // std::cout << t_coarse << std::endl;
-        // std::cout << f_coarse << std::endl;
+        std::cout << t_coarse << std::endl;
+        std::cout << f_coarse << std::endl;
 
         for (int i = 0; i < t_coarse.size(); ++i) {
             const int frame_len = ofdm_symb_ * symb_bamc;
