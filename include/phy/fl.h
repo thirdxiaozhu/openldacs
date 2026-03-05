@@ -98,13 +98,9 @@ namespace openldacs::phy::link::fl {
                     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
                 }
                 SPDLOG_INFO("================ {}", sample_buffer.size());
-                // zmq::message_t message(f.size() * sizeof(VecCF::value_type));
-                // memcpy(message.data(), f.data(), message.size());
-                // publisher.send(message, zmq::send_flags::none);
             });
 
             source_worker_.start([&] {
-
                 int sf_count = 0;
                 auto resetToAcquire = [&](const char *reason, const double slide_samples = 0.0) {
                     if (slide_samples > 0.0) {
@@ -112,10 +108,11 @@ namespace openldacs::phy::link::fl {
                     }
                     SPDLOG_WARN("Reset to ACQUIRE: {}", reason);
                     sync_state_.set_state(SyncState::ACQUIRE);
-                    current_channel_ = ChannelState::BCCH1;
+                    current_channel_ = ChannelState::DATA;
                     fl_counter = 0;
                     mf_counter = 0;
                     track_fail_streak_ = 0;
+                    track_timing_error_ = 0.0;
                 };
 
                 auto handleTrackFailure = [&](const char *stage, const double advance_samples) {
@@ -149,16 +146,12 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
                                     case 1:
-                                        std::cout << "1 peak    " << t_coarse << std::endl;
-
                                         popSamplesTo(
                                             t_coarse[0] - threshold > 0.0
                                                 ? t_coarse[0] - threshold
                                                 : static_cast<double>(acquire_slide_samples));
                                         continue;
                                     case 2: {
-                                        std::cout << "2 peaks    " << t_coarse << std::endl;
-
                                         if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
                                             interval, bcch13_sample, threshold)) {
                                             popSamplesTo(t_coarse[1] - threshold);
@@ -168,8 +161,6 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
                                     case 3: {
-                                        std::cout << "3 peaks    " << t_coarse << " ";
-
                                         if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
                                             interval, bcch2_sample, threshold)) {
                                             popSamplesTo(t_coarse[2] - threshold);
@@ -179,8 +170,6 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
                                     case 4: {
-                                        std::cout << "4 peaks    " << t_coarse << std::endl;
-
                                         if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
                                             interval, bcch13_sample, threshold)) {
                                             popSamplesTo(t_coarse[3] - threshold);
@@ -211,6 +200,7 @@ namespace openldacs::phy::link::fl {
                                         fl_counter = 0;
                                         mf_counter = 0;
                                         track_fail_streak_ = 0;
+                                        track_timing_error_ = 0.0;
                                         const auto t1 = std::chrono::high_resolution_clock::now();
                                         const auto us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0)
                                                             .count();
@@ -238,11 +228,16 @@ namespace openldacs::phy::link::fl {
                             case ChannelState::BCCH1: {
                                 curr_buf = getSamples(bcch13_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch1")) {
+                                std::vector<double> t_track;
+                                std::vector<double> f_track;
+                                double timing_error = 0.0;
+                                if (!pickTrackPeaks(t_coarse, f_coarse, 1, threshold, 0.0, track_peak_window,
+                                                    t_track, f_track, timing_error)
+                                    || !fineSyncSafe(curr_buf, t_track, f_track, BCCH1_3, "track:bcch1")) {
                                     handleTrackFailure("track:bcch1", bcch13_sample);
                                     continue;
                                 }
-                                popSamplesTo(bcch13_sample);
+                                popSamplesTo(correctedConsumeSamples(bcch13_sample, timing_error));
                                 track_fail_streak_ = 0;
                                 current_channel_ = ChannelState::BCCH2;
                                 break;
@@ -250,11 +245,16 @@ namespace openldacs::phy::link::fl {
                             case ChannelState::BCCH2: {
                                 curr_buf = getSamples(bcch2_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH2, "track:bcch2")) {
+                                std::vector<double> t_track;
+                                std::vector<double> f_track;
+                                double timing_error = 0.0;
+                                if (!pickTrackPeaks(t_coarse, f_coarse, 1, threshold, 0.0, track_peak_window,
+                                                    t_track, f_track, timing_error)
+                                    || !fineSyncSafe(curr_buf, t_track, f_track, BCCH2, "track:bcch2")) {
                                     handleTrackFailure("track:bcch2", bcch2_sample);
                                     continue;
                                 }
-                                popSamplesTo(bcch2_sample);
+                                popSamplesTo(correctedConsumeSamples(bcch2_sample, timing_error));
                                 track_fail_streak_ = 0;
                                 current_channel_ = ChannelState::BCCH3;
                                 break;
@@ -262,11 +262,16 @@ namespace openldacs::phy::link::fl {
                             case ChannelState::BCCH3: {
                                 curr_buf = getSamples(bcch13_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch3")) {
+                                std::vector<double> t_track;
+                                std::vector<double> f_track;
+                                double timing_error = 0.0;
+                                if (!pickTrackPeaks(t_coarse, f_coarse, 1, threshold, 0.0, track_peak_window,
+                                                    t_track, f_track, timing_error)
+                                    || !fineSyncSafe(curr_buf, t_track, f_track, BCCH1_3, "track:bcch3")) {
                                     handleTrackFailure("track:bcch3", bcch13_sample);
                                     continue;
                                 }
-                                popSamplesTo(bcch13_sample);
+                                popSamplesTo(correctedConsumeSamples(bcch13_sample, timing_error));
                                 track_fail_streak_ = 0;
                                 current_channel_ = ChannelState::DATA;
                                 break;
@@ -274,31 +279,40 @@ namespace openldacs::phy::link::fl {
                             case ChannelState::DATA: {
                                 const int data_slot = fl_counter % DATA_PER_MF;
                                 double consume_samples = 0.0;
+                                int expect_peaks = 0;
+                                double read_samples = 0.0;
                                 switch (data_slot) {
                                     case 0:
                                     case 1:
                                     case 3: {
-                                        curr_buf = getSamples(data_sample2 + threshold + 50);
-                                        consume_samples = data_sample2 + 50;
+                                        consume_samples = data_sample2;
+                                        expect_peaks = 2;
                                         break;
                                     }
                                     case 2: {
-                                        curr_buf = getSamples(data_sample3 + threshold + 50);
-                                        consume_samples = data_sample3 + 50;
+                                        consume_samples = data_sample3;
+                                        expect_peaks = 3;
                                         break;
                                     }
                                     default: {
                                         throw std::runtime_error("Invalid data slot");
                                     }
                                 }
+                                read_samples = consume_samples + threshold + track_peak_window;
+                                curr_buf = getSamples(static_cast<size_t>(std::llround(read_samples)));
 
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
-                                if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, FL_DCH, "track:data")) {
+                                std::vector<double> t_track;
+                                std::vector<double> f_track;
+                                double timing_error = 0.0;
+                                if (!pickTrackPeaks(t_coarse, f_coarse, expect_peaks, threshold, data_peak_spacing,
+                                                    track_peak_window, t_track, f_track, timing_error)
+                                    || !fineSyncSafe(curr_buf, t_track, f_track, FL_DCH, "track:data")) {
                                     handleTrackFailure("track:data", consume_samples);
                                     continue;
                                 }
 
-                                popSamplesTo(consume_samples);
+                                popSamplesTo(correctedConsumeSamples(consume_samples, timing_error));
                                 track_fail_streak_ = 0;
                                 if (data_slot == 3) {
                                     if (mf_counter % MF_PER_SF == MF_PER_SF - 1) {
@@ -344,6 +358,107 @@ namespace openldacs::phy::link::fl {
             sample_buffer.popFront(std::llround(pos));
         }
 
+        // TRACK 阶段的“局部峰值匹配”：
+        // - 输入 t_candidates/f_candidates：coarseSync 在当前观测窗口内给出的候选峰位置与频偏；
+        // - 输入 expected_count/first_target/spacing：当前时隙理论上应出现的峰数量与几何结构；
+        // - 输入 max_deviation：每个理论峰允许的最大时间偏差（样本）；
+        // - 输出 t_selected/f_selected：按理论顺序筛选后的峰；
+        // - 输出 tail_error：最后一个峰相对理论末峰的位置误差，用于后续 pop 步长校正。
+        //
+        // 函数返回 false 表示“本次 TRACK 匹配不可靠”，调用方应视为跟踪失败并走恢复逻辑。
+        bool pickTrackPeaks(const std::vector<double> &t_candidates,
+                            const std::vector<double> &f_candidates,
+                            const int expected_count,
+                            const double first_target,
+                            const double spacing,
+                            const double max_deviation,
+                            std::vector<double> &t_selected,
+                            std::vector<double> &f_selected,
+                            double &tail_error) const {
+            t_selected.clear();
+            f_selected.clear();
+            tail_error = 0.0;
+
+            // 基础合法性检查：
+            // 1) 期望峰数必须 > 0；
+            // 2) t/f 候选数量必须一一对应；
+            // 3) 候选峰总数至少覆盖期望峰数。
+            if (expected_count <= 0 || t_candidates.size() != f_candidates.size()) {
+                return false;
+            }
+            if (t_candidates.size() < static_cast<size_t>(expected_count)) {
+                return false;
+            }
+
+            // 贪心匹配：对每个理论峰 target(k)，从“尚未使用”的候选里找最近的一个。
+            // 这里故意不做全局最优（Hungarian 等），因为 expected_count 很小（1/2/3），
+            // 贪心在该场景下更简单且足够稳定。
+            std::vector<bool> used(t_candidates.size(), false);
+            for (int k = 0; k < expected_count; ++k) {
+                const double target = first_target + k * spacing;
+                double best_delta = 1e18;
+                int best_idx = -1;
+
+                for (int i = 0; i < static_cast<int>(t_candidates.size()); ++i) {
+                    if (used[i]) {
+                        continue;
+                    }
+                    // 与当前理论峰的绝对偏差（样本）。
+                    const double delta = std::abs(t_candidates[i] - target);
+                    if (delta < best_delta) {
+                        best_delta = delta;
+                        best_idx = i;
+                    }
+                }
+
+                // 若没有可用候选，或最近候选仍超出偏差门限，则本次匹配失败。
+                if (best_idx < 0 || best_delta > max_deviation) {
+                    return false;
+                }
+
+                // 锁定该候选，避免被后续理论峰重复使用。
+                used[best_idx] = true;
+                t_selected.push_back(t_candidates[best_idx]);
+                f_selected.push_back(f_candidates[best_idx]);
+            }
+
+            // 时序一致性检查：要求选中的峰严格递增。
+            // 若不递增，通常意味着错配（例如后一峰被匹配到前面的杂散峰）。
+            for (int i = 1; i < static_cast<int>(t_selected.size()); ++i) {
+                if (t_selected[i] <= t_selected[i - 1]) {
+                    return false;
+                }
+            }
+
+            // 仅用“最后一个峰”的误差来估计本时隙末端定时漂移。
+            // 后续 correctedConsumeSamples() 会把它做低通滤波后反馈到 pop 步长。
+            const double expected_tail = first_target + (expected_count - 1) * spacing;
+            tail_error = t_selected.back() - expected_tail;
+            return true;
+        }
+
+        // 根据本次观测误差修正“应弹出的样本数”：
+        // 1) timing_error 先限幅，避免偶发错误峰导致过大步长跳变；
+        // 2) 对误差做一阶 IIR 平滑，降低抖动；
+        // 3) 用平滑后的误差修正 nominal_samples，得到下一次 pop 步长。
+        double correctedConsumeSamples(const double nominal_samples, const double timing_error) {
+            // 限制每次校正幅度，防止跟踪环路不稳定。
+            const double clamped_error = std::clamp(
+                timing_error, -track_max_step_correction, track_max_step_correction);
+
+            // 一阶低通：track_timing_error_ <- track_timing_error_ + alpha*(e - track_timing_error_)
+            // alpha 越大跟踪越快，越小越平滑。
+            track_timing_error_ += track_timing_alpha * (clamped_error - track_timing_error_);
+
+            const double corrected = nominal_samples + track_timing_error_;
+            // 数值保护：异常值时回退到名义步长，避免状态机失控。
+            if (!std::isfinite(corrected)) {
+                return nominal_samples;
+            }
+            // pop 至少 1 个样本，避免零/负步长造成停滞。
+            return std::max(1.0, corrected);
+        }
+
         void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {
             const auto it = rx_handlers_.find(ch);
             if (it == rx_handlers_.end() || !it->second.has_value()) {
@@ -357,6 +472,7 @@ namespace openldacs::phy::link::fl {
                           const std::vector<double> &f_coarse, const ChannelSlot ch,
                           const char* stage) const noexcept {
             try {
+                SPDLOG_ERROR(" {}", in_f.length());
                 fineSync(in_f, t_coarse, f_coarse, ch);
                 return true;
             } catch (const std::exception& e) {
@@ -364,6 +480,7 @@ namespace openldacs::phy::link::fl {
             } catch (...) {
                 SPDLOG_ERROR("fineSync failed at {}: unknown exception", stage);
             }
+
             return false;
         }
 
@@ -393,11 +510,16 @@ namespace openldacs::phy::link::fl {
         constexpr static int acquire_slide_samples = acquire_sample / 4;
         constexpr static int track_reacquire_after_failures = 3;
         constexpr static int track_reacquire_slide_samples = acquire_sample / 8;
+        constexpr static double track_peak_window = 192.0;
+        constexpr static double track_max_step_correction = 96.0;
+        constexpr static double track_timing_alpha = 0.2;
         constexpr static double bcch13_sample = 1125.0; // 75 * 15
         constexpr static double bcch2_sample = 1950.0; // 75 * 26
+        constexpr static double data_peak_spacing = 4050.0; // 75 * 54
         constexpr static double data_sample2 = 8100.0; // 75 * 54 * 2
         constexpr static double data_sample3 = 12150.0; // 75 * 54 * 3
         int track_fail_streak_ = 0;
+        double track_timing_error_ = 0.0;
 
         zmq::context_t context;
         zmq::socket_t publisher;
