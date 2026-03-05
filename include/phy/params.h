@@ -729,12 +729,16 @@ namespace openldacs::phy::params {
                 }
             }
 
-            dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
+            if (!tt) {
+                dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
+                tt++;
+            }
         }
     private:
         device::DevPtr& dev_;
         FrameInfo frame_info_;
         int ofdm_symb_;
+        int tt = 0;
     };
 
     struct HelicalInterleaverParams {
