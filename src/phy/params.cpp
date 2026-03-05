@@ -294,18 +294,105 @@ namespace openldacs::phy::params {
 
     }
 
+//     void CoarseSyncParam::findReliablePeakCombined(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
+//     const int nom_dist = (config::n_fft + config::n_cp) * sync.upsample_rate;
+//     const int tol = config::n_cp * sync.upsample_rate;
+//     const double threshold_m2 = calcPeakThreshold(M2);
+//
+//     // 1. 构建合并度量 M_combined: M_combined[i] = M1[i] + M1[i + nom_dist]
+//     // 注意边界保护，防止越界
+//     std::vector<double> M_combined(M1.size(), 0.0);
+//     int valid_length = M1.size() - nom_dist;
+//
+//     double max_combined_val = 0.0;
+//     int best_index = 0; // 这个 index 就是 sy1 的最佳起始位置估计
+//
+//     for (int i = 0; i < valid_length; ++i) {
+//         M_combined[i] = M1[i] + M1[i + nom_dist];
+//
+//         // 顺便找出全局最大值
+//         if (M_combined[i] > max_combined_val) {
+//             max_combined_val = M_combined[i];
+//             best_index = i;
+//         }
+//     }
+//
+//     // 此时 best_index 对应粗同步找到的 sy1 位置，best_index + nom_dist 对应 sy2 位置
+//     // 2. 利用 M2 (互相关) 在这两个位置的容差窗口 tol 内进行精细峰值搜索
+//     double peak_value_m2_1 = 0.0, peak_value_m2_2 = 0.0;
+//     int peak_ind_m2_1 = best_index, peak_ind_m2_2 = best_index + nom_dist;
+//
+//     getPeak(M2, best_index - tol, best_index + tol, peak_value_m2_1, peak_ind_m2_1);
+//     getPeak(M2, best_index + nom_dist - tol, best_index + nom_dist + tol, peak_value_m2_2, peak_ind_m2_2);
+//
+//     // 3. 极简的加权平均逻辑 (剔除所有 0.58 这种 magic number)
+//     // 只要 M2 找到的峰值超过底噪阈值，就参与最终的时间和频率计算
+//     if (peak_value_m2_1 > threshold_m2 && peak_value_m2_2 > threshold_m2) {
+//         // 两个精细峰都有效
+//         reliable_peak = std::round(
+//             (peak_ind_m2_1 * peak_value_m2_1 + (peak_ind_m2_2 - nom_dist) * peak_value_m2_2) /
+//             (peak_value_m2_1 + peak_value_m2_2)
+//         );
+//
+//         peak_freq = (freq2(peak_ind_m2_1) * peak_value_m2_1 + freq2(peak_ind_m2_2) * peak_value_m2_2) /
+//                     (peak_value_m2_1 + peak_value_m2_2);
+//
+//     } else if (peak_value_m2_1 > threshold_m2) {
+//         // 只有第一个峰有效 (第二个峰可能遭遇了极端的深度衰落)
+//         reliable_peak = peak_ind_m2_1;
+//         peak_freq = freq2(peak_ind_m2_1);
+//     } else if (peak_value_m2_2 > threshold_m2) {
+//         // 只有第二个峰有效
+//         reliable_peak = peak_ind_m2_2 - nom_dist;
+//         peak_freq = freq2(peak_ind_m2_2);
+//     } else {
+//         // 如果 M2 全军覆没，退回到 M1 粗同步的位置兜底
+//         reliable_peak = best_index;
+//         peak_freq = freq1(best_index); // 或者设为 0
+//     }
+// }
+//
     void CoarseSyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
-        constexpr double relation_value = 0.7;
+        constexpr double relation_value = 0.58;
+        constexpr double relation_value_relaxed = 0.30;
+        constexpr double noise_margin = 3.0;
         const int nom_dist = (config::n_fft + config::n_cp) * sync.upsample_rate;
         const int tol = config::n_cp * sync.upsample_rate;
         const double threshold_m2 = calcPeakThreshold(M2);
 
+        const auto calcLocalMean = [this](const int start, const int end) -> double {
+            const int valid_start = std::max(start, 0);
+            const int valid_end = std::min(end, M1.size() - 1);
+            if (valid_start > valid_end) {
+                return 0.0;
+            }
+
+            double sum = 0.0;
+            for (int i = valid_start; i <= valid_end; ++i) {
+                sum += M1(i);
+            }
+            return sum / static_cast<double>(valid_end - valid_start + 1);
+        };
+
+        const int peak1_window_start = peak_indices[0] - tol + nom_dist;
+        const int peak1_window_end = peak_indices[0] + tol + nom_dist;
+        const int peak2_window_start = peak_indices[0] - tol - nom_dist;
+        const int peak2_window_end = peak_indices[0] + tol - nom_dist;
+        const double local_noise_floor1 = calcLocalMean(peak1_window_start, peak1_window_end);
+        const double local_noise_floor2 = calcLocalMean(peak2_window_start, peak2_window_end);
+        const double dynamic_threshold1 = local_noise_floor1 * noise_margin;
+        const double dynamic_threshold2 = local_noise_floor2 * noise_margin;
+
         double peak_value1 = 0.0;
         int peak_ind1 = 0;
-        getPeak(M1, peak_indices[0]-tol+nom_dist, peak_indices[0]+tol+nom_dist, peak_value1, peak_ind1);
+        getPeak(M1, peak1_window_start, peak1_window_end, peak_value1, peak_ind1);
         double peak_value2 = 0.0;
         int peak_ind2 = 0;
-        getPeak(M1, peak_indices[0]-tol-nom_dist, peak_indices[0]+tol-nom_dist, peak_value2, peak_ind2);
+        getPeak(M1, peak2_window_start, peak2_window_end, peak_value2, peak_ind2);
+        const bool valid_secondary_peak1 =
+            peak_value1 > relation_value_relaxed * peak_values[0] && peak_value1 > dynamic_threshold1;
+        const bool valid_secondary_peak2 =
+            peak_value2 > relation_value_relaxed * peak_values[0] && peak_value2 > dynamic_threshold2;
 
         // SPDLOG_INFO("{} {}", peak_value2, peak_ind2);
 
@@ -333,7 +420,7 @@ namespace openldacs::phy::params {
             }
 
             // second peak above relation_value*first peak at +nom_dist
-        }else if (peak_indices.size() > 1 && peak_value1 > relation_value * peak_values[0]) {
+        }else if (peak_indices.size() > 1 && valid_secondary_peak1) {
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
             getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
@@ -353,7 +440,7 @@ namespace openldacs::phy::params {
             if (!peak_values.empty()) {
                 peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
             }
-        }else if (peak_value2 > relation_value * peak_values[0]) {
+        }else if (valid_secondary_peak2) {
 
             double peak_value3 = 0.0;
             int peak_ind3 = 0;
@@ -463,6 +550,7 @@ namespace openldacs::phy::params {
             double reliable_peak = 0.0;
             double freq_peak = 0.0;
             findReliablePeak(peak_indices,peak_values, reliable_peak, freq_peak);
+            // findReliablePeakCombined(peak_indices,peak_values, reliable_peak, freq_peak);
 
             t_coarse.push_back(reliable_peak);
             f_coarse.push_back(freq_peak);

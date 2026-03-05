@@ -514,8 +514,7 @@ namespace openldacs::phy::params {
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
 
-            if (t_coarse.size() > 3) {
-            // if (1) {
+            if (t_coarse.size() == 2) {
                 SPDLOG_INFO("!!!!!!!!!!!!");
                 itpp::vec v = abs(M1);
                 std::filesystem::create_directories("dump");
@@ -523,9 +522,7 @@ namespace openldacs::phy::params {
                 for (int i = 0; i < v.length(); ++i) {
                     ofs << i << "," << v(i) << "\n";
                 }
-
             }
-
         }
     private:
         void frameSync(const itpp::cvec &input);
@@ -533,6 +530,7 @@ namespace openldacs::phy::params {
         void syncCorrelation(const itpp::cvec &input, int corr_len, int corr_diff, itpp::vec &M, itpp::vec &angle_metric);
         void findPeaks(std::vector<int> &peak_indices, std::vector<double> &peak_values);
         void findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
+        // void findReliablePeakCombined(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq);
         void getPeak(const itpp::vec &input, int start, int end, double &peak_value, int &peak_ind);
         double calcPeakThreshold(const itpp::vec &metric) const;
     };

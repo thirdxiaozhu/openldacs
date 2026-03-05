@@ -75,7 +75,7 @@ namespace openldacs::phy::device {
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
 
-        const double lo_offset = 0;
+        const double lo_offset = 5e6;
 
         double sigma_n_ = 0.1;
 

@@ -382,7 +382,7 @@ namespace openldacs::phy::link::fl {
         ChannelState current_channel_ = ChannelState::DATA;
         int fl_counter = 0;
         int mf_counter = 0;
-        constexpr static int acquire_sample = 7000;
+        constexpr static int acquire_sample = 5000;
         constexpr static double threshold = 128.0;
         constexpr static int acquire_buffer_limit = acquire_sample * 8;
         constexpr static int acquire_wait_timeout_ms = 60;
