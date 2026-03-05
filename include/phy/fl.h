@@ -117,6 +117,7 @@ namespace openldacs::phy::link::fl {
                     mf_counter = 0;
                     track_fail_streak_ = 0;
                 };
+
                 auto handleTrackFailure = [&](const char *stage) {
                     ++track_fail_streak_;
                     SPDLOG_WARN("Track sync failed at {}, streak={}", stage, track_fail_streak_);
