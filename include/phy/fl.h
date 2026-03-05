@@ -118,9 +118,12 @@ namespace openldacs::phy::link::fl {
                     track_fail_streak_ = 0;
                 };
 
-                auto handleTrackFailure = [&](const char *stage) {
+                auto handleTrackFailure = [&](const char *stage, const double advance_samples) {
                     ++track_fail_streak_;
                     SPDLOG_WARN("Track sync failed at {}, streak={}", stage, track_fail_streak_);
+                    if (advance_samples > 0.0) {
+                        popSamplesTo(advance_samples);
+                    }
                     if (track_fail_streak_ >= track_reacquire_after_failures) {
                         resetToAcquire("track failure limit reached", track_reacquire_slide_samples);
                     }
@@ -236,7 +239,7 @@ namespace openldacs::phy::link::fl {
                                 curr_buf = getSamples(bcch13_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                                 if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch1")) {
-                                    handleTrackFailure("track:bcch1");
+                                    handleTrackFailure("track:bcch1", bcch13_sample);
                                     continue;
                                 }
                                 popSamplesTo(bcch13_sample);
@@ -248,7 +251,7 @@ namespace openldacs::phy::link::fl {
                                 curr_buf = getSamples(bcch2_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                                 if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH2, "track:bcch2")) {
-                                    handleTrackFailure("track:bcch2");
+                                    handleTrackFailure("track:bcch2", bcch2_sample);
                                     continue;
                                 }
                                 popSamplesTo(bcch2_sample);
@@ -260,7 +263,7 @@ namespace openldacs::phy::link::fl {
                                 curr_buf = getSamples(bcch13_sample + threshold);
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                                 if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, BCCH1_3, "track:bcch3")) {
-                                    handleTrackFailure("track:bcch3");
+                                    handleTrackFailure("track:bcch3", bcch13_sample);
                                     continue;
                                 }
                                 popSamplesTo(bcch13_sample);
@@ -275,13 +278,13 @@ namespace openldacs::phy::link::fl {
                                     case 0:
                                     case 1:
                                     case 3: {
-                                        curr_buf = getSamples(data_sample2 + threshold);
-                                        consume_samples = data_sample2;
+                                        curr_buf = getSamples(data_sample2 + threshold + 50);
+                                        consume_samples = data_sample2 + 50;
                                         break;
                                     }
                                     case 2: {
-                                        curr_buf = getSamples(data_sample3 + threshold);
-                                        consume_samples = data_sample3;
+                                        curr_buf = getSamples(data_sample3 + threshold + 50);
+                                        consume_samples = data_sample3 + 50;
                                         break;
                                     }
                                     default: {
@@ -291,7 +294,7 @@ namespace openldacs::phy::link::fl {
 
                                 c_sync_param_.coarseSync(curr_buf, t_coarse, f_coarse);
                                 if (!fineSyncSafe(curr_buf, t_coarse, f_coarse, FL_DCH, "track:data")) {
-                                    handleTrackFailure("track:data");
+                                    handleTrackFailure("track:data", consume_samples);
                                     continue;
                                 }
 
@@ -338,7 +341,7 @@ namespace openldacs::phy::link::fl {
             if (!std::isfinite(pos) || pos <= 0.0) {
                 return;
             }
-            sample_buffer.popFront(static_cast<size_t>(std::llround(pos)));
+            sample_buffer.popFront(std::llround(pos));
         }
 
         void fineSync(const itpp::cvec &in_f, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ChannelSlot ch) const {
@@ -678,7 +681,6 @@ namespace openldacs::phy::link::fl {
 
                 const CodingParams& params = coding_table_.getCodingParams({default_cms_, t_coarse.size()}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
-
             });
         }
 

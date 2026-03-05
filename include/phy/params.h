@@ -514,8 +514,8 @@ namespace openldacs::phy::params {
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
 
-            if (t_coarse.size() == 2) {
-                SPDLOG_INFO("!!!!!!!!!!!!");
+            if (M1.length() > 8000) {
+                SPDLOG_INFO("!!!!!!!!!!!! {}", M1.length());
                 itpp::vec v = abs(M1);
                 std::filesystem::create_directories("dump");
                 std::ofstream ofs("dump/corr_peak.csv");

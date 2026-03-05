@@ -67,7 +67,12 @@ namespace openldacs::phy::link::fl {
                 input_vec.push_back(input(i, j));
             }
 
-            coding_params.rs_params.rs.rsDecode(input_vec, output_vec);
+            try {
+                coding_params.rs_params.rs.rsDecode(input_vec, output_vec);
+            } catch (const std::exception& e) {
+                SPDLOG_WARN("RS decode failed at row {}: {}", i, e.what());
+                std::copy_n(input_vec.begin(), output_vec.size(), output_vec.begin());
+            }
             output.push_back(output_vec);
         }
 

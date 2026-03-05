@@ -77,7 +77,7 @@ namespace openldacs::phy::device {
 
         const double lo_offset = 5e6;
 
-        double sigma_n_ = 0.1;
+        double sigma_n_ = 0.2;
 
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;
         util::Worker trans_worker_;
@@ -104,6 +104,8 @@ namespace openldacs::phy::device {
             trans_worker_.start([&] {
 
                 bool first_trans = true;
+                std::random_device rd;
+                std::mt19937 gen(rd());
                 // VecCF idle_silence(recv_samples_, std::complex<float>(0.0f, 0.0f));
                 // if (!tx_stream_ || !rx_stream_) {
                 //         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
@@ -124,12 +126,10 @@ namespace openldacs::phy::device {
                             VecCD to_sync_frame = fl_vec.value();
 
                             // 生成高斯白噪声
-                            std::random_device rd;
-                            std::mt19937 gen(rd());
-                            std::normal_distribution<> dis(0.0, 1.0); // 均值为0，标准差为1的正态分布
+                            std::normal_distribution<double> dis(0.0, sigma_n_);
 
-                            for (int i = 0; i < fl_vec->size(); i++) {
-                                    to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.2; // 缩放因子可根据需要调整
+                            for (size_t i = 0; i < fl_vec->size(); ++i) {
+                                to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen));
                             }
 
                             VecCF vf(to_sync_frame.begin(), to_sync_frame.end());
