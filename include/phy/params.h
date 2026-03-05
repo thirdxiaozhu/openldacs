@@ -6,6 +6,7 @@
 #define OPENLDACS_PARAMS_H
 
 #include <condition_variable>
+#include <filesystem>
 #include <mutex>
 #include <utility>
 #include <boost/circular_buffer.hpp>
@@ -512,6 +513,19 @@ namespace openldacs::phy::params {
             f_coarse.clear();
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
+
+            if (t_coarse.size() > 3) {
+            // if (1) {
+                SPDLOG_INFO("!!!!!!!!!!!!");
+                itpp::vec v = abs(M1);
+                std::filesystem::create_directories("dump");
+                std::ofstream ofs("dump/corr_peak.csv");
+                for (int i = 0; i < v.length(); ++i) {
+                    ofs << i << "," << v(i) << "\n";
+                }
+
+            }
+
         }
     private:
         void frameSync(const itpp::cvec &input);

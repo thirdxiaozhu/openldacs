@@ -224,13 +224,6 @@ namespace openldacs::phy::params {
         M2.zeros();
         M2.set_subvector(sync_offset, pre_M2.left(pre_M2.length() - sync_offset));
 
-        itpp::vec v = abs(M1);
-        std::filesystem::create_directories("dump");
-        std::ofstream ofs("dump/corr_peak.csv");
-        for (int i = 0; i < v.length(); ++i) {
-            ofs << i << "," << v(i) << "\n";
-        }
-
         angle2.set_length(pre_angle_metric2.length());
         angle2.zeros();
         angle2.set_subvector(sync_offset, pre_angle_metric2.left(pre_angle_metric2.length() - sync_offset));
@@ -475,6 +468,47 @@ namespace openldacs::phy::params {
             f_coarse.push_back(freq_peak);
         }
     }
+
+
+    void CoarseSyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
+        const int out_len = input.size() - corr_len - corr_diff;
+        itpp::cvec P = itpp::zeros_c(out_len);
+        itpp::vec R = itpp::zeros(out_len);
+
+        itpp::cvec vec_1 = input.left(input.length() - corr_diff);
+        itpp::cvec vec_2 = input.right(input.length() - corr_diff);
+
+        {
+            itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
+            // iterative calculation of P
+            P(0) = itpp::sum(corr_vec.left(corr_len));
+            for (int i = 1; i < out_len; i++) {
+                P(i) = P(i - 1) + corr_vec(i + corr_len - 1) - corr_vec(i - 1);
+            }
+        }
+
+        angle_metric = itpp::angle(P);
+
+        {
+            itpp::vec cor_fac =  itpp::sqr(abs(input));
+
+            itpp::vec R11 = itpp::zeros(R.length());
+            itpp::vec R22 = itpp::zeros(R.length());
+            R11(0) = itpp::sum(cor_fac.left(corr_diff)) + itpp::sum(cor_fac.mid(corr_len, corr_diff));
+            R22(0) = itpp::sum(cor_fac.mid(corr_diff, corr_len-corr_diff));
+
+            for (int i = 1; i < out_len; i++) {
+                R11(i) = R11(i - 1) + cor_fac(i + corr_diff - 1) + cor_fac(i + corr_diff + corr_len - 1) -
+                    cor_fac(i - 1) - cor_fac(i + corr_len - 1);
+                R22(i) = R22(i - 1) + cor_fac(i + corr_len - 1) - cor_fac(i + corr_diff - 1);
+            }
+
+            R = 0.5 * R11 + R22;
+        }
+
+        M = itpp::elem_div(itpp::sqr(abs(P)) ,itpp::sqr(R));
+    }
+
 
 
     void FineSyncParam::symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const {
@@ -727,45 +761,6 @@ namespace openldacs::phy::params {
     }
 
 
-
-    void CoarseSyncParam::syncCorrelation(const itpp::cvec &input, const int corr_len, const int corr_diff, itpp::vec &M, itpp::vec &angle_metric) {
-        const int out_len = input.size() - corr_len - corr_diff;
-        itpp::cvec P = itpp::zeros_c(out_len);
-        itpp::vec R = itpp::zeros(out_len);
-
-        itpp::cvec vec_1 = input.left(input.length() - corr_diff);
-        itpp::cvec vec_2 = input.right(input.length() - corr_diff);
-
-        {
-            itpp::cvec corr_vec = itpp::elem_mult(vec_2, itpp::conj(vec_1));
-            // iterative calculation of P
-            P(0) = itpp::sum(corr_vec.left(corr_len));
-            for (int i = 1; i < out_len; i++) {
-                P(i) = P(i - 1) + corr_vec(i + corr_len - 1) - corr_vec(i - 1);
-            }
-        }
-
-        angle_metric = itpp::angle(P);
-
-        {
-            itpp::vec cor_fac =  itpp::sqr(abs(input));
-
-            itpp::vec R11 = itpp::zeros(R.length());
-            itpp::vec R22 = itpp::zeros(R.length());
-            R11(0) = itpp::sum(cor_fac.left(corr_diff)) + itpp::sum(cor_fac.mid(corr_len, corr_diff));
-            R22(0) = itpp::sum(cor_fac.mid(corr_diff, corr_len-corr_diff));
-
-            for (int i = 1; i < out_len; i++) {
-                R11(i) = R11(i - 1) + cor_fac(i + corr_diff - 1) + cor_fac(i + corr_diff + corr_len - 1) -
-                    cor_fac(i - 1) - cor_fac(i + corr_len - 1);
-                R22(i) = R22(i - 1) + cor_fac(i + corr_len - 1) - cor_fac(i + corr_diff - 1);
-            }
-
-            R = 0.5 * R11 + R22;
-        }
-
-        M = itpp::elem_div(itpp::sqr(abs(P)) ,itpp::sqr(R));
-    }
 
     itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input) {
         itpp::cmat ce_pil = channel_coeff_pil(input);

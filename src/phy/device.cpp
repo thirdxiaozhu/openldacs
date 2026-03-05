@@ -87,8 +87,8 @@ namespace openldacs::phy::device {
                         uhd::tune_result_t tx_res = usrp_->set_tx_freq(tune_req, ch);
                         uhd::tune_result_t rx_res = usrp_->set_rx_freq(tune_req, ch);
 
-                        // usrp_->set_rx_dc_offset(true, ch);
-                        // usrp_->set_rx_iq_balance(true, ch);
+                        usrp_->set_rx_dc_offset(true, ch);
+                        usrp_->set_rx_iq_balance(true, ch);
 
                         usrp_->set_tx_gain(tx_gain, ch);
                         usrp_->set_rx_gain(rx_gain, ch);
