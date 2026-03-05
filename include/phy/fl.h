@@ -124,9 +124,21 @@ namespace openldacs::phy::link::fl {
                                 case 0:
                                     continue;
                                 case 1:
+                                    std::cout << "1 peak    " << t_coarse << std::endl;
+                                    for (int i = 0; i < 1; i++) {
+                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
+                                    }
+                                    std::cout << std::endl;
+
                                     popSamplesTo(t_coarse[0] - threshold);
                                     continue;
                                 case 2: {
+                                    std::cout << "2 peaks    " << t_coarse << std::endl;
+                                    for (int i = 0; i < 2; i++) {
+                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
+                                    }
+                                    std::cout << std::endl;
+
                                     if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
                                         interval, bcch13_sample, threshold)) {
                                         popSamplesTo(t_coarse[1] - threshold);
@@ -136,6 +148,12 @@ namespace openldacs::phy::link::fl {
                                     continue;
                                 }
                                 case 3: {
+                                    std::cout << "3 peaks    " << t_coarse << " ";
+                                    for (int i = 0; i < 3; i++) {
+                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
+                                    }
+                                    std::cout << std::endl;
+
                                     if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
                                         interval, bcch2_sample, threshold)) {
                                         popSamplesTo(t_coarse[2] - threshold);
@@ -143,6 +161,12 @@ namespace openldacs::phy::link::fl {
                                     continue;
                                 }
                                 case 4: {
+                                    std::cout << "4 peaks    " << t_coarse << std::endl;
+                                    for (int i = 0; i < 4; i++) {
+                                        std::cout << curr_buf[static_cast<int>(t_coarse[i])] << " ";
+                                    }
+                                    std::cout << std::endl;
+
                                     if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
                                         interval, bcch13_sample, threshold)) {
                                         popSamplesTo(t_coarse[3] - threshold);

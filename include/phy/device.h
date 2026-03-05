@@ -132,8 +132,10 @@ namespace openldacs::phy::device {
                         //         to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen)) * 0.1; // 缩放因子可根据需要调整
                         //     }
                         //
+                        //     VecCF vf(to_sync_frame.begin(), to_sync_frame.end());
+                        //
                         //     if (rx_callback_) {
-                        //         rx_callback_(to_sync_frame);
+                        //         rx_callback_(vf);
                         //     }
                         // }
                     }
@@ -154,19 +156,6 @@ namespace openldacs::phy::device {
 
                     // 降级为float，以满足fc32
                     VecCF fl_vec_cf(fl_vec.value().begin(), fl_vec.value().end());
-
-                    // if (!fl_vec_cf.empty()) {
-                    //     std::complex<float> mean(0.0f, 0.0f);
-                    //     for (const auto &s: fl_vec_cf) {
-                    //         mean += s;
-                    //     }
-                    //     mean /= static_cast<float>(fl_vec_cf.size());
-                    //
-                    //     for (auto &s: fl_vec_cf) {
-                    //         s -= mean;
-                    //     }
-                    // }
-
 
                     size_t sent_total = 0;
                     bool start_of_burst = first_trans;
@@ -204,36 +193,36 @@ namespace openldacs::phy::device {
                 tx_stream_->send("", 0, md_end);
             });
 
-            tx_async_worker_.start([&] {
-                if (!tx_stream_) {
-                    SPDLOG_ERROR("tx_async_worker cannot start: tx_stream_ is null");
-                    return;
-                }
-                while (!tx_async_worker_.stop_requested()) {
-                    uhd::async_metadata_t async_md;
-                    if (!tx_stream_->recv_async_msg(async_md, 0.1)) {
-                        continue;
-                    }
-
-                    if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW ||
-                        async_md.event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW_IN_PACKET) {
-                        SPDLOG_WARN("USRP TX underflow event: {}", static_cast<int>(async_md.event_code));
-                        continue;
-                    }
-
-                    if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_SEQ_ERROR ||
-                        async_md.event_code == uhd::async_metadata_t::EVENT_CODE_SEQ_ERROR_IN_BURST) {
-                        SPDLOG_WARN("USRP TX seq error event: {}", static_cast<int>(async_md.event_code));
-                        continue;
-                    }
-
-                    if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_TIME_ERROR) {
-                        SPDLOG_WARN("USRP TX time error event");
-                        continue;
-                    }
-                }
-            });
-
+            // tx_async_worker_.start([&] {
+            //     if (!tx_stream_) {
+            //         SPDLOG_ERROR("tx_async_worker cannot start: tx_stream_ is null");
+            //         return;
+            //     }
+            //     while (!tx_async_worker_.stop_requested()) {
+            //         uhd::async_metadata_t async_md;
+            //         if (!tx_stream_->recv_async_msg(async_md, 0.1)) {
+            //             continue;
+            //         }
+            //
+            //         if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW ||
+            //             async_md.event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW_IN_PACKET) {
+            //             SPDLOG_WARN("USRP TX underflow event: {}", static_cast<int>(async_md.event_code));
+            //             continue;
+            //         }
+            //
+            //         if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_SEQ_ERROR ||
+            //             async_md.event_code == uhd::async_metadata_t::EVENT_CODE_SEQ_ERROR_IN_BURST) {
+            //             SPDLOG_WARN("USRP TX seq error event: {}", static_cast<int>(async_md.event_code));
+            //             continue;
+            //         }
+            //
+            //         if (async_md.event_code == uhd::async_metadata_t::EVENT_CODE_TIME_ERROR) {
+            //             SPDLOG_WARN("USRP TX time error event");
+            //             continue;
+            //         }
+            //     }
+            // });
+            //
             recv_worker_.start([&] {
                 // 接收缓冲区
                 VecCF buff(recv_samples_);
