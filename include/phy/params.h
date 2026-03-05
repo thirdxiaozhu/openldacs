@@ -516,7 +516,7 @@ namespace openldacs::phy::params {
 
             if (t_coarse.size() > 3) {
             // if (1) {
-                SPDLOG_INFO("!!!!!!!!!!!!");
+                SPDLOG_INFO("!!!!!!!!!!!! {}", M1.size());
                 itpp::vec v = abs(M1);
                 std::filesystem::create_directories("dump");
                 std::ofstream ofs("dump/corr_peak.csv");

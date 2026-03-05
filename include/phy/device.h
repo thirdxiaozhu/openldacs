@@ -75,7 +75,8 @@ namespace openldacs::phy::device {
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
 
-        const double lo_offset = 0;
+        // const double lo_offset = 0;
+        const double lo_offset = 5e6;
 
         double sigma_n_ = 0.1;
 
@@ -103,7 +104,7 @@ namespace openldacs::phy::device {
 
             trans_worker_.start([&] {
 
-                bool first_trans = true;
+                // bool first_trans = true;
                 // VecCF idle_silence(recv_samples_, std::complex<float>(0.0f, 0.0f));
                 // if (!tx_stream_ || !rx_stream_) {
                 //         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
@@ -187,7 +188,7 @@ namespace openldacs::phy::device {
                     // }
                 }
 
-                // // 退出循环后，发送结束标记
+                // 退出循环后，发送结束标记
                 // uhd::tx_metadata_t md_end;
                 // md_end.end_of_burst = true;
                 // tx_stream_->send("", 0, md_end);
