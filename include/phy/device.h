@@ -77,7 +77,8 @@ namespace openldacs::phy::device {
 
         const double lo_offset = 5e6;
 
-        double sigma_n_ = 0.00001;
+        // double sigma_n_ = 0.00001;
+        double sigma_n_ = 0.1;
         // double sigma_n_ = 0.2;
 
         util::BoundedPriorityQueue<VecCD> fl_to_trans_;

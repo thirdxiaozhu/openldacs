@@ -12,9 +12,13 @@
 
 #include "phy/fl.h"
 
+#include "liquid/liquid.h"
+
 namespace openldacs::phy::params {
 
+
     void FrameInfo::getFrameIndices() {
+
         itpp::imat& pattern = frame_pattern;
 
         pattern = itpp::imat(n_fft, symbols_);
@@ -696,8 +700,11 @@ namespace openldacs::phy::params {
 
         itpp::vec t_vec = itpp::linspace(0, frame_length_td - 1, frame_length_td);
         for (int i = 0; i < num_frames; i++) {
+
             int t_current = static_cast<int>(std::round(t[i]));
             double f_current = f[i];
+
+            SPDLOG_INFO("Frame {}: CFO = {}", i, f_current);
 
             // 计算当前帧的提取索引范围
             // MATLAB: data_ind = t_fine + (0:frame_length-1) - N_cp*r_up
@@ -773,6 +780,9 @@ namespace openldacs::phy::params {
 
 
     itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input) {
+
+
+
         itpp::cmat ce_pil = channel_coeff_pil(input);
         line_int_2d(ce_pil);
         return ce_pil;
