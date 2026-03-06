@@ -295,125 +295,135 @@ namespace openldacs::phy::params {
     }
 
     void CoarseSyncParam::findReliablePeak(std::vector<int> &peak_indices, std::vector<double> &peak_values, double &reliable_peak, double &peak_freq) {
-        constexpr double relation_value = 0.7;
         const int nom_dist = (config::n_fft + config::n_cp) * sync.upsample_rate;
         const int tol = config::n_cp * sync.upsample_rate;
         const double threshold_m2 = calcPeakThreshold(M2);
 
-        double peak_value1 = 0.0;
-        int peak_ind1 = 0;
-        getPeak(M1, peak_indices[0]-tol+nom_dist, peak_indices[0]+tol+nom_dist, peak_value1, peak_ind1);
-        double peak_value2 = 0.0;
-        int peak_ind2 = 0;
-        getPeak(M1, peak_indices[0]-tol-nom_dist, peak_indices[0]+tol-nom_dist, peak_value2, peak_ind2);
+        // 基础保护：理论上调用点保证非空，这里仍做兜底，防止后续改动引入空输入崩溃。
+        if (peak_indices.empty() || peak_values.empty()) {
+            reliable_peak = 0.0;
+            peak_freq = 0.0;
+            return;
+        }
 
-        // SPDLOG_INFO("{} {}", peak_value2, peak_ind2);
-
-        // both peaks above the threshold
-        if (peak_indices.size() > 1 && std::abs(peak_indices[1] - peak_indices[0] - nom_dist) < tol) {
-            // look for peak of second correlation
-            double peak_value3 = 0.0;
-            int peak_ind3 = 0;
-            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
-
-            //   time synchronization
-            reliable_peak = std::round(
-                (peak_indices[0] * peak_values[0] + (peak_indices[1] - nom_dist) * peak_values[1] + peak_ind3 *
-                 peak_value3) / (peak_values[0] + peak_values[1] + peak_value3));
-
-            //   freq synchronization
-            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_indices[1]) * peak_values[1] +
-                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_values[1] + peak_value3);
-
-            if (peak_indices.size() >= 2) {
-                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 2);
+        // 方案 3 的核心是构建 M_combined(i) = M1(i) + M1(i + nom_dist)。
+        // 在实现上不显式分配整条 M_combined 向量，而是在搜索时按需计算，
+        // 这样可以减少一次内存分配与写入，同时保持算法语义一致。
+        const auto metricAt = [this](const int idx) -> double {
+            if (idx < 0 || idx >= M1.size()) {
+                return 0.0;
             }
-            if (peak_values.size() >= 2) {
-                peak_values.erase(peak_values.begin(), peak_values.begin() + 2);
-            }
+            return M1(idx);
+        };
 
-            // second peak above relation_value*first peak at +nom_dist
-        }else if (peak_indices.size() > 1 && peak_value1 > relation_value * peak_values[0]) {
-            double peak_value3 = 0.0;
-            int peak_ind3 = 0;
-            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
-
-            //   time synchronization
-            reliable_peak = std::round(
-                (peak_indices[0] * peak_values[0] + (peak_ind1 - nom_dist) * peak_value1 + peak_ind3 *
-                 peak_value3) / (peak_values[0] + peak_value1 + peak_value3));
-
-            //   freq synchronization
-            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
-                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
-
-            if (!peak_indices.empty()) {
-                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
-            }
-            if (!peak_values.empty()) {
-                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
-            }
-        }else if (peak_value2 > relation_value * peak_values[0]) {
-
-            double peak_value3 = 0.0;
-            int peak_ind3 = 0;
-            getPeak(M2, peak_ind2-tol, peak_ind2+tol, peak_value3, peak_ind3);
-
-            //   time synchronization
-            reliable_peak = std::round(
-                ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind2 * peak_value2 + peak_ind3 *
-                 peak_value3) / (peak_values[0] + peak_value2 + peak_value3));
-
-            //   freq synchronization
-            peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind2) * peak_value2 +
-                                freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value2 + peak_value3);
-
-            if (!peak_indices.empty()) {
-                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
-            }
-            if (!peak_values.empty()) {
-                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
-            }
-
-        }else {
-            double peak_value3 = 0.0;
-            int peak_ind3 = 0;
-            getPeak(M2, peak_indices[0]-tol, peak_indices[0]+tol, peak_value3, peak_ind3);
-
-            if (peak_value3 > relation_value * peak_values[0] || peak_value3 > threshold_m2) {
-                //   time synchronization
-                reliable_peak = std::round(
-                    (peak_indices[0] * peak_values[0] + peak_ind3 * peak_value3) / (
-                        peak_values[0] + peak_value3));
-
-                //   freq synchronization
-                peak_freq = (freq1(peak_indices[0]) * peak_values[0] +
-                                    freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value3);
-            }else {
-                getPeak(M2, peak_indices[0] - tol - nom_dist, peak_indices[0] + tol - nom_dist, peak_value3, peak_ind3);
-                if (peak_value3 > relation_value * peak_values[0] ||  peak_value3 > threshold_m2) {
-
-                    //   time synchronization
-                    reliable_peak = std::round(
-                        ((peak_indices[0] - nom_dist) * peak_values[0] + peak_ind1*peak_value1 + peak_ind3 * peak_value3) / (
-                            peak_values[0] + peak_value1 + peak_value3));
-
-                    //   freq synchronization
-                    peak_freq = (freq1(peak_indices[0]) * peak_values[0] + freq1(peak_ind1) * peak_value1 +
-                                        freq2(peak_ind3) * peak_value3) / (peak_values[0] + peak_value1 + peak_value3);
-                }else {
-                    reliable_peak = peak_indices[0] - nom_dist;
-                    peak_freq = freq1(peak_indices[0]);
+        // 在给定闭区间 [start, end] 里查找 M_combined 最大点。
+        // 由于需要访问 i + nom_dist，因此右边界必须额外受 M1.size() - 1 - nom_dist 限制。
+        const auto findBestCombinedInRange =
+            [this, &metricAt, nom_dist](const int start, const int end, double &best_score) -> int {
+                const int valid_start = std::max(start, 0);
+                const int valid_end = std::min(end, M1.size() - 1 - nom_dist);
+                if (valid_start > valid_end) {
+                    best_score = -1.0;
+                    return -1;
                 }
-            }
-            if (!peak_indices.empty()) {
-                peak_indices.erase(peak_indices.begin(), peak_indices.begin() + 1);
-            }
-            if (!peak_values.empty()) {
-                peak_values.erase(peak_values.begin(), peak_values.begin() + 1);
+
+                int best_index = valid_start;
+                best_score = metricAt(valid_start) + metricAt(valid_start + nom_dist);
+                for (int i = valid_start + 1; i <= valid_end; ++i) {
+                    const double combined_score = metricAt(i) + metricAt(i + nom_dist);
+                    if (combined_score > best_score) {
+                        best_score = combined_score;
+                        best_index = i;
+                    }
+                }
+                return best_index;
+            };
+
+        // 当前 while 循环每次传入“最靠前的候选峰”作为种子。
+        // 为了兼容 seed 可能对应 sy1 或 sy2 两种情况，分别做两段局部搜索：
+        // 1) 以 seed 作为 sy1 近邻；
+        // 2) 以 seed - nom_dist 作为 sy1 近邻（即 seed 更像 sy2）。
+        const int seed = peak_indices[0];
+        double score_a = -1.0;
+        double score_b = -1.0;
+        const int best_a = findBestCombinedInRange(seed - tol, seed + tol, score_a);
+        const int best_b = findBestCombinedInRange(seed - nom_dist - tol, seed - nom_dist + tol, score_b);
+
+        int best_index = -1;
+        double best_score = -1.0;
+        if (best_a >= 0 && score_a >= best_score) {
+            best_index = best_a;
+            best_score = score_a;
+        }
+        if (best_b >= 0 && score_b > best_score) {
+            best_index = best_b;
+            best_score = score_b;
+        }
+
+        // 极端边界保护：如果两个局部窗口都无效，退化到“把 seed 裁剪到合法区间”。
+        // 这样即便输入长度异常，也能返回可解释结果，而不会越界。
+        if (best_index < 0) {
+            const int valid_upper = std::max(0, M1.size() - 1 - nom_dist);
+            best_index = std::min(std::max(seed, 0), valid_upper);
+            best_score = metricAt(best_index) + metricAt(best_index + nom_dist);
+        }
+
+        // 用 M2 在两处候选位置做精细峰值确认：
+        // - best_index          对应 sy1
+        // - best_index+nom_dist 对应 sy2
+        // 只有超过 M2 的动态阈值才被视为“可靠精细峰”。
+        double peak_value_m2_1 = 0.0;
+        double peak_value_m2_2 = 0.0;
+        int peak_ind_m2_1 = best_index;
+        int peak_ind_m2_2 = best_index + nom_dist;
+        getPeak(M2, best_index - tol, best_index + tol, peak_value_m2_1, peak_ind_m2_1);
+        getPeak(M2, best_index + nom_dist - tol, best_index + nom_dist + tol, peak_value_m2_2, peak_ind_m2_2);
+
+        const bool valid_m2_1 = peak_value_m2_1 > threshold_m2;
+        const bool valid_m2_2 = peak_value_m2_2 > threshold_m2;
+
+        // 时间与频偏输出优先级：
+        // 1) 两个 M2 峰都可靠 -> 用加权平均，抗噪声最稳；
+        // 2) 仅一个可靠       -> 用单峰结果，容忍单符号深衰落；
+        // 3) 全不可靠         -> 回退到 M1 的 M_combined 最优点。
+        if (valid_m2_1 && valid_m2_2) {
+            reliable_peak = std::round(
+                (peak_ind_m2_1 * peak_value_m2_1 + (peak_ind_m2_2 - nom_dist) * peak_value_m2_2) /
+                (peak_value_m2_1 + peak_value_m2_2)
+            );
+            peak_freq = (freq2(peak_ind_m2_1) * peak_value_m2_1 + freq2(peak_ind_m2_2) * peak_value_m2_2) /
+                        (peak_value_m2_1 + peak_value_m2_2);
+        } else if (valid_m2_1) {
+            reliable_peak = peak_ind_m2_1;
+            peak_freq = freq2(peak_ind_m2_1);
+        } else if (valid_m2_2) {
+            reliable_peak = peak_ind_m2_2 - nom_dist;
+            peak_freq = freq2(peak_ind_m2_2);
+        } else {
+            reliable_peak = best_index;
+            peak_freq = freq1(best_index);
+        }
+
+        // 与本次检测实例相关的粗峰需要从队列中移除，避免 while 循环重复输出同一帧。
+        // 移除规则：落在 sy1/sy2 两个容差窗口中的峰都视为“已消费”。
+        bool removed_any = false;
+        const int sy1_center = best_index;
+        const int sy2_center = best_index + nom_dist;
+        for (int i = static_cast<int>(peak_indices.size()) - 1; i >= 0; --i) {
+            const bool in_sy1_window = std::abs(peak_indices[i] - sy1_center) <= tol;
+            const bool in_sy2_window = std::abs(peak_indices[i] - sy2_center) <= tol;
+            if (in_sy1_window || in_sy2_window) {
+                peak_indices.erase(peak_indices.begin() + i);
+                peak_values.erase(peak_values.begin() + i);
+                removed_any = true;
             }
         }
 
+        // 如果由于阈值/窗口关系未命中任何候选，至少弹出一个元素，确保 while 循环推进。
+        if (!removed_any && !peak_indices.empty() && !peak_values.empty()) {
+            peak_indices.erase(peak_indices.begin());
+            peak_values.erase(peak_values.begin());
+        }
     }
 
     void CoarseSyncParam::getPeak(const itpp::vec &input, const int start, const int end, double &peak_value, int &peak_ind) {
@@ -858,12 +868,10 @@ namespace openldacs::phy::params {
     }
 
     void ChannelEstimate::line_int_2d(itpp::cmat &input) {
-        // SPDLOG_INFO("{} {} {}", input.size(), input.rows(), input.cols());
-        // TODO: 判断rl
-        //     if strcmp(transmission, 'rl')
-        //          N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
-        //     end
-
+        // 判断rl 等逻辑保留
+        // if strcmp(transmission, 'rl')
+        //      N_ofdm_symb = N_ofdm_symb*ce_param.N_tile_joint/2;
+        // end
 
         const int total_cols = input.cols();
         if (total_cols % ofdm_symb_ != 0) {
@@ -876,19 +884,26 @@ namespace openldacs::phy::params {
 
         for (int i = 0; i < num_frames; ++i) {
             const int col_offset = i * ofdm_symb_;
+
             for (int k = 0; k < data_ind.size(); k++) {
                 const auto data_idx = data_ind[k];
                 const int dr = data_idx % n_fft;
                 const int dc = col_offset + data_idx / n_fft;
 
-                const auto& pilot_idx_vec = pilot_ind_cell[k];
-                const auto& pilot_dist_vec = pilot_dist_cell[k];
+                const auto &pilot_idx_vec = pilot_ind_cell[k];
+                const auto &pilot_dist_vec = pilot_dist_cell[k];
 
                 if (pilot_idx_vec.empty() || pilot_idx_vec.size() != pilot_dist_vec.size()) {
                     continue;
                 }
-                std::complex<double> acc(0.0, 0.0);
+
+                double acc_mag = 0.0;
+                double acc_phase = 0.0;
                 double wsum = 0.0;
+
+                // 用于记录参考相位，防止相位插值时发生 +180度和-180度的跳变抵消
+                bool ref_set = false;
+                double ref_phase = 0.0;
 
                 for (size_t m = 0; m < pilot_idx_vec.size(); ++m) {
                     if (pilot_dist_vec[m] <= eps) continue;
@@ -897,17 +912,49 @@ namespace openldacs::phy::params {
                     const int pr = pilot_idx_vec[m] % n_fft;
                     const int pc = col_offset + pilot_idx_vec[m] / n_fft;
 
-                    acc += w * input(pr, pc);
+                    std::complex<double> pilot_val = input(pr, pc);
+
+                    // 1. 提取第一个有效导频相位作为基准点
+                    if (!ref_set) {
+                        ref_phase = std::arg(pilot_val);
+                        ref_set = true;
+                    }
+
+                    // 2. 幅度直接加权累加
+                    acc_mag += w * std::abs(pilot_val);
+
+                    // 3. 相位解卷绕 (Phase Unwrapping)
+                    double phase = std::arg(pilot_val);
+                    // 强制将当前相位映射到与参考相位之差在 [-PI, PI] 之间
+                    while (phase - ref_phase > M_PI) {
+                        phase -= 2 * M_PI;
+                    }
+                    while (phase - ref_phase < -M_PI) {
+                        phase += 2 * M_PI;
+                    }
+
+                    // 相位加权累加
+                    acc_phase += w * phase;
                     wsum += w;
                 }
 
-                input(dr, dc) = (wsum > eps) ? (acc / wsum) : tiny;
+                if (wsum > eps) {
+                    double final_mag = acc_mag / wsum;
+                    double final_phase = acc_phase / wsum;
+                    // 4. 将插值后的幅度和相位重新组合成复数
+                    input(dr, dc) = std::polar(final_mag, final_phase);
+                } else {
+                    input(dr, dc) = tiny;
+                }
             }
         }
 
+        // 后处理：防止矩阵中出现绝对零值导致后续均衡除以 0
         for (int c = 0; c < input.cols(); ++c) {
             for (int r = 0; r < input.rows(); ++r) {
-                if (std::abs(input(r, c)) <= eps) input(r, c) = tiny;
+                if (std::abs(input(r, c)) <= eps) {
+                    input(r, c) = tiny;
+                }
             }
         }
     }

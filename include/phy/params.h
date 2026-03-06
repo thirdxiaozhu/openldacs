@@ -514,18 +514,14 @@ namespace openldacs::phy::params {
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
 
-            if (t_coarse.size() > 3) {
-            // if (1) {
-                SPDLOG_INFO("!!!!!!!!!!!! {}", M1.size());
+            if (M1.length() > 12000) {
                 itpp::vec v = abs(M1);
                 std::filesystem::create_directories("dump");
                 std::ofstream ofs("dump/corr_peak.csv");
                 for (int i = 0; i < v.length(); ++i) {
                     ofs << i << "," << v(i) << "\n";
                 }
-
             }
-
         }
     private:
         void frameSync(const itpp::cvec &input);
@@ -733,12 +729,16 @@ namespace openldacs::phy::params {
                 }
             }
 
-            dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
+            if (!tt) {
+                dump_cmat_constellation(data_equ, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
+                tt++;
+            }
         }
     private:
         device::DevPtr& dev_;
         FrameInfo frame_info_;
         int ofdm_symb_;
+        int tt = 0;
     };
 
     struct HelicalInterleaverParams {
