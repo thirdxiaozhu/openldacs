@@ -384,7 +384,6 @@ namespace openldacs::phy::link::fl {
                                        mod_type, const CodingParams &params) {
         itpp::cmat data_time;
 
-        SPDLOG_WARN("{}", input.size());
         f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
         const itpp::cmat data_freq_up = matrixFft(data_time);
         const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);

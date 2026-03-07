@@ -78,13 +78,13 @@ namespace openldacs::phy::device {
         const double lo_offset = 5e6;
 
         // double sigma_n_ = 0.00001;
-        double sigma_n_ = 0.3;
+        double sigma_n_ = 0.05;
         // double sigma_n_ = 0.2;
 
-        util::BoundedPriorityQueue<VecCD> fl_to_trans_;
-        util::Worker trans_worker_;
-        util::Worker recv_worker_;
-        util::Worker tx_async_worker_;
+        BoundedPriorityQueue<VecCD> fl_to_trans_;
+        Worker trans_worker_;
+        Worker recv_worker_;
+        Worker tx_async_worker_;
 
         RxCallbackType rx_callback_;
 
