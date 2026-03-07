@@ -427,9 +427,8 @@ namespace openldacs::phy::link::fl {
 
         // 通过 ZMQ 发送这段内存
         zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(std::complex<float>));
-        config_.zmq_pub_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
+        config_.zmq_pub_cons_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
         // ------------------------------
-
 
 
         const itpp::mat demod = demodulate(data_equ, sigma2_sum, mod_type); // 临时参数

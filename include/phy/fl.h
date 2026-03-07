@@ -652,14 +652,14 @@ namespace openldacs::phy::link::fl {
         struct FLConfig {
             explicit FLConfig(device::DevPtr& dev): sink_(dev), source_(dev) {
                 // 在初始化代码中绑定端口
-                zmq_pub_.bind("tcp://127.0.0.1:5555");
+                zmq_pub_cons_.bind("tcp://127.0.0.1:5555");
             }
             PhySink sink_;
             PhySource source_;
 
             // 作为类的成员变量
-            zmq::context_t zmq_ctx_{1};
-            zmq::socket_t zmq_pub_{zmq_ctx_, zmq::socket_type::pub};
+            zmq::context_t zmq_ctx_cons_{1};
+            zmq::socket_t zmq_pub_cons_{zmq_ctx_cons_, zmq::socket_type::pub};
 
         };
 

@@ -508,6 +508,14 @@ namespace openldacs::phy::params {
         itpp::vec freq1;
         itpp::vec freq2;
 
+        zmq::context_t zmq_ctx_peak_{1};
+        zmq::socket_t zmq_pub_peak_{zmq_ctx_peak_, zmq::socket_type::pub};
+
+
+        explicit CoarseSyncParam(){
+                zmq_pub_peak_.bind("tcp://127.0.0.1:6666");
+        }
+
         void coarseSync(const itpp::cvec &input, std::vector<double> &t_coarse, std::vector<double> &f_coarse) {
             t_coarse.clear();
             f_coarse.clear();
@@ -522,7 +530,26 @@ namespace openldacs::phy::params {
                     ofs << i << "," << v(i) << "\n";
                 }
             }
+
+            // --- [ZMQ 实时数据发送模块] ---
+            // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
+            std::vector<float> gr_buffer;
+            gr_buffer.reserve(M1.length());
+
+            for (int i = 0; i < M1.length(); ++i) {
+                // 取出有效的数据符号 (如果你的 data_equ 里包含了不需要画图的导频，可以在这里滤除)
+                gr_buffer.emplace_back(
+                    static_cast<float>(M1(i))
+                );
+            }
+
+            // 通过 ZMQ 发送这段内存
+            zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(float));
+            zmq_pub_peak_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
+            // ------------------------------
         }
+
+
     private:
         void frameSync(const itpp::cvec &input);
         void findSyncInstances(std::vector<double> &t_coarse, std::vector<double> &f_coarse);
