@@ -8,6 +8,8 @@
 #include <itpp/base/specmat.h>
 #include <uhd/usrp/multi_usrp.hpp>
 
+#include <atomic>
+
 #include "openldacs.h"
 #include "util/queue.h"
 #include "util/util.h"
@@ -45,12 +47,12 @@ namespace openldacs::phy::device {
             rx_callback_ = cb;
         }
 
-        void setNoisePowerDb(const double new_noise_power_db) {
-            noise_power_db_ = new_noise_power_db;
+        void setSnrDb(const double new_snr_db) {
+            snr_db_.store(new_snr_db);
         }
 
-        double getNoisePowerDb() const {
-            return noise_power_db_;
+        double getSnrDb() const {
+            return snr_db_.load();
         }
 
         double getSigmaN() const {
@@ -58,7 +60,7 @@ namespace openldacs::phy::device {
         }
 
         double getNoisePowerLinear() const {
-            return std::pow(10.0, noise_power_db_ / 10.0);
+            return last_noise_power_linear_.load();
         }
 
         virtual ~Device() noexcept {
@@ -85,7 +87,8 @@ namespace openldacs::phy::device {
 
         const double lo_offset = 5e6;
 
-        double noise_power_db_ = -12.0;
+        std::atomic<double> snr_db_ = 2.0;
+        std::atomic<double> last_noise_power_linear_ = 0.0;
 
         BoundedPriorityQueue<VecCD> fl_to_trans_;
         Worker trans_worker_;
@@ -133,8 +136,20 @@ namespace openldacs::phy::device {
                         if (fl_vec.has_value()) {
                             VecCD to_sync_frame = fl_vec.value();
 
-                            // 生成高斯白噪声
-                            std::normal_distribution<double> dis(0.0, getSigmaN());
+                            double signal_power = 0.0;
+                            for (const auto &sample : to_sync_frame) {
+                                signal_power += std::norm(sample);
+                            }
+                            if (!to_sync_frame.empty()) {
+                                signal_power /= static_cast<double>(to_sync_frame.size());
+                            }
+
+                            const double snr_linear = std::pow(10.0, getSnrDb() / 10.0);
+                            const double noise_power = snr_linear > 0.0 ? signal_power / snr_linear : 0.0;
+                            last_noise_power_linear_.store(noise_power);
+
+                            const double sigma_n = std::sqrt(noise_power / 2.0);
+                            std::normal_distribution<double> dis(0.0, sigma_n);
 
                             for (size_t i = 0; i < fl_vec->size(); ++i) {
                                 to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen));
