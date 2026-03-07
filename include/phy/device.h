@@ -45,12 +45,20 @@ namespace openldacs::phy::device {
             rx_callback_ = cb;
         }
 
-        void setSigmaN(const double new_sigma) {
-            sigma_n_ = new_sigma;
+        void setNoisePowerDb(const double new_noise_power_db) {
+            noise_power_db_ = new_noise_power_db;
+        }
+
+        double getNoisePowerDb() const {
+            return noise_power_db_;
         }
 
         double getSigmaN() const {
-            return sigma_n_;
+            return std::sqrt(getNoisePowerLinear() / 2.0);
+        }
+
+        double getNoisePowerLinear() const {
+            return std::pow(10.0, noise_power_db_ / 10.0);
         }
 
         virtual ~Device() noexcept {
@@ -77,9 +85,7 @@ namespace openldacs::phy::device {
 
         const double lo_offset = 5e6;
 
-        // double sigma_n_ = 0.00001;
-        double sigma_n_ = 0.05;
-        // double sigma_n_ = 0.2;
+        double noise_power_db_ = -12.0;
 
         BoundedPriorityQueue<VecCD> fl_to_trans_;
         Worker trans_worker_;
@@ -128,7 +134,7 @@ namespace openldacs::phy::device {
                             VecCD to_sync_frame = fl_vec.value();
 
                             // 生成高斯白噪声
-                            std::normal_distribution<double> dis(0.0, sigma_n_);
+                            std::normal_distribution<double> dis(0.0, getSigmaN());
 
                             for (size_t i = 0; i < fl_vec->size(); ++i) {
                                 to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen));
