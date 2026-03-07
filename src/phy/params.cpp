@@ -586,9 +586,6 @@ namespace openldacs::phy::params {
                                      f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine) {
         const int symb_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
-        std::cout << t_coarse << std::endl;
-        std::cout << f_coarse << std::endl;
-
         for (int i = 0; i < t_coarse.size(); ++i) {
             const int frame_len = ofdm_symb_ * symb_bamc;
             // const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;

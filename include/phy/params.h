@@ -522,14 +522,14 @@ namespace openldacs::phy::params {
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
 
-            if (M1.length() > 12000) {
-                itpp::vec v = abs(M1);
-                std::filesystem::create_directories("dump");
-                std::ofstream ofs("dump/corr_peak.csv");
-                for (int i = 0; i < v.length(); ++i) {
-                    ofs << i << "," << v(i) << "\n";
-                }
-            }
+            // if (M1.length() > 12000) {
+            //     itpp::vec v = abs(M1);
+            //     std::filesystem::create_directories("dump");
+            //     std::ofstream ofs("dump/corr_peak.csv");
+            //     for (int i = 0; i < v.length(); ++i) {
+            //         ofs << i << "," << v(i) << "\n";
+            //     }
+            // }
 
             // --- [ZMQ 实时数据发送模块] ---
             // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
@@ -547,6 +547,10 @@ namespace openldacs::phy::params {
             zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(float));
             zmq_pub_peak_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
             // ------------------------------
+
+            std::cout << t_coarse << std::endl;
+            std::cout << f_coarse << std::endl;
+
         }
 
 
