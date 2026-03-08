@@ -80,12 +80,12 @@ namespace openldacs::phy::device {
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         // Loopback debug defaults: keep TX low to avoid front-end saturation.
         const double tx_gain_ = 80.0;
-        const double rx_gain_ = 20.0;
+        const double rx_gain_ = 40.0;
 
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
 
-        const double lo_offset = 5e6;
+        const double lo_offset = 1e6;
 
         std::atomic<double> snr_db_ = 2.0;
         std::atomic<double> last_noise_power_linear_ = 0.0;

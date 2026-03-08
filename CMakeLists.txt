@@ -16,7 +16,7 @@ add_subdirectory(${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct)
 
 add_library(openldacs OBJECT)
 include_directories(include ${OPENLDACS_THIRDPARTY_DIR}/openldacs-correct/include)
-target_link_libraries(openldacs LINK_PUBLIC spdlog::spdlog itpp correct uhd zmq liquid ${Boost_PROGRAM_OPTIONS_LIBRARY})
+target_link_libraries(openldacs LINK_PUBLIC spdlog::spdlog itpp correct uhd zmq ${Boost_PROGRAM_OPTIONS_LIBRARY})
 add_subdirectory(src)
 add_subdirectory(example)
 add_subdirectory(tests)
