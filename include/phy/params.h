@@ -540,8 +540,13 @@ namespace openldacs::phy::params {
             // ------------------------------
 
             std::cout << t_coarse << std::endl;
-            std::cout << f_coarse << std::endl;
 
+            if (t_coarse[0] > 4200) {
+                itpp::vec v = abs(M1);
+                std::filesystem::create_directories("dump");
+                std::ofstream ofs("dump/corr_peak.csv");
+                for (int i = 0; i < v.length(); ++i) { ofs << i << "," << v(i) << "\n"; }
+            }
         }
 
 
