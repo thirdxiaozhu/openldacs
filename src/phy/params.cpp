@@ -12,9 +12,13 @@
 
 #include "phy/fl.h"
 
+#include "liquid/liquid.h"
+
 namespace openldacs::phy::params {
 
+
     void FrameInfo::getFrameIndices() {
+
         itpp::imat& pattern = frame_pattern;
 
         pattern = itpp::imat(n_fft, symbols_);
@@ -582,9 +586,6 @@ namespace openldacs::phy::params {
                                      f_coarse, std::vector<double> &t_fine, std::vector<double> &f_fine) {
         const int symb_bamc = (config::n_fft + config::n_cp) * sync.upsample_rate;
 
-        std::cout << t_coarse << std::endl;
-        std::cout << f_coarse << std::endl;
-
         for (int i = 0; i < t_coarse.size(); ++i) {
             const int frame_len = ofdm_symb_ * symb_bamc;
             // const int start_idx = static_cast<int>(std::llround(t_coarse[i])) - 1;
@@ -696,8 +697,11 @@ namespace openldacs::phy::params {
 
         itpp::vec t_vec = itpp::linspace(0, frame_length_td - 1, frame_length_td);
         for (int i = 0; i < num_frames; i++) {
+
             int t_current = static_cast<int>(std::round(t[i]));
             double f_current = f[i];
+
+            SPDLOG_INFO("Frame {}: CFO = {}", i, f_current);
 
             // 计算当前帧的提取索引范围
             // MATLAB: data_ind = t_fine + (0:frame_length-1) - N_cp*r_up
@@ -773,6 +777,9 @@ namespace openldacs::phy::params {
 
 
     itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input) {
+
+
+
         itpp::cmat ce_pil = channel_coeff_pil(input);
         line_int_2d(ce_pil);
         return ce_pil;

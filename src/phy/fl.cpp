@@ -383,6 +383,7 @@ namespace openldacs::phy::link::fl {
     void FLChannelHandler::recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ModulationType
                                        mod_type, const CodingParams &params) {
         itpp::cmat data_time;
+
         f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
         const itpp::cmat data_freq_up = matrixFft(data_time);
         const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
@@ -391,7 +392,43 @@ namespace openldacs::phy::link::fl {
 
         itpp::cmat data_equ;
         itpp::mat sigma2_sum;
+
+        // // ------------------- [调试注入开始] -------------------
+        // // 2. 提取第一列的信道估计（假设 index 0 对应 Preamble 或第一个有效符号）
+        // // 如果你的 LDACS 帧结构中 Preamble 在其他列，请修改此处的索引
+        // itpp::cvec static_chan_col = chan_coeff_mat.get_col(2);
+        //
+        // SPDLOG_WARN("{} {}", chan_coeff_mat.rows(), chan_coeff_mat.cols());
+        //
+        // // 3. 创建一个与原矩阵同维度的新矩阵，并将所有列都强制替换为第一列
+        // itpp::cmat static_chan_coeff_mat(chan_coeff_mat.rows(), chan_coeff_mat.cols());
+        // for (int i = 0; i < chan_coeff_mat.cols(); ++i) {
+        //     static_chan_coeff_mat.set_col(i, static_chan_col);
+        // }
+        // // ------------------- [调试注入结束] -------------------
+        // equalizer_.equalize(data_freq, static_chan_coeff_mat, data_equ, sigma2_sum);
+
         equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
+
+        // --- [ZMQ 实时数据发送模块] ---
+        // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
+        itpp::cvec data_equ_vec = itpp::cvectorize(data_equ); // 先展平成一维向量
+        std::vector<std::complex<float>> gr_buffer;
+        gr_buffer.reserve(data_equ_vec.length());
+
+        for (int i = 0; i < data_equ_vec.length(); ++i) {
+            // 取出有效的数据符号 (如果你的 data_equ 里包含了不需要画图的导频，可以在这里滤除)
+            gr_buffer.emplace_back(
+                static_cast<float>(std::real(data_equ_vec(i))),
+                static_cast<float>(std::imag(data_equ_vec(i)))
+            );
+        }
+
+        // 通过 ZMQ 发送这段内存
+        zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(std::complex<float>));
+        config_.zmq_pub_cons_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
+        // ------------------------------
+
 
         const itpp::mat demod = demodulate(data_equ, sigma2_sum, mod_type); // 临时参数
 

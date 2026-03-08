@@ -88,9 +88,7 @@ namespace openldacs::phy::link::fl {
     public:
         using ChRxCallbackType = std::function<void(const itpp::cvec &, const std::vector<double> &, const std::vector<double> &)>;
 
-        explicit PhySource(device::DevPtr& dev): dev_(dev), context(1), publisher(context, ZMQ_PUB) {
-
-            publisher.bind("tcp://127.0.0.1:5555");
+        explicit PhySource(device::DevPtr& dev): dev_(dev){
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([&](const VecCF &f) {
@@ -481,7 +479,6 @@ namespace openldacs::phy::link::fl {
                           const std::vector<double> &f_coarse, const ChannelSlot ch,
                           const char* stage) const noexcept {
             try {
-                SPDLOG_ERROR(" {}", in_f.length());
                 fineSync(in_f, t_coarse, f_coarse, ch);
                 return true;
             } catch (const std::exception& e) {
@@ -534,8 +531,6 @@ namespace openldacs::phy::link::fl {
         double track_pll_integrator_ = 0.0;
         double track_pll_control_ = 0.0;
 
-        zmq::context_t context;
-        zmq::socket_t publisher;
     };
 
     class PhySink {
@@ -656,9 +651,16 @@ namespace openldacs::phy::link::fl {
     public:
         struct FLConfig {
             explicit FLConfig(device::DevPtr& dev): sink_(dev), source_(dev) {
+                // 在初始化代码中绑定端口
+                zmq_pub_cons_.bind("tcp://127.0.0.1:5555");
             }
             PhySink sink_;
             PhySource source_;
+
+            // 作为类的成员变量
+            zmq::context_t zmq_ctx_cons_{1};
+            zmq::socket_t zmq_pub_cons_{zmq_ctx_cons_, zmq::socket_type::pub};
+
         };
 
         explicit PhyFl(device::DevPtr& dev)
@@ -703,6 +705,8 @@ namespace openldacs::phy::link::fl {
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const FrameInfo& frame() const noexcept { return frame_info_; }
+
+
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
