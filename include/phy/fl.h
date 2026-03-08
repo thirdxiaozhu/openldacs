@@ -88,7 +88,12 @@ namespace openldacs::phy::link::fl {
     public:
         using ChRxCallbackType = std::function<void(const itpp::cvec &, const std::vector<double> &, const std::vector<double> &)>;
 
+        zmq::context_t zmq_ctx_raw_{1};
+        zmq::socket_t zmq_pub_raw_{zmq_ctx_raw_, zmq::socket_type::pub};
+
         explicit PhySource(device::DevPtr& dev): dev_(dev){
+
+            zmq_pub_raw_.bind("tcp://127.0.0.1:7777");
 
             // 向dev注册接收回调队列
             dev->registerRxCallback([&](const VecCF &f) {
@@ -96,6 +101,11 @@ namespace openldacs::phy::link::fl {
                     SPDLOG_WARN("SampleBuffer full, drop rx chunk: {} samples", f.size());
                 }
                 SPDLOG_INFO("================ {}", sample_buffer.size());
+
+
+                zmq::message_t zmq_msg(f.data(), f.size() * sizeof(VecCF::value_type));
+                zmq_pub_raw_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
+
             });
 
             source_worker_.start([&] {

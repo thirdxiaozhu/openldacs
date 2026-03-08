@@ -77,15 +77,15 @@ namespace openldacs::phy::device {
         uint8_t role_;
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         // Loopback debug defaults: keep TX low to avoid front-end saturation.
-        const double tx_gain_ = 40.0;
-        const double rx_gain_ = 20.0;
+        const double tx_gain_ = 80.0;
+        const double rx_gain_ = 40.0;
 
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
 
-        const double lo_offset = 5e6;
+        const double lo_offset = 1e6;
 
-        double noise_power_db_ = -12.0;
+        double noise_power_db_ = -30.0;
 
         BoundedPriorityQueue<VecCD> fl_to_trans_;
         Worker trans_worker_;
@@ -107,18 +107,46 @@ namespace openldacs::phy::device {
             tx_args_("fc32"),
             rx_args_("fc32")
         {
-            // setupDevice();
+            setupDevice();
 
             trans_worker_.start([&] {
 
-                bool first_trans = true;
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                // VecCF idle_silence(recv_samples_, std::complex<float>(0.0f, 0.0f));
-                // if (!tx_stream_ || !rx_stream_) {
-                //         SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
-                //         return;
+                // // 在进入循环前构造好假数据和元数据
+                // VecCF dummy_tx_buff(1024, std::complex<float>(0.5f, 0.0f));
+                // uhd::tx_metadata_t md;
+                // md.start_of_burst = true;
+                // md.end_of_burst = false;
+                //
+                // SPDLOG_INFO("开始连续发射单音测试信号...");
+                //
+                // // 真正的连续发送测试，只受 stop_requested 控制
+                // while (!trans_worker_.stop_requested()) {
+                //
+                //     // 持续向 TX FIFO 中塞数据
+                //     const size_t sent_now = tx_stream_->send(
+                //         &dummy_tx_buff[0], dummy_tx_buff.size(), md, 1.0);
+                //
+                //     if (sent_now == 0) {
+                //         SPDLOG_WARN("USRP TX send returned 0");
+                //         break; // 可能是流被强制关闭了
+                //     }
+                //
+                //     // 只有第一个 buffer 需要标记 burst 开始
+                //     md.start_of_burst = false;
                 // }
+                //
+                // // 退出循环时，告诉 USRP 发送结束，刷新剩余缓存
+                // md.end_of_burst = true;
+                // tx_stream_->send("", 0, md, 1.0);
+
+                // std::random_device rd;
+                // std::mt19937 gen(rd());
+                bool first_trans = true;
+                VecCF idle_silence(recv_samples_, std::complex<float>(0.0f, 0.0f));
+                if (!tx_stream_ || !rx_stream_) {
+                        SPDLOG_ERROR("get_tx_stream failed! tx_stream_ / rx_stream_ is null");
+                        return;
+                }
                 while (!trans_worker_.stop_requested()) {
                     std::optional<VecCD> fl_vec;
                     VecCD fl_try_pop;
@@ -133,72 +161,71 @@ namespace openldacs::phy::device {
                         if (fl_vec.has_value()) {
                             VecCD to_sync_frame = fl_vec.value();
 
-                            // 生成高斯白噪声
-                            std::normal_distribution<double> dis(0.0, getSigmaN());
-
-                            for (size_t i = 0; i < fl_vec->size(); ++i) {
-                                to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen));
-                            }
-
-                            VecCF vf(to_sync_frame.begin(), to_sync_frame.end());
-
-                            if (rx_callback_) {
-                                rx_callback_(vf);
-                            }
+                            // // 生成高斯白噪声
+                            // std::normal_distribution<double> dis(0.0, getSigmaN());
+                            //
+                            // for (size_t i = 0; i < fl_vec->size(); ++i) {
+                            //     to_sync_frame[i] += std::complex<double>(dis(gen), dis(gen));
+                            // }
+                            //
+                            // VecCF vf(to_sync_frame.begin(), to_sync_frame.end());
+                            //
+                            // if (rx_callback_) {
+                            //     rx_callback_(vf);
+                            // }
                         }
                     }
 
-                    // if (!fl_vec.has_value() || fl_vec->empty()) {
-                    //     uhd::tx_metadata_t md;
-                    //     md.start_of_burst = first_trans;
-                    //     md.end_of_burst = false;
-                    //     const size_t sent_idle = tx_stream_->send(
-                    //         idle_silence.data(), idle_silence.size(), md, 0.2);
-                    //     if (sent_idle == 0) {
-                    //         SPDLOG_WARN("USRP TX idle send returned 0");
-                    //     } else {
-                    //         first_trans = false;
-                    //     }
-                    //     continue;
-                    // }
-                    //
-                    // // 降级为float，以满足fc32
-                    // VecCF fl_vec_cf(fl_vec.value().begin(), fl_vec.value().end());
-                    //
-                    // size_t sent_total = 0;
-                    // bool start_of_burst = first_trans;
-                    // while (sent_total < fl_vec_cf.size() && !trans_worker_.stop_requested()) {
-                    //     uhd::tx_metadata_t md;
-                    //     md.start_of_burst = start_of_burst;
-                    //     md.end_of_burst = false; // 如果没数据的话，会UUUUUU
-                    //     // std::cout << fl_vec_cf << std::endl;
-                    //
-                    //
-                    //     const size_t sent_now = tx_stream_->send(
-                    //         &fl_vec_cf[sent_total], fl_vec_cf.size() - sent_total, md, 1.0);
-                    //     if (sent_now == 0) {
-                    //         SPDLOG_WARN(
-                    //             "USRP TX send returned 0, drop remaining {} samples",
-                    //             fl_vec_cf.size() - sent_total);
-                    //         break;
-                    //     }
-                    //
-                    //     sent_total += sent_now;
-                    //     start_of_burst = false;
-                    // }
-                    //
-                    // if (sent_total < fl_vec_cf.size()) {
-                    //     SPDLOG_WARN("USRP TX short send: {}/{}", sent_total, fl_vec_cf.size());
-                    // }
-                    // if (sent_total > 0) {
-                    //     first_trans = false;
-                    // }
+                    if (!fl_vec.has_value() || fl_vec->empty()) {
+                        uhd::tx_metadata_t md;
+                        md.start_of_burst = first_trans;
+                        md.end_of_burst = false;
+                        const size_t sent_idle = tx_stream_->send(
+                            idle_silence.data(), idle_silence.size(), md, 0.2);
+                        if (sent_idle == 0) {
+                            SPDLOG_WARN("USRP TX idle send returned 0");
+                        } else {
+                            first_trans = false;
+                        }
+                        continue;
+                    }
+
+                    // 降级为float，以满足fc32
+                    VecCF fl_vec_cf(fl_vec.value().begin(), fl_vec.value().end());
+
+                    size_t sent_total = 0;
+                    bool start_of_burst = first_trans;
+                    while (sent_total < fl_vec_cf.size() && !trans_worker_.stop_requested()) {
+                        uhd::tx_metadata_t md;
+                        md.start_of_burst = start_of_burst;
+                        md.end_of_burst = false; // 如果没数据的话，会UUUUUU
+                        // std::cout << fl_vec_cf << std::endl;
+
+                        const size_t sent_now = tx_stream_->send(
+                            &fl_vec_cf[sent_total], fl_vec_cf.size() - sent_total, md, 1.0);
+                        if (sent_now == 0) {
+                            SPDLOG_WARN(
+                                "USRP TX send returned 0, drop remaining {} samples",
+                                fl_vec_cf.size() - sent_total);
+                            break;
+                        }
+
+                        sent_total += sent_now;
+                        start_of_burst = false;
+                    }
+
+                    if (sent_total < fl_vec_cf.size()) {
+                        SPDLOG_WARN("USRP TX short send: {}/{}", sent_total, fl_vec_cf.size());
+                    }
+                    if (sent_total > 0) {
+                        first_trans = false;
+                    }
                 }
 
-                // // 退出循环后，发送结束标记
-                // uhd::tx_metadata_t md_end;
-                // md_end.end_of_burst = true;
-                // tx_stream_->send("", 0, md_end);
+                // 退出循环后，发送结束标记
+                uhd::tx_metadata_t md_end;
+                md_end.end_of_burst = true;
+                tx_stream_->send("", 0, md_end);
             });
 
             // tx_async_worker_.start([&] {
@@ -232,46 +259,41 @@ namespace openldacs::phy::device {
             // });
 
 
-            // recv_worker_.start([&] {
-            //     // 接收缓冲区
-            //     VecCF buff(recv_samples_);
-            //     uhd::rx_metadata_t md;
-            //
-            //     // 启动连续流
-            //     uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
-            //     stream_cmd.stream_now = true;
-            //     rx_stream_->issue_stream_cmd(stream_cmd);
-            //
-            //     while (!recv_worker_.stop_requested()) {
-            //         // const auto t0 = std::chrono::high_resolution_clock::now();
-            //         const size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0); //测试阶段单fl通道
-            //         // const auto t1 = std::chrono::high_resolution_clock::now();
-            //         // const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).
-            //         //         count();
-            //         // SPDLOG_INFO("recv {} ns", ns);
-            //
-            //         // 错误处理
-            //         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
-            //             std::cerr << "[RX] 超时" << std::endl;
-            //             continue;
-            //         }
-            //         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
-            //             std::cerr << "[RX] 溢出 (O)" << std::endl;
-            //             continue;
-            //         }
-            //         if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-            //             std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
-            //             break;
-            //         }
-            //
-            //         if (rx_callback_) {
-            //             VecCF data(buff.begin(), buff.begin() + num_rx);
-            //             rx_callback_(std::move(data));
-            //         }
-            //     }
-            //     const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
-            //     rx_stream_->issue_stream_cmd(stop_cmd);
-            // });
+            recv_worker_.start([&] {
+                // 接收缓冲区
+                VecCF buff(recv_samples_);
+                uhd::rx_metadata_t md;
+
+                // 启动连续流
+                uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+                stream_cmd.stream_now = true;
+                rx_stream_->issue_stream_cmd(stream_cmd);
+
+                while (!recv_worker_.stop_requested()) {
+                    const size_t num_rx = rx_stream_->recv(&buff[0], buff.size(), md, 1.0); //测试阶段单fl通道
+
+                    // 错误处理
+                    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
+                        std::cerr << "[RX] 超时" << std::endl;
+                        continue;
+                    }
+                    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
+                        std::cerr << "[RX] 溢出 (O)" << std::endl;
+                        continue;
+                    }
+                    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+                        std::cerr << "[RX] 错误: " << md.strerror() << std::endl;
+                        break;
+                    }
+
+                    if (rx_callback_) {
+                        VecCF data(buff.begin(), buff.begin() + num_rx);
+                        rx_callback_(std::move(data));
+                    }
+                }
+                const uhd::stream_cmd_t stop_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
+                rx_stream_->issue_stream_cmd(stop_cmd);
+            });
         }
 
         ~USRP() override {

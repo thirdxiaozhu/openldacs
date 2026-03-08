@@ -63,10 +63,11 @@ namespace openldacs::phy::device {
                         return std::string(value);
                 };
 
+                double rf_analog_bw = 5.0e6; // 5 MHz
                 const double tx_gain = read_env_double("OPENLDACS_USRP_TX_GAIN", tx_gain_);
                 const double rx_gain = read_env_double("OPENLDACS_USRP_RX_GAIN", rx_gain_);
-                const double tx_bw = read_env_double("OPENLDACS_USRP_TX_BW", rate_);
-                const double rx_bw = read_env_double("OPENLDACS_USRP_RX_BW", rate_);
+                const double tx_bw = read_env_double("OPENLDACS_USRP_TX_BW", rf_analog_bw);
+                const double rx_bw = read_env_double("OPENLDACS_USRP_RX_BW", rf_analog_bw);
                 const std::string tx_ant = read_env_string("OPENLDACS_USRP_TX_ANT", "TX/RX");
                 const std::string rx_ant = read_env_string("OPENLDACS_USRP_RX_ANT", "RX2");
 
@@ -81,7 +82,8 @@ namespace openldacs::phy::device {
                     rx_ant);
 
                 for (auto ch : channels) {
-                        const bool use_rl_mapping = ch == RL_CHANNEL;
+                        // const bool use_rl_mapping = ch == RL_CHANNEL;
+                        const bool use_rl_mapping = false;
 
                         uhd::tune_request_t tune_req(use_rl_mapping ? rl_freq_ : fl_freq_, lo_offset);
                         uhd::tune_result_t tx_res = usrp_->set_tx_freq(tune_req, ch);
@@ -97,5 +99,27 @@ namespace openldacs::phy::device {
                         usrp_->set_tx_antenna(tx_ant, ch);
                         usrp_->set_rx_antenna(rx_ant, ch);
                 }
+
+
+                SPDLOG_INFO("--- USRP 硬件状态自检 ---");
+                // 1. 检查天线
+                SPDLOG_INFO("实际 TX 天线: {}", usrp_->get_tx_antenna(0));
+                SPDLOG_INFO("实际 RX 天线: {}", usrp_->get_rx_antenna(0));
+
+                // 2. 检查增益
+                SPDLOG_INFO("实际 TX 增益: {} dB", usrp_->get_tx_gain(0));
+                SPDLOG_INFO("实际 RX 增益: {} dB", usrp_->get_rx_gain(0));
+
+                // 3. 检查频率
+                SPDLOG_INFO("实际 TX 频率: {} Hz", usrp_->get_tx_freq(0));
+                SPDLOG_INFO("实际 RX 频率: {} Hz", usrp_->get_rx_freq(0));
+
+                // 4. 检查本振锁定状态 (等待一小会儿让PLL稳定)
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                auto tx_sensor = usrp_->get_tx_sensor("lo_locked", 0);
+                auto rx_sensor = usrp_->get_rx_sensor("lo_locked", 0);
+                SPDLOG_INFO("TX 本振锁定: {}", tx_sensor.to_bool() ? "YES" : "NO");
+                SPDLOG_INFO("RX 本振锁定: {}", rx_sensor.to_bool() ? "YES" : "NO");
+                SPDLOG_INFO("--------------------------");
         }
 }

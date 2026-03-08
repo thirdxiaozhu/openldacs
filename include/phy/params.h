@@ -522,15 +522,6 @@ namespace openldacs::phy::params {
             frameSync(input);
             findSyncInstances(t_coarse, f_coarse);
 
-            // if (M1.length() > 12000) {
-            //     itpp::vec v = abs(M1);
-            //     std::filesystem::create_directories("dump");
-            //     std::ofstream ofs("dump/corr_peak.csv");
-            //     for (int i = 0; i < v.length(); ++i) {
-            //         ofs << i << "," << v(i) << "\n";
-            //     }
-            // }
-
             // --- [ZMQ 实时数据发送模块] ---
             // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
             std::vector<float> gr_buffer;
