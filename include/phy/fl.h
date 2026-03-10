@@ -808,7 +808,7 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            setCms(CMS::QPSK_R34);
+            setCms(CMS::QAM16_R12);
 
             auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 if (t_coarse.size() != 2 ) {
@@ -816,7 +816,7 @@ namespace openldacs::phy::link::fl {
                 }
 
                 CMS cms = getCms();
-                const CodingParams& params = coding_table_.getCodingParams({cms, t_coarse.size()}); // 临时参数
+                const CodingParams& params = coding_table_.getCodingParams({cms, 2}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             };
 
@@ -825,7 +825,7 @@ namespace openldacs::phy::link::fl {
                     throw std::runtime_error("unmatched size for coarse sync in CCCH_DCH slot");
                 }
 
-                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, t_coarse.size()}); // 临时参数
+                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 3}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             };
 
@@ -855,9 +855,11 @@ namespace openldacs::phy::link::fl {
                 {CMS::QPSK_R12, 2},
                 {CMS::QPSK_R12, 3},
                 {CMS::QPSK_R23, 2},
-                {CMS::QPSK_R23, 3},
+                // {CMS::QPSK_R23, 3},
                 {CMS::QPSK_R34, 2},
-                {CMS::QPSK_R34, 3},
+                // {CMS::QPSK_R34, 3},
+                {CMS::QAM16_R12, 2},
+                {CMS::QAM16_R23, 2},
             },
             FL_DCH
         };
