@@ -39,7 +39,7 @@ void test_fl(const PhyService &ser, const uint8_t sdu_start) {
             .channel = FL_DCH,
         };
 
-        sdu.payload.resize(QPSK_R12);
+        sdu.payload.resize(QAM_R12);
         for (int j = 0; j < sdu.payload.size(); j++) {
             sdu.payload[j] = j % 256;
         }
@@ -134,14 +134,6 @@ int main() {
         std::cout << "t_symb = " << t_symb << std::endl;
 
         const PhyService phy_ser(device::DeviceType::USRP);
-
-        // test_bc13(phy_ser);
-        // test_bc2(phy_ser);
-        // test_bc13(phy_ser);
-        // test_fl(phy_ser, 1);
-        // test_fl(phy_ser, 7);
-        // test_cc(phy_ser);
-        // test_fl(phy_ser, 22);
 
         int times = 1000;
         while (times--) {
