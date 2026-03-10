@@ -27,8 +27,8 @@ namespace openldacs::phy::device {
     };
 
     enum RoleChannel : uint8_t {
-        FL_CHANNEL = 0x00,
-        RL_CHANNEL = 0x01,
+        FL_CHANNEL = 0x01,
+        RL_CHANNEL = 0x00,
     };
 
     constexpr int CAP_HIGH = 512;

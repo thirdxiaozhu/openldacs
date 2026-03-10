@@ -102,10 +102,8 @@ namespace openldacs::phy::link::fl {
                 }
                 SPDLOG_INFO("================ {}", sample_buffer.size());
 
-
                 zmq::message_t zmq_msg(f.data(), f.size() * sizeof(VecCF::value_type));
                 zmq_pub_raw_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
-
             });
 
             source_worker_.start([&] {
