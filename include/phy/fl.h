@@ -315,6 +315,8 @@ namespace openldacs::phy::link::fl {
                                 std::vector<double> t_track;
                                 std::vector<double> f_track;
                                 double timing_error = 0.0;
+
+
                                 if (!pickTrackPeaks(t_coarse, f_coarse, expect_peaks, threshold, data_peak_spacing,
                                                     track_peak_window, t_track, f_track, timing_error)
                                     || !fineSyncSafe(curr_buf, t_track, f_track, FL_DCH, "track:data")) {
@@ -358,6 +360,7 @@ namespace openldacs::phy::link::fl {
                 throw std::runtime_error("No samples available");
             }
 
+            SPDLOG_INFO("Get Samples:{}, Sample remain: {}", size, sample_buffer.size());
             return cdVecToCvec(buf.value());
         }
 
@@ -366,6 +369,7 @@ namespace openldacs::phy::link::fl {
                 return;
             }
             sample_buffer.popFront(std::llround(pos));
+            SPDLOG_INFO("Pop Samples:{}, Sample remain: {}", pos, sample_buffer.size());
         }
 
         // TRACK 阶段的“局部峰值匹配”：

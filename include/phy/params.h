@@ -511,6 +511,7 @@ namespace openldacs::phy::params {
         zmq::context_t zmq_ctx_peak_{1};
         zmq::socket_t zmq_pub_peak_{zmq_ctx_peak_, zmq::socket_type::pub};
 
+        int tt = 0;
 
         explicit CoarseSyncParam(){
                 zmq_pub_peak_.bind("tcp://127.0.0.1:6666");
@@ -539,14 +540,26 @@ namespace openldacs::phy::params {
             zmq_pub_peak_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
             // ------------------------------
 
-            std::cout << t_coarse << std::endl;
 
-            if (t_coarse[0] > 4200) {
+            SPDLOG_INFO("tcoarse size: {};  input size: {};  M1 size: {}", t_coarse.size(), input.size(), M1.size());
+
+            if (t_coarse.size() == 2 || t_coarse.size() == 3) {
+                std::cout << t_coarse << std::endl;
+            }
+
+            if (t_coarse[0] > 8000) {
                 itpp::vec v = abs(M1);
                 std::filesystem::create_directories("dump");
                 std::ofstream ofs("dump/corr_peak.csv");
                 for (int i = 0; i < v.length(); ++i) { ofs << i << "," << v(i) << "\n"; }
             }
+            // if (t_coarse.size() == 3 &&  t_coarse[2] > 8000) {
+            //     itpp::vec v = abs(M1);
+            //     std::filesystem::create_directories("dump");
+            //     std::ofstream ofs("dump/corr_peak.csv");
+            //     for (int i = 0; i < v.length(); ++i) { ofs << i << "," << v(i) << "\n"; }
+            //     tt++;
+            // }
         }
 
 
