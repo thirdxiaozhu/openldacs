@@ -19,8 +19,10 @@ using namespace openldacs::phy::link::fl;
 uint32_t sf_id = 0;
 uint8_t mf_id = 0;
 
+#define QPSK_R12 91
+#define QPSK_R23 120
+#define QPSK_R34 135
 void test_fl(const PhyService &ser, const uint8_t sdu_start) {
-
     if (sdu_start % 3 != 1) {
         throw std::runtime_error("sdu_start must be 1 7 22");
     }
@@ -35,7 +37,7 @@ void test_fl(const PhyService &ser, const uint8_t sdu_start) {
             .channel = FL_DCH,
         };
 
-        sdu.payload.resize(91);
+        sdu.payload.resize(QPSK_R23);
         for (int j = 0; j < sdu.payload.size(); j++) {
             sdu.payload[j] = j % 256;
         }

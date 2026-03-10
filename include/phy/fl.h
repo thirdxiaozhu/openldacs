@@ -273,17 +273,20 @@ namespace openldacs::phy::link::fl {
                                 double consume_samples = 0.0;
                                 int expect_peaks = 0;
                                 double read_samples = 0.0;
+                                ChannelSlot slot = FL_DCH;
                                 switch (data_slot) {
                                     case 0:
                                     case 1:
                                     case 3: {
                                         consume_samples = data_sample2;
                                         expect_peaks = 2;
+                                        slot = FL_DCH;
                                         break;
                                     }
                                     case 2: {
                                         consume_samples = data_sample3;
                                         expect_peaks = 3;
+                                        slot = CCCH_DCH;
                                         break;
                                     }
                                     default: {
@@ -301,7 +304,7 @@ namespace openldacs::phy::link::fl {
 
                                 if (!pickTrackPeaks(t_coarse, f_coarse, expect_peaks, threshold, data_peak_spacing,
                                                     track_peak_window, t_track, f_track, timing_error)
-                                    || !fineSyncSafe(curr_buf, t_track, f_track, FL_DCH, "track:data")) {
+                                    || !fineSyncSafe(curr_buf, t_track, f_track, slot, "track:data")) {
                                     handleTrackFailure("track:data", consume_samples);
                                     continue;
                                 }
@@ -753,6 +756,7 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler final:public FLChannelHandler {
     public:
         explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
+            setCms(CMS::QPSK_R12);
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
@@ -779,6 +783,8 @@ namespace openldacs::phy::link::fl {
     class BC2Handler final:public FLChannelHandler {
     public:
         explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
+            setCms(CMS::QPSK_R12);
+
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
@@ -803,15 +809,28 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            config_.source_.registerRecvHandler(FL_DCH, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
+            setCms(CMS::QPSK_R23);
 
-                if (t_coarse.size() != 2 && t_coarse.size() != 3) {
-                    throw std::runtime_error("unmatched size for coarse sync");
+            auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
+                if (t_coarse.size() != 2 ) {
+                    throw std::runtime_error("unmatched size for coarse sync in FL_DCH slot");
                 }
 
                 const CodingParams& params = coding_table_.getCodingParams({getCms(), t_coarse.size()}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
-            });
+            };
+
+            auto CCDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
+                if (t_coarse.size() != 3) {
+                    throw std::runtime_error("unmatched size for coarse sync in CCCH_DCH slot");
+                }
+
+                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, t_coarse.size()}); // 临时参数
+                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
+            };
+
+            config_.source_.registerRecvHandler(FL_DCH, FLDchHandler);
+            config_.source_.registerRecvHandler(CCCH_DCH, CCDchHandler);
         }
 
         void submit(PhySdu sdu) override;
@@ -835,8 +854,8 @@ namespace openldacs::phy::link::fl {
             frame_info_, {
                 {CMS::QPSK_R12, 2},
                 {CMS::QPSK_R12, 3},
-                // {CMS::QPSK_R23, 2},
-                // {CMS::QPSK_R23, 3},
+                {CMS::QPSK_R23, 2},
+                {CMS::QPSK_R23, 3},
                 // {CMS::QPSK_R34, 2},
                 // {CMS::QPSK_R34, 3},
             },

@@ -35,7 +35,7 @@ namespace openldacs::phy::link {
         [[nodiscard]] CMS getCms() const {
             return default_cms_;
         }
-        void set_cms(const CMS cms) {
+        void setCms(const CMS cms) {
             default_cms_ = cms;
         }
         explicit ChannelHandler(int ofdm_symb) : frame_info_(ofdm_symb),
@@ -54,7 +54,7 @@ namespace openldacs::phy::link {
         LdacsModulator QPSK_modulator_;
         LdacsModulator QAM16_modulator_;
         LdacsModulator QAM64_modulator_;
-        CMS default_cms_ = CMS::QPSK_R12;
+        CMS default_cms_ = CMS::QPSK_R23;
     };
 }
 
