@@ -25,7 +25,7 @@ namespace openldacs::phy::params {
     using cd = std::complex<double>;
 
 
-    enum class ModulationType : int { QPSK, QAM16, QAM64, };
+    enum class ModulationType : uint8_t { QPSK, QAM16, QAM64, };
     enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
 
     inline constexpr std::size_t n_sync_symb = 2;

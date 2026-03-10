@@ -339,8 +339,7 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void FLChannelHandler::recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const ModulationType
-                                       mod_type, const CodingParams &params) {
+    void FLChannelHandler::recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const CodingParams &params) {
         itpp::cmat data_time;
 
         f_sync.synchronisation(input, t_coarse, f_coarse, data_time);
@@ -374,7 +373,7 @@ namespace openldacs::phy::link::fl {
         }
         // -----------------------------------------------------------------
 
-        const itpp::mat demod = demodulate(data_equ, sigma2_sum, mod_type); // 临时参数
+        const itpp::mat demod = demodulate(data_equ, sigma2_sum, params.mod_type); // 临时参数
         itpp::vec LLR_int = itpp::cvectorize(demod);
 
         if (LLR_int.size() != params.h_inter_params.int_bits_size_) {

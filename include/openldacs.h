@@ -32,15 +32,15 @@
 #include <thread>
 
 namespace openldacs {
-    enum class CMS : int {
-        QPSK_R12 = 0,
-        QPSK_R23,
-        QPSK_R34,
-        QAM16_R12,
-        QAM16_R23,
-        QAM64_R12,
-        QAM64_R23,
-        QAM64_R34,
+    enum class CMS : uint8_t {
+        QPSK_R12 = 0x00,
+        QPSK_R23 = 0x01,
+        QPSK_R34 = 0x02,
+        QAM16_R12 = 0x10,
+        QAM16_R23 = 0x11,
+        QAM64_R12 = 0x20,
+        QAM64_R23 = 0x21,
+        QAM64_R34 = 0x22,
     };
 
     enum ChannelSlot: int {

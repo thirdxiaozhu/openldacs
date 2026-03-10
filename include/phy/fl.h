@@ -749,8 +749,7 @@ namespace openldacs::phy::link::fl {
         static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
         static itpp::vec helicalDeinterleaver(const itpp::vec &in, const CodingParams &p);
 
-        void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, ModulationType
-                         mod_type, const CodingParams &params);
+        void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const CodingParams &params);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
@@ -760,7 +759,7 @@ namespace openldacs::phy::link::fl {
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
-                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
+                recvHandler(input, t_coarse, f_coarse, params);
             });
         }
         void submit(PhySdu sdu) override;
@@ -787,7 +786,7 @@ namespace openldacs::phy::link::fl {
 
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
-                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
+                recvHandler(input, t_coarse, f_coarse, params);
             });
         }
         void submit(PhySdu sdu) override;
@@ -809,15 +808,16 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            setCms(CMS::QPSK_R23);
+            setCms(CMS::QPSK_R34);
 
             auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 if (t_coarse.size() != 2 ) {
                     throw std::runtime_error("unmatched size for coarse sync in FL_DCH slot");
                 }
 
-                const CodingParams& params = coding_table_.getCodingParams({getCms(), t_coarse.size()}); // 临时参数
-                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
+                CMS cms = getCms();
+                const CodingParams& params = coding_table_.getCodingParams({cms, t_coarse.size()}); // 临时参数
+                recvHandler(input, t_coarse, f_coarse, params);
             };
 
             auto CCDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
@@ -826,7 +826,7 @@ namespace openldacs::phy::link::fl {
                 }
 
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, t_coarse.size()}); // 临时参数
-                recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
+                recvHandler(input, t_coarse, f_coarse, params);
             };
 
             config_.source_.registerRecvHandler(FL_DCH, FLDchHandler);
@@ -856,8 +856,8 @@ namespace openldacs::phy::link::fl {
                 {CMS::QPSK_R12, 3},
                 {CMS::QPSK_R23, 2},
                 {CMS::QPSK_R23, 3},
-                // {CMS::QPSK_R34, 2},
-                // {CMS::QPSK_R34, 3},
+                {CMS::QPSK_R34, 2},
+                {CMS::QPSK_R34, 3},
             },
             FL_DCH
         };
