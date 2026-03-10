@@ -763,7 +763,8 @@ namespace openldacs::phy::params {
 
                 // 跳过 CP (N_cp * r_up)
                 // MATLAB: data_time(N_cp*r_up+1 : end, :)
-                int valid_data_start = sym_start_in_frame + cp_sample;
+                // int valid_data_start = sym_start_in_frame + cp_sample;
+                int valid_data_start = sym_start_in_frame + cp_sample - 1;
 
                 // 提取有效数据 (长度为 N_fft * r_up)
                 itpp::cvec valid_sym = data_freq_comp.mid(valid_data_start, fft_sample);
