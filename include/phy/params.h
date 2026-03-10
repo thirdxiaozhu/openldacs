@@ -503,12 +503,25 @@ namespace openldacs::phy::params {
             std::vector<double> t_fine;
             std::vector<double> f_fine;
 
+            last_t_coarse_ = t_coarse;
+            last_f_coarse_ = f_coarse;
             fineSync(input, t_coarse, f_coarse, t_fine, f_fine);
+            last_t_fine_ = t_fine;
+            last_f_fine_ = f_fine;
 
             blanking_block(input, t_fine, f_fine, data_time);
         }
+
+        [[nodiscard]] const std::vector<double>& lastTFine() const noexcept { return last_t_fine_; }
+        [[nodiscard]] const std::vector<double>& lastFFine() const noexcept { return last_f_fine_; }
+        [[nodiscard]] const std::vector<double>& lastTCoarse() const noexcept { return last_t_coarse_; }
+        [[nodiscard]] const std::vector<double>& lastFCoarse() const noexcept { return last_f_coarse_; }
     private:
         int ofdm_symb_;
+        std::vector<double> last_t_coarse_;
+        std::vector<double> last_f_coarse_;
+        std::vector<double> last_t_fine_;
+        std::vector<double> last_f_fine_;
         void fineSync(const itpp::cvec &input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, std::vector<double> &t_fine, std
                       ::vector<double> &f_fine);
         void symbolSync(const itpp::cvec &input, itpp::vec &M, itpp::vec &angle) const;

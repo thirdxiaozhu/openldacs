@@ -723,6 +723,7 @@ namespace openldacs::phy::link::fl {
         // CMS default_cms_ = CMS::QPSK_R34;
         int ofdm_symb_;
         FineSyncParam f_sync;
+        int debug_fft_offset_dump_count_ = 0;
 
         virtual const CodingTable &getCodingTable() const = 0;
         virtual size_t getInterleaverCount(const PhySdu &sdu) const = 0;
@@ -749,6 +750,7 @@ namespace openldacs::phy::link::fl {
         static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
         static itpp::vec helicalDeinterleaver(const itpp::vec &in, const CodingParams &p);
 
+        void dumpFftOffsetSweepDebug(const itpp::cvec& input);
         void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const CodingParams &params);
     };
 

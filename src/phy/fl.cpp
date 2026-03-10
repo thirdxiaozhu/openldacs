@@ -4,8 +4,88 @@
 
 #include "phy/fl.h"
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
 
 namespace openldacs::phy::link::fl {
+    namespace {
+        itpp::cmat extractDataTimeWithDelta(const itpp::cvec &input,
+                                           const std::vector<double> &t_fine,
+                                           const std::vector<double> &f_fine,
+                                           const int ofdm_symb,
+                                           const int upsample_rate,
+                                           const int fft_delta) {
+            const int cp_sample = config::n_cp * upsample_rate;
+            const int fft_sample = config::n_fft * upsample_rate;
+            const int symb_span = cp_sample + fft_sample;
+            const int frame_length_td = symb_span * ofdm_symb;
+            const int num_frames = static_cast<int>(t_fine.size());
+            const std::complex<double> J(0.0, 1.0);
+            const double norm_factor = static_cast<double>(fft_sample);
+
+            itpp::cmat data_time(fft_sample, num_frames * ofdm_symb);
+            data_time.zeros();
+
+            const itpp::vec t_vec = itpp::linspace(0, frame_length_td - 1, frame_length_td);
+            for (int i = 0; i < num_frames; ++i) {
+                int t_current = static_cast<int>(std::round(t_fine[i]));
+                const double f_current = i < static_cast<int>(f_fine.size()) ? f_fine[i] : 0.0;
+
+                int start_idx = t_current - cp_sample;
+                int end_idx = start_idx + frame_length_td - 1;
+                itpp::cvec data_extract;
+
+                if (start_idx < 0) {
+                    data_extract = concat(data_extract, itpp::zeros_c(-start_idx));
+                    start_idx = 0;
+                }
+
+                if (end_idx >= input.length()) {
+                    end_idx = input.length() - 1;
+                }
+
+                if (start_idx <= end_idx) {
+                    data_extract = concat(data_extract, input.mid(start_idx, end_idx - start_idx + 1));
+                }
+
+                const int missing = frame_length_td - data_extract.size();
+                if (missing > 0) {
+                    data_extract = concat(data_extract, itpp::zeros_c(missing));
+                }
+
+                const itpp::cvec freq_cor_fac = itpp::exp(itpp::to_cvec(-2.0 * itpp::pi * f_current * t_vec / norm_factor) * J);
+                const itpp::cvec data_freq_comp = elem_mult(data_extract, freq_cor_fac);
+
+                for (int s = 0; s < ofdm_symb; ++s) {
+                    const int sym_start = s * symb_span;
+                    const int valid_start = sym_start + cp_sample + fft_delta;
+                    const int global_col = i * ofdm_symb + s;
+
+                    if (valid_start < 0 || valid_start + fft_sample > data_freq_comp.size()) {
+                        data_time.set_col(global_col, itpp::zeros_c(fft_sample));
+                        continue;
+                    }
+
+                    data_time.set_col(global_col, data_freq_comp.mid(valid_start, fft_sample));
+                }
+            }
+
+            return data_time;
+        }
+
+        std::string deltaLabel(const int delta) {
+            std::ostringstream oss;
+            if (delta >= 0) {
+                oss << 'p' << delta;
+            } else {
+                oss << 'm' << -delta;
+            }
+            return oss.str();
+        }
+    }
+
     FLChannelHandler& PhyFl::getHandler(const ChannelSlot type) const {
         switch (type) {
             case BCCH1_3:   return *bc13_;
@@ -339,6 +419,59 @@ namespace openldacs::phy::link::fl {
     }
 
 
+    void FLChannelHandler::dumpFftOffsetSweepDebug(const itpp::cvec& input) {
+        const auto &t_coarse_dbg = f_sync.lastTCoarse();
+        const auto &f_coarse_dbg = f_sync.lastFCoarse();
+        const auto &t_fine_dbg = f_sync.lastTFine();
+        const auto &f_fine_dbg = f_sync.lastFFine();
+
+        if (t_fine_dbg.empty()) {
+            SPDLOG_WARN("Skip FFT offset debug dump because t_fine is empty");
+            return;
+        }
+
+        std::filesystem::create_directories("dump");
+
+        {
+            std::ofstream ofs("dump/sync_debug.csv");
+            ofs << "frame,t_coarse,f_coarse,t_fine,f_fine\n";
+            const size_t n = t_fine_dbg.size();
+            for (size_t i = 0; i < n; ++i) {
+                const double tc = i < t_coarse_dbg.size() ? t_coarse_dbg[i] : 0.0;
+                const double fc = i < f_coarse_dbg.size() ? f_coarse_dbg[i] : 0.0;
+                const double tf = i < t_fine_dbg.size() ? t_fine_dbg[i] : 0.0;
+                const double ff = i < f_fine_dbg.size() ? f_fine_dbg[i] : 0.0;
+                ofs << i << ',' << tc << ',' << fc << ',' << tf << ',' << ff << '\n';
+            }
+        }
+
+        for (int delta = -4; delta <= 4; ++delta) {
+            const itpp::cmat data_time_dbg = extractDataTimeWithDelta(
+                input,
+                t_fine_dbg,
+                f_fine_dbg,
+                ofdm_symb_,
+                f_sync.sync.upsample_rate,
+                delta
+            );
+
+            const itpp::cmat data_freq_up_dbg = matrixFft(data_time_dbg);
+            const itpp::cmat data_freq_dbg = downsamplingFreq(data_freq_up_dbg, f_sync.sync.upsample_rate);
+            const itpp::cmat chan_coeff_dbg = channel_est_.channelEst(data_freq_dbg);
+
+            itpp::cmat data_equ_dbg;
+            itpp::mat sigma2_dbg;
+            equalizer_.equalize(data_freq_dbg, chan_coeff_dbg, data_equ_dbg, sigma2_dbg);
+
+            const std::string suffix = deltaLabel(delta);
+            util::dump_cmat_constellation(data_equ_dbg, "dump/constellation_equalized_delta_" + suffix + ".dat");
+            util::dump_cmat_constellation(data_freq_dbg, "dump/constellation_fft_delta_" + suffix + ".dat");
+        }
+
+        SPDLOG_INFO("Dumped FFT offset sweep debug files to dump/constellation_* and dump/sync_debug.csv");
+    }
+
+
     void FLChannelHandler::recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const CodingParams &params) {
         itpp::cmat data_time;
 
@@ -351,6 +484,14 @@ namespace openldacs::phy::link::fl {
         itpp::cmat data_equ;
         itpp::mat sigma2_sum;
         equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
+
+        if (debug_fft_offset_dump_count_ == 0) {
+            SPDLOG_INFO("~~~~~~~~~~~~~~~~~~~~~~~~");
+            std::filesystem::create_directories("dump");
+            util::dump_cmat_constellation(data_equ, "dump/constellation_equalized_delta_p0_main.dat");
+            dumpFftOffsetSweepDebug(input);
+            debug_fft_offset_dump_count_++;
+        }
 
         //--------------------- [ZMQ 实时数据发送模块] -----------------------
         // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
