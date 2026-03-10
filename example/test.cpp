@@ -39,7 +39,7 @@ void test_fl(const PhyService &ser, const uint8_t sdu_start) {
             .channel = FL_DCH,
         };
 
-        sdu.payload.resize(QAM_R12);
+        sdu.payload.resize(QPSK_R12);
         for (int j = 0; j < sdu.payload.size(); j++) {
             sdu.payload[j] = j % 256;
         }
