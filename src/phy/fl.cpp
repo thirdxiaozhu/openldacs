@@ -166,42 +166,6 @@ namespace openldacs::phy::link::fl {
     }
 
 
-    void FLChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) {
-        switch (mod_type) {
-            case ModulationType::QPSK: {
-                block.mod_vec = QPSK_modulator_.modulate(block.coded_bits);
-                return;
-            }
-            case ModulationType::QAM16: {
-                block.mod_vec = QAM16_modulator_.modulate(block.coded_bits);
-                return;
-            }
-            case ModulationType::QAM64: {
-                block.mod_vec = QAM64_modulator_.modulate(block.coded_bits);
-                return;
-            }
-            default: {
-                throw std::runtime_error("Unknown ModulationType");
-            }
-        }
-    }
-
-    itpp::mat FLChannelHandler::demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const {
-        switch (mod_type) {
-            case ModulationType::QPSK: {
-                return QPSK_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
-            }
-            case ModulationType::QAM16: {
-                return QAM16_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
-            }
-            case ModulationType::QAM64: {
-                return QAM64_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
-            }
-            default: {
-                throw std::runtime_error("Unknown ModulationType");
-            }
-        }
-    }
 
     void FLChannelHandler::matrixIfft(BlockBuffer &block) {
         block.frame_time = itpp::cmat(block.frames_freq.rows(), block.frames_freq.cols());
@@ -265,8 +229,6 @@ namespace openldacs::phy::link::fl {
     }
 
     void FLChannelHandler::submitData(const PhySdu& sdu, const CodingParams &coding_params) {
-
-
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -350,10 +312,7 @@ namespace openldacs::phy::link::fl {
         const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
 
         block.coded_bits = helical_bits;
-
     }
-
-
 
     void FLChannelHandler::subcarrierAllocation(BlockBuffer &block, const int joint_frame) {
         int input_ind = 0;
@@ -392,46 +351,30 @@ namespace openldacs::phy::link::fl {
 
         itpp::cmat data_equ;
         itpp::mat sigma2_sum;
-
-        // // ------------------- [调试注入开始] -------------------
-        // // 2. 提取第一列的信道估计（假设 index 0 对应 Preamble 或第一个有效符号）
-        // // 如果你的 LDACS 帧结构中 Preamble 在其他列，请修改此处的索引
-        // itpp::cvec static_chan_col = chan_coeff_mat.get_col(2);
-        //
-        // SPDLOG_WARN("{} {}", chan_coeff_mat.rows(), chan_coeff_mat.cols());
-        //
-        // // 3. 创建一个与原矩阵同维度的新矩阵，并将所有列都强制替换为第一列
-        // itpp::cmat static_chan_coeff_mat(chan_coeff_mat.rows(), chan_coeff_mat.cols());
-        // for (int i = 0; i < chan_coeff_mat.cols(); ++i) {
-        //     static_chan_coeff_mat.set_col(i, static_chan_col);
-        // }
-        // // ------------------- [调试注入结束] -------------------
-        // equalizer_.equalize(data_freq, static_chan_coeff_mat, data_equ, sigma2_sum);
-
         equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
 
-        // --- [ZMQ 实时数据发送模块] ---
+        //--------------------- [ZMQ 实时数据发送模块] -----------------------
         // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector
-        itpp::cvec data_equ_vec = itpp::cvectorize(data_equ); // 先展平成一维向量
-        std::vector<std::complex<float>> gr_buffer;
-        gr_buffer.reserve(data_equ_vec.length());
+        {
+            itpp::cvec data_equ_vec = itpp::cvectorize(data_equ); // 先展平成一维向量
+            std::vector<std::complex<float>> gr_buffer;
+            gr_buffer.reserve(data_equ_vec.length());
 
-        for (int i = 0; i < data_equ_vec.length(); ++i) {
-            // 取出有效的数据符号 (如果你的 data_equ 里包含了不需要画图的导频，可以在这里滤除)
-            gr_buffer.emplace_back(
-                static_cast<float>(std::real(data_equ_vec(i))),
-                static_cast<float>(std::imag(data_equ_vec(i)))
-            );
+            for (int i = 0; i < data_equ_vec.length(); ++i) {
+                // 取出有效的数据符号 (如果你的 data_equ 里包含了不需要画图的导频，可以在这里滤除)
+                gr_buffer.emplace_back(
+                    static_cast<float>(std::real(data_equ_vec(i))),
+                    static_cast<float>(std::imag(data_equ_vec(i)))
+                );
+            }
+
+            // 通过 ZMQ 发送这段内存
+            zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(std::complex<float>));
+            config_.zmq_pub_cons_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
         }
-
-        // 通过 ZMQ 发送这段内存
-        zmq::message_t zmq_msg(gr_buffer.data(), gr_buffer.size() * sizeof(std::complex<float>));
-        config_.zmq_pub_cons_.send(zmq_msg, zmq::send_flags::dontwait); // non-blocking 发送
-        // ------------------------------
-
+        // -----------------------------------------------------------------
 
         const itpp::mat demod = demodulate(data_equ, sigma2_sum, mod_type); // 临时参数
-
         itpp::vec LLR_int = itpp::cvectorize(demod);
 
         if (LLR_int.size() != params.h_inter_params.int_bits_size_) {

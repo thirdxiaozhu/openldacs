@@ -204,6 +204,26 @@ namespace openldacs::phy::params {
 
     enum class SyncState { ACQUIRE, TRACK };
 
+
+
+    // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
+    struct RsEncodedUnit {
+        // store RS-coded bytes (systematic + parity), whatever your RS encoder outputs
+        std::vector<uint8_t> rs_bytes;
+        // Keep original metadata for ordering
+        uint16_t sdu_index;
+    };
+
+    struct BlockBuffer {
+        size_t interleaver_count;
+        bool is_cc;
+        std::vector<RsEncodedUnit> units;
+        itpp::bvec coded_bits;
+        itpp::cvec mod_vec;
+        itpp::cmat frames_freq;
+        itpp::cmat frame_time;
+    };
+
     struct FrameInfo {
         std::vector<int> data_ind;
         std::vector<int> pilot_ind;

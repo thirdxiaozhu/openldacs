@@ -141,7 +141,7 @@ namespace openldacs::phy::params {
 
         auto [cms, joint_frame] = key;
 
-        SPDLOG_WARN("\n\n========= {} = {} ==========", static_cast<int>(cms), joint_frame);
+        SPDLOG_INFO("====================== {} = {} =======================", static_cast<int>(cms), joint_frame);
 
         // constrain length is 7
         itpp::ivec gen(2);
@@ -183,6 +183,8 @@ namespace openldacs::phy::params {
         params.bits_per_pdu = params.rs_params.bits_uncoded * params.rs_per_pdu;
         params.bytes_per_pdu = params.bits_per_pdu >> 3;
         SPDLOG_INFO("rate_cod: {}; bits_per_sdu: {}; bytes_per_pdu: {}", params.rate_cod, params.bits_per_pdu, params.bytes_per_pdu);
+
+        std::cout << std::endl << std::endl;
 
         params.randomize_vec.resize(params.bytes_per_pdu);
         const uint8_t* src = random_output.data();

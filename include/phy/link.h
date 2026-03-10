@@ -32,17 +32,24 @@ namespace openldacs::phy::link {
     class ChannelHandler {
 
     protected:
-
-        CMS getCms() const {
+        [[nodiscard]] CMS getCms() const {
             return default_cms_;
         }
         void set_cms(const CMS cms) {
             default_cms_ = cms;
         }
-        explicit ChannelHandler() : QPSK_modulator_(ModulationType::QPSK),
-              QAM16_modulator_(ModulationType::QAM16),
-              QAM64_modulator_(ModulationType::QAM64){
+        explicit ChannelHandler(int ofdm_symb) : frame_info_(ofdm_symb),
+              QPSK_modulator_(ModulationType::QPSK),
+              QAM16_modulator_(ModulationType::QAM16), QAM64_modulator_(ModulationType::QAM64){
         };
+
+        FrameInfo frame_info_;
+
+        // modulation
+        void modulate(BlockBuffer &block, ModulationType mod_type) const;
+        [[nodiscard]] itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const;
+
+    private:
 
         LdacsModulator QPSK_modulator_;
         LdacsModulator QAM16_modulator_;

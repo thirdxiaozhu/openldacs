@@ -29,13 +29,6 @@ namespace openldacs::phy::link::fl {
         DATA,
     };
 
-    // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
-    struct RsEncodedUnit {
-        // store RS-coded bytes (systematic + parity), whatever your RS encoder outputs
-        std::vector<uint8_t> rs_bytes;
-        // Keep original metadata for ordering
-        uint16_t sdu_index;
-    };
 
     struct BlockKey {
         DirectionType direction;
@@ -74,15 +67,6 @@ namespace openldacs::phy::link::fl {
         }
     };
 
-    struct BlockBuffer {
-        size_t interleaver_count;
-        bool is_cc;
-        std::vector<RsEncodedUnit> units;
-        itpp::bvec coded_bits;
-        itpp::cvec mod_vec;
-        itpp::cmat frames_freq;
-        itpp::cmat frame_time;
-    };
 
     class PhySource {
     public:
@@ -722,7 +706,7 @@ namespace openldacs::phy::link::fl {
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : device_(dev), config_(config), frame_info_(ofdm_symb),  channel_est_(frame_info_, ofdm_symb),
+            : ChannelHandler(ofdm_symb), device_(dev), config_(config),   channel_est_(frame_info_, ofdm_symb),
               equalizer_(frame_info_, dev, ofdm_symb), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb) {
         }
 
@@ -730,7 +714,6 @@ namespace openldacs::phy::link::fl {
         device::DevPtr& device_;
         PhyFl::FLConfig& config_;
 
-        FrameInfo frame_info_;
         ChannelEstimate channel_est_;
         Equalizer equalizer_;
         std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
@@ -751,9 +734,6 @@ namespace openldacs::phy::link::fl {
         itpp::bvec convCode(const itpp::ivec &input, const CodingParams &coding_params) const;
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
 
-        // modulation
-        void modulate(BlockBuffer &block, ModulationType mod_type);
-
         void subcarrierAllocation(BlockBuffer &block, int joint_frame);
         static void matrixIfft(BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
@@ -761,7 +741,6 @@ namespace openldacs::phy::link::fl {
         // demod
         static itpp::cmat matrixFft(const itpp::cmat &to_process);
         static itpp::cmat downsamplingFreq(const itpp::cmat &signal, int downsample);
-        itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const;
         itpp::imat blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params);
         static std::vector<VecU8> rsDecoder(const itpp::imat &input, const CodingParams &coding_params);
         static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
@@ -830,7 +809,7 @@ namespace openldacs::phy::link::fl {
                     throw std::runtime_error("unmatched size for coarse sync");
                 }
 
-                const CodingParams& params = coding_table_.getCodingParams({default_cms_, t_coarse.size()}); // 临时参数
+                const CodingParams& params = coding_table_.getCodingParams({getCms(), t_coarse.size()}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, ModulationType::QPSK, params);
             });
         }
