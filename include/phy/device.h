@@ -27,8 +27,8 @@ namespace openldacs::phy::device {
     };
 
     enum RoleChannel : uint8_t {
-        FL_CHANNEL = 0x01,
-        RL_CHANNEL = 0x00,
+        FL_CHANNEL = 0x00,
+        RL_CHANNEL = 0x01,
     };
 
     constexpr int CAP_HIGH = 512;
@@ -80,8 +80,8 @@ namespace openldacs::phy::device {
         const double rate_ = 625e3;             // 例如 LDACS 1.6 Msps（你也可设 625k 等）
         // Loopback debug defaults: keep TX low to avoid front-end saturation.
         const double tx_gain_ = 80.0;
-        // const double rx_gain_ = 32.0;    // 线缆+衰减器最优
-        const double rx_gain_ = 60.0;       // 实验室无线信道最优
+        const double rx_gain_ = 32.0;    // 线缆+衰减器最优
+        // const double rx_gain_ = 60.0;       // 实验室无线信道最优
 
         const double fl_freq_ = 1110e6;
         const double rl_freq_ = 964e6;
