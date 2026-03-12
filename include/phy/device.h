@@ -89,7 +89,7 @@ namespace openldacs::phy::device {
         const double lo_offset = 2e6;
         // const double lo_offset = 0;
 
-        std::atomic<double> snr_db_ = 30.0;
+        std::atomic<double> snr_db_ = 15.0;
         std::atomic<double> last_noise_power_linear_ = 0.0;
 
         BoundedPriorityQueue<VecCD> fl_to_trans_;
