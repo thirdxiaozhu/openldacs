@@ -122,13 +122,19 @@ namespace openldacs::phy::link::fl {
         RsEncodedUnit unit;
         unit.sdu_index = index;
 
-        if (to_process.size() != coding_params.rs_params.k) {
+        if (to_process.size() != coding_params.rs_params.k * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
 
-        std::vector<uint8_t> output(coding_params.rs_params.n);
-        coding_params.rs_params.rs.rsEncode(to_process, output);
-        unit.rs_bytes.assign(output.begin(), output.end());
+        for (int i = 0; i < coding_params.rs_per_pdu; i++) {
+            std::vector<uint8_t> output(coding_params.rs_params.n);
+
+            VecU8 sub(to_process.begin() + i * coding_params.rs_params.k, to_process.begin() + (i + 1) * coding_params.rs_params.k);
+
+            coding_params.rs_params.rs.rsEncode(sub, output);
+            unit.rs_bytes.insert(unit.rs_bytes.end(), output.begin(), output.end());
+
+        }
 
         return unit;
     }
@@ -136,24 +142,28 @@ namespace openldacs::phy::link::fl {
     std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
         std::vector<VecU8> output;
 
-        if (input.cols() != coding_params.rs_params.n) {
+        if (input.cols() != coding_params.rs_params.n * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
 
         for (int i = 0; i < input.rows(); ++i) {
             VecU8 input_vec;
-            VecU8 output_vec(coding_params.rs_params.k);
             for (int j = 0; j < input.cols(); ++j) {
                 input_vec.push_back(input(i, j));
             }
 
-            try {
-                coding_params.rs_params.rs.rsDecode(input_vec, output_vec);
-            } catch (const std::exception& e) {
-                SPDLOG_WARN("RS decode failed at row {}: {}", i, e.what());
-                std::copy_n(input_vec.begin(), output_vec.size(), output_vec.begin());
+            for (int i = 0; i < coding_params.rs_per_pdu; i++) {
+                VecU8 output_vec(coding_params.rs_params.k);
+                VecU8 input_sub(input_vec.begin() + i * coding_params.rs_params.n, input_vec.begin() + (i + 1) * coding_params.rs_params.n);
+                try {
+                    coding_params.rs_params.rs.rsDecode(input_sub, output_vec);
+                } catch (const std::exception& e) {
+                    SPDLOG_WARN("RS decode failed at row {}: {}", i, e.what());
+                    std::copy_n(input_vec.begin() + i * coding_params.rs_params.n, output_vec.size(), output_vec.begin());
+                }
+
+                output.push_back(output_vec);
             }
-            output.push_back(output_vec);
         }
 
         return output;
