@@ -97,7 +97,6 @@ namespace openldacs::phy::link::fl {
     }
 
     void FLChannelHandler::randomizer(VecU8 &to_process, const CodingParams &coding_params) {
-
         if (to_process.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -142,11 +141,9 @@ namespace openldacs::phy::link::fl {
     std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
         std::vector<VecU8> output;
 
-
         if (input.cols() != coding_params.rs_params.n * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
-
 
         for (int i = 0; i < input.rows(); ++i) {
             VecU8 input_vec;
@@ -154,18 +151,19 @@ namespace openldacs::phy::link::fl {
                 input_vec.push_back(input(i, j));
             }
 
-            for (int i = 0; i < coding_params.rs_per_pdu; i++) {
-                VecU8 output_vec(coding_params.rs_params.k);
-                VecU8 input_sub(input_vec.begin() + i * coding_params.rs_params.n, input_vec.begin() + (i + 1) * coding_params.rs_params.n);
+            VecU8 output_vec(coding_params.rs_params.k * coding_params.rs_per_pdu);
+            for (int r = 0; r < coding_params.rs_per_pdu; r++) {
+                VecU8 input_sub(input_vec.begin() + r * coding_params.rs_params.n, input_vec.begin() + (r + 1) * coding_params.rs_params.n);
+                VecU8 output_sub(coding_params.rs_params.k);
                 try {
-                    coding_params.rs_params.rs.rsDecode(input_sub, output_vec);
+                    coding_params.rs_params.rs.rsDecode(input_sub, output_sub);
                 } catch (const std::exception& e) {
-                    SPDLOG_WARN("RS decode failed at row {}: {}", i, e.what());
-                    std::copy_n(input_vec.begin() + i * coding_params.rs_params.n, output_vec.size(), output_vec.begin());
+                    SPDLOG_WARN("RS decode failed at row {}: {}", r, e.what());
+                    std::copy_n(input_vec.begin() + r * coding_params.rs_params.n, output_vec.size(), output_vec.begin());
                 }
-
-                output.push_back(output_vec);
+                output_vec.insert(output_vec.end(), output_sub.begin(), output_sub.end() );
             }
+            output.push_back(output_vec);
         }
 
         return output;
@@ -505,6 +503,7 @@ namespace openldacs::phy::link::fl {
             dumpFftOffsetSweepDebug(input);
             debug_fft_offset_dump_count_++;
         }
+
 
         //--------------------- [ZMQ 实时数据发送模块] -----------------------
         // 将 itpp::cmat (double) 转换为 std::complex<float> 的 std::vector

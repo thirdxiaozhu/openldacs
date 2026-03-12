@@ -731,25 +731,6 @@ namespace openldacs::phy::params {
                 chan_scaled(i) = chan_coeff_mat(i) * std::sqrt(E_s(i));
             }
 
-            // itpp::cmat data_equ(frame_info_.data_ind.size(), num_frames);
-            // for (int k = 0; k < num_frames; k++) {
-            //     int offset = k * ofdm_symb_ * n_fft;
-            //     for (int i = 0; i < frame_info_.data_ind.size(); i++) {
-            //         const int data_idx = frame_info_.data_ind[i];
-            //
-            //         const std::complex<double> data_val = data_sync(data_idx + offset);
-            //         std::complex<double> chan_coeff = chan_scaled(data_idx + offset);
-            //
-            //         // set zero to very low value for avoiding error from dividing by zero
-            //         if (chan_coeff == std::complex<double>(0.0, 0.0)) {
-            //             chan_coeff = std::complex<double>(1e-6, 0.0);
-            //         }
-            //
-            //         data_equ(i, k) = data_val / chan_coeff;
-            //     }
-            // }
-
-
             data_equ = itpp::cmat(frame_info_.data_ind.size(), num_frames);
             const std::complex<double> tiny_h(1e-6, 0.0);
 
@@ -977,7 +958,7 @@ namespace openldacs::phy::params {
             },
             {
                 {CMS::QAM16_R23, 2},
-                CodingParams{HelicalInterleaverParams(132, 148), RSCoderParams(131, 121), 3}
+                CodingParams{HelicalInterleaverParams(132, 148), RSCoderParams(135, 121), 3}
             },
         }
     };
