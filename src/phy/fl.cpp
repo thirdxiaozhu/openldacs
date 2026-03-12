@@ -142,9 +142,11 @@ namespace openldacs::phy::link::fl {
     std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
         std::vector<VecU8> output;
 
+
         if (input.cols() != coding_params.rs_params.n * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
+
 
         for (int i = 0; i < input.rows(); ++i) {
             VecU8 input_vec;
@@ -191,6 +193,7 @@ namespace openldacs::phy::link::fl {
         const size_t cols = input.size() / rows;
 
         itpp::imat out = itpp::reshape(input, rows, cols);
+
         // std::cout << out << std::endl;
         return out;
     }

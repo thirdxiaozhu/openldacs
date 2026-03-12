@@ -810,7 +810,7 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            setCms(CMS::QAM16_R12);
+            setCms(CMS::QAM16_R23);
 
             auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 if (t_coarse.size() != 2 ) {
