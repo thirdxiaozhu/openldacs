@@ -761,6 +761,7 @@ namespace openldacs::phy::link::fl {
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
+                SPDLOG_ERROR("~~~~~~~~~~~~~~~~ {}", params.rs_per_pdu);
                 recvHandler(input, t_coarse, f_coarse, params);
             });
         }

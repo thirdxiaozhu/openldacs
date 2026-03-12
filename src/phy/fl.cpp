@@ -151,9 +151,10 @@ namespace openldacs::phy::link::fl {
                 input_vec.push_back(input(i, j));
             }
 
-            VecU8 output_vec(coding_params.rs_params.k * coding_params.rs_per_pdu);
+            VecU8 output_vec;
             for (int r = 0; r < coding_params.rs_per_pdu; r++) {
                 VecU8 input_sub(input_vec.begin() + r * coding_params.rs_params.n, input_vec.begin() + (r + 1) * coding_params.rs_params.n);
+
                 VecU8 output_sub(coding_params.rs_params.k);
                 try {
                     coding_params.rs_params.rs.rsDecode(input_sub, output_sub);
@@ -497,7 +498,6 @@ namespace openldacs::phy::link::fl {
         equalizer_.equalize(data_freq, chan_coeff_mat, data_equ, sigma2_sum);
 
         if (debug_fft_offset_dump_count_ == 0) {
-            SPDLOG_INFO("~~~~~~~~~~~~~~~~~~~~~~~~");
             std::filesystem::create_directories("dump");
             util::dump_cmat_constellation(data_equ, "dump/constellation_equalized_delta_p0_main.dat");
             dumpFftOffsetSweepDebug(input);
