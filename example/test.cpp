@@ -24,6 +24,9 @@ uint8_t mf_id = 0;
 #define QPSK_R34 135
 #define QAM16_R12 182
 #define QAM16_R23 242
+#define QAM64_R12 272
+#define QAM64_R23 366
+#define QAM64_R34 412
 void test_fl(const PhyService &ser, const uint8_t sdu_start) {
     if (sdu_start % 3 != 1) {
         throw std::runtime_error("sdu_start must be 1 7 22");
@@ -39,7 +42,7 @@ void test_fl(const PhyService &ser, const uint8_t sdu_start) {
             .channel = FL_DCH,
         };
 
-        sdu.payload.resize(QAM16_R23);
+        sdu.payload.resize(QAM64_R12);
         for (int j = 0; j < sdu.payload.size(); j++) {
             sdu.payload[j] = j % 256;
         }

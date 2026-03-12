@@ -926,7 +926,7 @@ namespace openldacs::phy::params {
         }
     };
 
-    static const std::array<std::pair<CodingKey, CodingParams>, 8> init_fl_coding_params = {
+    static const std::array<std::pair<CodingKey, CodingParams>, 11> init_fl_coding_params = {
         {
             {
                 {CMS::QPSK_R12, 2},
@@ -959,6 +959,18 @@ namespace openldacs::phy::params {
             {
                 {CMS::QAM16_R23, 2},
                 CodingParams{HelicalInterleaverParams(132, 148), RSCoderParams(135, 121), 3}
+            },
+            {
+                {CMS::QAM64_R12, 2},
+                CodingParams{HelicalInterleaverParams(132, 222), RSCoderParams(152, 136), 3}
+            },
+            {
+                {CMS::QAM64_R23, 2},
+                CodingParams{HelicalInterleaverParams(132, 222), RSCoderParams(203, 183), 3}
+            },
+            {
+                {CMS::QAM64_R34, 2},
+                CodingParams{HelicalInterleaverParams(132, 222), RSCoderParams(228, 206), 3}
             },
         }
     };

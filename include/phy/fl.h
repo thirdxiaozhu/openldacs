@@ -761,7 +761,6 @@ namespace openldacs::phy::link::fl {
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
-                SPDLOG_ERROR("~~~~~~~~~~~~~~~~ {}", params.rs_per_pdu);
                 recvHandler(input, t_coarse, f_coarse, params);
             });
         }
@@ -811,7 +810,7 @@ namespace openldacs::phy::link::fl {
     class FLDataHandler final:public FLChannelHandler {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
-            setCms(CMS::QAM16_R23);
+            setCms(CMS::QAM64_R12);
 
             auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 if (t_coarse.size() != 2 ) {
@@ -863,6 +862,9 @@ namespace openldacs::phy::link::fl {
                 // {CMS::QPSK_R34, 3},
                 {CMS::QAM16_R12, 2},
                 {CMS::QAM16_R23, 2},
+                {CMS::QAM64_R12, 2},
+                {CMS::QAM64_R23, 2},
+                {CMS::QAM64_R34, 2},
             },
             FL_DCH
         };
