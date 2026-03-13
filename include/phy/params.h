@@ -844,7 +844,6 @@ namespace openldacs::phy::params {
 
     struct CodingParams {
         ModulationType mod_type = ModulationType::QPSK;
-        double coding_rate = 0.5;                     //0.5 / 0.67 / 0.75
         int rs_per_pdu = 1;
 
         // int pdu_per_frame = 3;
@@ -853,11 +852,11 @@ namespace openldacs::phy::params {
         int bytes_per_pdu = 0;
         mutable itpp::Punctured_Convolutional_Code cc;
         std::vector<int> puncpat;               // 0/1 pattern; empty or {0} means "no puncture"
-        // int int_bits_size = 1;
         double rate_cod = 0;
         VecU8 randomize_vec;
 
         // 固定参数
+        itpp::ivec gen;
         int L = 7;                              // constraint length
         int term_bits = 6;                      // L-1
         double rate_rs = 0.9;
@@ -874,7 +873,10 @@ namespace openldacs::phy::params {
         int cc_cod = 1;
         int interleaver = 1;
 
-        CodingParams(HelicalInterleaverParams h_params, RSCoderParams rs_params, int n_pdus): h_inter_params(std::move(h_params)), rs_params(std::move(rs_params)),n_pdus(n_pdus){
+        CodingParams(HelicalInterleaverParams h_params, const RSCoderParams &rs_params, const int n_pdus): n_pdus(n_pdus), h_inter_params(std::move(h_params)),rs_params(rs_params){
+            gen.set_length(2, false);
+            gen(0) = 0171; // G1 = 171oct
+            gen(1) = 0133; // G2 = 133oct
         }
     };
 
@@ -888,14 +890,14 @@ namespace openldacs::phy::params {
         ChannelSlot ch_;
 
         // CodingTable(FrameInfo &frame_info) : frame_info_(frame_info) {}
-        CodingTable(FrameInfo &frame_info, std::initializer_list<CodingKey> keys, const ChannelSlot ch) : frame_info_(frame_info), ch_(ch) {
+        explicit CodingTable(FrameInfo &frame_info, std::initializer_list<CodingKey> keys, const ChannelSlot ch) : frame_info_(frame_info), ch_(ch) {
             initCodingTable(keys, ch);
         }
 
-        CodingParams setCodingParams(CodingKey key, ChannelSlot ch) const;
+        [[nodiscard]] CodingParams setCodingParams(CodingKey key, ChannelSlot ch) const;
         void initCodingTable(std::initializer_list<CodingKey> keys, ChannelSlot ch);
 
-        const CodingParams &getCodingParams(const CodingKey &key) const {
+        [[nodiscard]] const CodingParams &getCodingParams(const CodingKey &key) const {
             return coding_table.at(key);
         }
     };
@@ -917,6 +919,7 @@ namespace openldacs::phy::params {
             }
         }
     };
+
 
     static const std::array<std::pair<CodingKey, CodingParams>, 11> init_fl_coding_params = {
         {
@@ -967,7 +970,25 @@ namespace openldacs::phy::params {
         }
     };
 
-    inline CodingParams get_initial_coding_param(const CodingKey &key, ChannelSlot ch) {
+    static const std::array<std::pair<CodingKey, CodingParams>, 1> init_ra_coding_params = {
+        {
+            {
+                {CMS::QPSK_R13, 1},
+                CodingParams{HelicalInterleaverParams(15, 12) , RSCoderParams(139, 125), 1}
+            }
+        }
+    };
+
+    static const std::array<std::pair<CodingKey, CodingParams>, 1> init_dc_coding_params = {
+        {
+            {
+                {CMS::QPSK_R13, 1},
+                CodingParams{HelicalInterleaverParams(67, 4) , RSCoderParams(139, 125), 1}
+            }
+        }
+    };
+
+    inline CodingParams InitCodingParam(const CodingKey &key, const ChannelSlot ch) {
         bool is_found = false;
         const CodingParams *params_ptr = nullptr;
 
@@ -992,6 +1013,13 @@ namespace openldacs::phy::params {
             case FL_DCH:
                 is_found = find_in_table(init_fl_coding_params);
                 break;
+            case RACH:
+                is_found = find_in_table(init_fl_coding_params);
+                break;
+            case DCCH:
+                break;
+            case RL_DCH:
+                break;
             default:
                 throw std::runtime_error("Unsupported channel for coding params");
         }
@@ -1012,8 +1040,19 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QPSK;
                 params.a = 1;
                 params.b = 2;
-                params.coding_rate = 0.5;
                 params.puncpat = {1,1};
+                break;
+            case CMS::QPSK_R13:
+                params.gen.set_length(3, false);
+                params.gen(0) = 133;
+                params.gen(1) = 145;
+                params.gen(2) = 177;
+                params.rs_per_pdu = 1;
+                params.bits_per_symb = 2;
+                params.mod_type = ModulationType::QPSK;
+                params.a = 1;
+                params.b = 3;
+                params.puncpat = {1,1,1};
                 break;
             case CMS::QPSK_R23:
                 params.rs_per_pdu = 1;
@@ -1021,7 +1060,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QPSK;
                 params.a = 2;
                 params.b = 3;
-                params.coding_rate = 0.67;
                 params.puncpat = {1,1,0,1};
                 break;
             case CMS::QPSK_R34:
@@ -1030,7 +1068,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QPSK;
                 params.a = 3;
                 params.b = 4;
-                params.coding_rate = 0.75;
                 params.puncpat = {1,1,0,1,1,0};
                 break;
             case CMS::QAM16_R12:
@@ -1039,7 +1076,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QAM16;
                 params.a = 1;
                 params.b = 2;
-                params.coding_rate = 0.5;
                 params.puncpat = {1,1};
                 break;
             case CMS::QAM16_R23:
@@ -1048,7 +1084,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QAM16;
                 params.a = 2;
                 params.b = 3;
-                params.coding_rate = 0.67;
                 params.puncpat = {1,1,0,1};
                 break;
             case CMS::QAM64_R12:
@@ -1057,7 +1092,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QAM64;
                 params.a = 1;
                 params.b = 2;
-                params.coding_rate = 0.5;
                 params.puncpat = {1,1};
                 break;
             case CMS::QAM64_R23:
@@ -1066,7 +1100,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QAM64;
                 params.a = 2;
                 params.b = 3;
-                params.coding_rate = 0.67;
                 params.puncpat = {1,1,0,1};
                 break;
             case CMS::QAM64_R34:
@@ -1075,7 +1108,6 @@ namespace openldacs::phy::params {
                 params.mod_type = ModulationType::QAM64;
                 params.a = 3;
                 params.b = 4;
-                params.coding_rate = 0.75;
                 params.puncpat = {1,1,0,1,1,0};
                 break;
         }

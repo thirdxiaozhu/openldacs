@@ -24,7 +24,7 @@ namespace openldacs::phy::link::rl {
         explicit PhyRl(device::DevPtr& dev)
             :config_(dev),
              ra_(std::make_unique<RAHandler>(config_, dev)),
-             dc_(std::make_unique<RAHandler>(config_, dev)),
+             dc_(std::make_unique<DCHandler>(config_, dev)),
              data_(std::make_unique<RLDataHandler>(config_, dev)) {
         }
 

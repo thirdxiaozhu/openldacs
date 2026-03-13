@@ -136,19 +136,19 @@ namespace openldacs::phy::params {
     }
 
 
-    CodingParams CodingTable::setCodingParams(CodingKey key, ChannelSlot ch) const {
-        CodingParams params = get_initial_coding_param(key, ch);
+    CodingParams CodingTable::setCodingParams(CodingKey key, const ChannelSlot ch) const {
+        CodingParams params = InitCodingParam(key, ch);
 
         auto [cms, joint_frame] = key;
 
         SPDLOG_INFO("====================== {} = {} =======================", static_cast<int>(cms), joint_frame);
 
         // constrain length is 7
-        itpp::ivec gen(2);
-        gen(0) = 0171; // G1 = 171oct
-        gen(1) = 0133; // G2 = 133oct
+        // itpp::ivec gen(2);
+        // gen(0) = 0171; // G1 = 171oct
+        // gen(1) = 0133; // G2 = 133oct
 
-        params.cc.set_generator_polynomials(gen, params.L);                                 // 相当于 poly2trellis 的“码定义”部分
+        params.cc.set_generator_polynomials(params.gen, params.L);                                 // 相当于 poly2trellis 的“码定义”部分
         params.cc.set_method(itpp::Trunc);                                                   // 不自动加尾
         params.cc.set_puncture_matrix(util::puncpatToMatrix2output(params.puncpat));
 
