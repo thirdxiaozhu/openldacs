@@ -120,17 +120,22 @@ namespace openldacs::phy::link::fl {
     RsEncodedUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
         RsEncodedUnit unit;
         unit.sdu_index = index;
+        if (!coding_params.rs_params.has_value()) {
+            throw std::runtime_error("Reed-Solomon unsupported in this channel");
+        }
 
-        if (to_process.size() != coding_params.rs_params.k * coding_params.rs_per_pdu) {
+        const RSCoderParams rs_params = coding_params.rs_params.value();
+
+        if (to_process.size() != rs_params.k * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
 
         for (int i = 0; i < coding_params.rs_per_pdu; i++) {
-            std::vector<uint8_t> output(coding_params.rs_params.n);
+            std::vector<uint8_t> output(rs_params.n);
 
-            VecU8 sub(to_process.begin() + i * coding_params.rs_params.k, to_process.begin() + (i + 1) * coding_params.rs_params.k);
+            VecU8 sub(to_process.begin() + i * rs_params.k, to_process.begin() + (i + 1) * rs_params.k);
 
-            coding_params.rs_params.rs.rsEncode(sub, output);
+            rs_params.rs.rsEncode(sub, output);
             unit.rs_bytes.insert(unit.rs_bytes.end(), output.begin(), output.end());
 
         }
@@ -141,7 +146,13 @@ namespace openldacs::phy::link::fl {
     std::vector<VecU8> FLChannelHandler::rsDecoder(const itpp::imat &input, const CodingParams &coding_params) {
         std::vector<VecU8> output;
 
-        if (input.cols() != coding_params.rs_params.n * coding_params.rs_per_pdu) {
+        if (!coding_params.rs_params.has_value()) {
+            throw std::runtime_error("Reed-Solomon unsupported in this channel");
+        }
+
+        const RSCoderParams rs_params = coding_params.rs_params.value();
+
+        if (input.cols() != rs_params.n * coding_params.rs_per_pdu) {
             throw std::runtime_error("Input size does not match reed-solomon params");
         }
 
@@ -153,14 +164,14 @@ namespace openldacs::phy::link::fl {
 
             VecU8 output_vec;
             for (int r = 0; r < coding_params.rs_per_pdu; r++) {
-                VecU8 input_sub(input_vec.begin() + r * coding_params.rs_params.n, input_vec.begin() + (r + 1) * coding_params.rs_params.n);
+                VecU8 input_sub(input_vec.begin() + r * rs_params.n, input_vec.begin() + (r + 1) * rs_params.n);
 
-                VecU8 output_sub(coding_params.rs_params.k);
+                VecU8 output_sub(rs_params.k);
                 try {
-                    coding_params.rs_params.rs.rsDecode(input_sub, output_sub);
+                    rs_params.rs.rsDecode(input_sub, output_sub);
                 } catch (const std::exception& e) {
                     SPDLOG_WARN("RS decode failed at row {}: {}", r, e.what());
-                    std::copy_n(input_vec.begin() + r * coding_params.rs_params.n, output_vec.size(), output_vec.begin());
+                    std::copy_n(input_vec.begin() + r * rs_params.n, output_vec.size(), output_vec.begin());
                 }
                 output_vec.insert(output_vec.end(), output_sub.begin(), output_sub.end() );
             }
@@ -301,17 +312,17 @@ namespace openldacs::phy::link::fl {
         const CodingParams &coding_params = coding_table_.getCodingParams({
             CMS::QPSK_R12, 1
         });
-        submitData(sdu, coding_params);
+        processData(sdu, coding_params);
     }
 
     void BC2Handler::submit(const PhySdu sdu) {
         const CodingParams &coding_params = coding_table_.getCodingParams({
             CMS::QPSK_R12, 1
         });
-        submitData(sdu, coding_params);
+        processData(sdu, coding_params);
     }
 
-    void FLChannelHandler::submitData(const PhySdu& sdu, const CodingParams &coding_params) {
+    void FLChannelHandler::processData(const PhySdu& sdu, const CodingParams &coding_params) {
         if (sdu.payload.size() != coding_params.bytes_per_pdu) {
             throw std::runtime_error("Input size does not match coding params");
         }
@@ -359,7 +370,7 @@ namespace openldacs::phy::link::fl {
                 const CodingParams &coding_params = coding_table_.getCodingParams({
                     CMS::QPSK_R12, 3
                 });
-                submitData(sdu, coding_params);
+                processData(sdu, coding_params);
             }
             break;
             case FL_DCH: {
@@ -367,7 +378,7 @@ namespace openldacs::phy::link::fl {
                     const CodingParams &coding_params = coding_table_.getCodingParams({
                         getCms(), 2
                     });
-                    submitData(sdu, coding_params);
+                    processData(sdu, coding_params);
                 } else {
                     // user-specific channel coding
                 }
@@ -526,7 +537,7 @@ namespace openldacs::phy::link::fl {
 
         itpp::bvec vit_dec = params.cc.decode_tail(deint);
 
-        if (vit_dec.size() % params.rs_params.bits_after_rs ) {
+        if (vit_dec.size() % params.rs_params.value().bits_after_rs ) {
             throw std::runtime_error("unmatched size for rs decoder");
         }
 

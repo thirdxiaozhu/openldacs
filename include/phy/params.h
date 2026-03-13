@@ -866,14 +866,14 @@ namespace openldacs::phy::params {
         int joint_frame = 0;
         int n_pdus = 0;
         HelicalInterleaverParams h_inter_params;
-        RSCoderParams rs_params;
+        std::optional<RSCoderParams> rs_params;
         ConvCodingParams conv_params{};
 
         // 当前是否有意义？
         int cc_cod = 1;
         int interleaver = 1;
 
-        CodingParams(HelicalInterleaverParams h_params, const RSCoderParams &rs_params, const int n_pdus): n_pdus(n_pdus), h_inter_params(std::move(h_params)),rs_params(rs_params){
+        CodingParams(HelicalInterleaverParams h_params, std::optional<RSCoderParams> rs_params, const int n_pdus): n_pdus(n_pdus), h_inter_params(std::move(h_params)),rs_params(std::move(rs_params)){
             gen.set_length(2, false);
             gen(0) = 0171; // G1 = 171oct
             gen(1) = 0133; // G2 = 133oct
@@ -974,7 +974,7 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R13, 1},
-                CodingParams{HelicalInterleaverParams(15, 12) , RSCoderParams(139, 125), 1}
+                CodingParams{HelicalInterleaverParams(15, 12) , std::nullopt, 1}
             }
         }
     };
@@ -983,8 +983,21 @@ namespace openldacs::phy::params {
         {
             {
                 {CMS::QPSK_R13, 1},
-                CodingParams{HelicalInterleaverParams(67, 4) , RSCoderParams(139, 125), 1}
+                CodingParams{HelicalInterleaverParams(67, 4) , std::nullopt, 1}
             }
+        }
+    };
+
+    static const std::array<std::pair<CodingKey, CodingParams>, 2> init_rl_coding_params = {
+        {
+            {
+                {CMS::QPSK_R12, 1},
+                CodingParams{HelicalInterleaverParams(67, 4), RSCoderParams(16, 14), 1}
+            },
+            {
+                {CMS::QPSK_R12, 2},
+                CodingParams{HelicalInterleaverParams(67, 8), RSCoderParams(32, 28), 1}
+            },
         }
     };
 
@@ -1014,11 +1027,14 @@ namespace openldacs::phy::params {
                 is_found = find_in_table(init_fl_coding_params);
                 break;
             case RACH:
-                is_found = find_in_table(init_fl_coding_params);
+                is_found = find_in_table(init_ra_coding_params);
                 break;
             case DCCH:
+                is_found = find_in_table(init_dc_coding_params);
                 break;
             case RL_DCH:
+                is_found = find_in_table(init_rl_coding_params);
+                break;
                 break;
             default:
                 throw std::runtime_error("Unsupported channel for coding params");

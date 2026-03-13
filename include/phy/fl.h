@@ -699,7 +699,7 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler: public ChannelHandler{
     public:
         virtual ~FLChannelHandler() = default;
-        void submitData(const PhySdu& sdu, const CodingParams &coding_params);  // user-specific
+        void processData(const PhySdu& sdu, const CodingParams &coding_params);  // user-specific
         virtual void submit(PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
