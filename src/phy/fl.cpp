@@ -193,7 +193,6 @@ namespace openldacs::phy::link::fl {
 
         itpp::imat out = itpp::reshape(input, rows, cols);
 
-        // std::cout << out << std::endl;
         return out;
     }
 
@@ -202,16 +201,9 @@ namespace openldacs::phy::link::fl {
         const itpp::bvec bits_vec = bytesToBitsMSB(input);
         itpp::bvec bits_output;
 
-        // std::cout << bits_vec.mid(523, 623) << std::endl;
         coding_params.cc.encode_tail(bits_vec, bits_output);   // === 等价 convenc(bits_bef_cod, trellis, punc_pat) :contentReference[oaicite:5]{index=5}
-
-        // SPDLOG_INFO("~~ {}", bits_vec.size());
-
         bits_output.set_size(frame_info_.n_data * coding_params.bits_per_symb * coding_params.joint_frame, true);
 
-
-        // std::cout << bits_vec.size() << " " << bits_output.size() <<std::endl; // 原始bit长度 + 6个0
-        // std::cout << frame_info_.n_data << " " <<  coding_params.bits_per_symb << " " << coding_params.joint_frame <<std::endl; // 原始bit长度 + 6个0
         return bits_output;
     }
 
@@ -249,14 +241,13 @@ namespace openldacs::phy::link::fl {
         itpp::vec out(N);
         for (int l = 0; l < a; ++l) {
             for (int n = 0; n < b; ++n) {
-                const int k = l * b + n;                 // 原始位置
+                const int k = l * b + n; // 原始位置
                 const int m = b * ((3 * n + l) % a) + n; // 交织后位置
-                out(k) = in(m);                           // 逆操作
+                out(k) = in(m); // 逆操作
             }
         }
         return out;
     }
-
 
 
     void FLChannelHandler::matrixIfft(BlockBuffer &block) {
@@ -354,13 +345,11 @@ namespace openldacs::phy::link::fl {
 
                 channelCoding(block, coding_params);
                 modulate(block, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
-                // dump_cmat_constellation(block.mod_vec, "/home/jiaxv/ldacs/openldacs/dump/mod.dat");
 
                 subcarrierAllocation(block, coding_params.joint_frame);
                 matrixIfft(block);
                 config_.sink_.enqueue(block, sdu.channel);
             }
-            // unlock
         }
     }
 
@@ -414,8 +403,6 @@ namespace openldacs::phy::link::fl {
         }
 
         // 创建最终的大矩阵，列数为 coding_params.joint_frame，行数与单个 frame 相同
-        // itpp::cmat result_matrix(n_fft, frame_info_.frame.cols() * joint_frame);
-        // result_matrix.zeros();
         block.frames_freq = itpp::cmat(n_fft, frame_info_.frame.cols() * joint_frame);
         block.frames_freq.zeros();
 
@@ -559,12 +546,8 @@ namespace openldacs::phy::link::fl {
     }
 
     itpp::cvec PhySink::windowing(const BlockBuffer &block) {
-
         const itpp::cmat &to_process = block.frame_time;
-
         const int mat_cols = to_process.cols();
-        // const int frame_symbols = mat_cols / joint_frame;
-
 
         if constexpr (n_g <= 0 || n_cp <= 0 || n_ws <= 0) {
             throw std::runtime_error("OFDM params must be positive");

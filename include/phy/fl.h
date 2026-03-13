@@ -705,8 +705,6 @@ namespace openldacs::phy::link::fl {
         const PhyFl::FLConfig& config() const noexcept { return config_; }
         const FrameInfo& frame() const noexcept { return frame_info_; }
 
-
-
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
             : ChannelHandler(ofdm_symb), device_(dev), config_(config),   channel_est_(frame_info_, ofdm_symb),

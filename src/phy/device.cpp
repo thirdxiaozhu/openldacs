@@ -14,7 +14,6 @@
 namespace openldacs::phy::device {
 
         void USRP::setupDevice() {
-                // uhd::set_thread_priority_safe();
                 usrp_ = uhd::usrp::multi_usrp::make(args_);
 
                 usrp_->set_clock_source("internal");
@@ -82,12 +81,11 @@ namespace openldacs::phy::device {
                     rx_ant);
 
                 for (auto ch : channels) {
-                        // const bool use_rl_mapping = ch == RL_CHANNEL;
                         const bool use_rl_mapping = false;
 
                         uhd::tune_request_t tune_req(use_rl_mapping ? rl_freq_ : fl_freq_, lo_offset);
-                        uhd::tune_result_t tx_res = usrp_->set_tx_freq(tune_req, ch);
-                        uhd::tune_result_t rx_res = usrp_->set_rx_freq(tune_req, ch);
+                        usrp_->set_tx_freq(tune_req, ch);
+                        usrp_->set_rx_freq(tune_req, ch);
 
                         usrp_->set_rx_dc_offset(true, ch);
                         usrp_->set_rx_iq_balance(true, ch);

@@ -34,8 +34,9 @@
 namespace openldacs {
     enum class CMS : uint8_t {
         QPSK_R12 = 0x00,
-        QPSK_R23 = 0x01,
-        QPSK_R34 = 0x02,
+        QPSK_R13 = 0x01,
+        QPSK_R23 = 0x02,
+        QPSK_R34 = 0x03,
         QAM16_R12 = 0x10,
         QAM16_R23 = 0x11,
         QAM64_R12 = 0x20,
