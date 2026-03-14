@@ -24,7 +24,7 @@ namespace openldacs::phy::params {
 
 
     enum class ModulationType : uint8_t { QPSK, QAM16, QAM64, };
-    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, PAPR = 3 };
+    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, PAPR = 3, AGC = 4 };
 
     inline constexpr std::size_t n_sync_symb = 2;
     inline constexpr std::array<int, 12> sync_ind1 = {
@@ -183,6 +183,52 @@ namespace openldacs::phy::params {
         {pilot_seed5.begin(), pilot_seed5.end()},
     };
 
+    inline constexpr std::array<cd, 12> sync_symbol1 = {
+        cd(2.0, 0.0),
+        cd(0.517638, 1.93185),
+        cd(1.0, -1.73205),
+        cd(1.41421, -1.41421),
+        cd(-1.0, 1.73205),
+        cd(0.517638, 1.93185),
+        cd(-2.0, 2.49902e-14),
+        cd(0.517638, 1.93185),
+        cd(-1.0, 1.73205),
+        cd(1.41421, -1.41421),
+        cd(1.0, -1.73205),
+        cd(0.517638, 1.93185),
+    };
+
+     inline constexpr std::array<cd, 24> sync_symbol2 = {
+        cd(1.41421, 0.0),
+        cd(1.40211, 0.184592),
+        cd(1.22474, 0.707107),
+        cd(0.541196, 1.30656),
+        cd(-0.707107, 1.22474),
+        cd(-1.40211, -0.184592),
+        cd(-2.59787e-16, -1.41421),
+        cd(1.40211, 0.184592),
+        cd(-0.707107, 1.22474),
+        cd(-0.541196, -1.30656),
+        cd(1.22474, 0.707107),
+        cd(-1.40211, -0.184592),
+        cd(1.41421, -1.03915e-15),
+        cd(-1.40211, -0.184592),
+        cd(1.22474, 0.707107),
+        cd(-0.541196, -1.30656),
+        cd(-0.707107, 1.22474),
+        cd(1.40211, 0.184592),
+        cd(-4.85023e-15, -1.41421),
+        cd(-1.40211, -0.184592),
+        cd(-0.707107, 1.22474),
+        cd(0.541196, 1.30656),
+        cd(1.22474, 0.707107),
+        cd(1.40211, 0.184592),
+    };
+
+    inline constexpr std::array<int, 50> agc_k = {
+        29, 8, 35, 53, 30, 17, 21, 16, 7, 37, 23, 35, 40, 41, 8, 46, 32, 47, 8, 36, 26, 53, 12, 26, 33, 4, 31, 42, 0, 6, 48, 18, 60, 24, 2, 15, 16, 58, 48, 37, 61, 22, 38, 52, 23, 3, 63, 36, 49, 42
+    };
+
     inline constexpr std::array<uint8_t, 412> random_output = {
         0xBF, 0x03, 0x82, 0x09, 0x0C, 0x36, 0x28, 0xB4, 0xF3, 0xBA, 0x29, 0x9C, 0xF5, 0x4A, 0x3F, 0xBC, 0x81, 0x8B,
         0x05, 0x3A, 0x1E, 0x9C, 0x47, 0x49, 0x93, 0xB5, 0x69, 0xBF, 0x75, 0x83, 0x3D, 0x0A, 0x8E, 0x3F, 0x24, 0x82,
@@ -264,9 +310,9 @@ namespace openldacs::phy::params {
         size_t n_sync2 = 24;
 
         itpp::cvec pilot_seeds;
-        itpp::cvec sync_symbols1;
-        itpp::cvec sync_symbols2;
-        itpp::cvec sync_symbols;
+        itpp::cvec agc_seeds;
+
+
 
         itpp::cmat frame;
 
@@ -275,6 +321,7 @@ namespace openldacs::phy::params {
     protected:
         int symbols_;
         virtual void getFrameIndices() = 0;
+        virtual void calcSequences() = 0;
     };
 
     struct RAFrameInfo final: FrameInfo {
@@ -285,7 +332,9 @@ namespace openldacs::phy::params {
         static constexpr std::int64_t guard_right = 18;
 
         std::vector<int> papr_ind;
+        std::vector<int> agc_ind;
         size_t n_papr = 0;
+        size_t n_agc = 0;
 
         explicit RAFrameInfo(const int symbols):FrameInfo(symbols){
             getFrameIndices();
@@ -293,6 +342,7 @@ namespace openldacs::phy::params {
 
     private:
         void getFrameIndices() override;
+        void calcSequences() override;
     };
 
     struct FLFrameInfo final : FrameInfo{
@@ -310,7 +360,7 @@ namespace openldacs::phy::params {
 
     private:
         void getFrameIndices() override;
-        void calcSequences();
+        void calcSequences() override;
         void composeFrame();
     };
 
