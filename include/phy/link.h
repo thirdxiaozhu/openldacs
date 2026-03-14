@@ -32,24 +32,32 @@ namespace openldacs::phy::link {
         virtual ~ChannelHandler() = default;
 
     protected:
+        std::mutex block_m_;
+        std::unordered_map<params::BlockKey, params::BlockBuffer, params::BlockKeyHash> block_map_;
+
         [[nodiscard]] CMS getCms() const {
             return default_cms_;
         }
+
         void setCms(const CMS cms) {
             default_cms_ = cms;
         }
-        explicit ChannelHandler():
-              QPSK_modulator_(params::ModulationType::QPSK),
-              QAM16_modulator_(params::ModulationType::QAM16), QAM64_modulator_(params::ModulationType::QAM64){
+
+        explicit ChannelHandler() : QPSK_modulator_(params::ModulationType::QPSK),
+                                    QAM16_modulator_(params::ModulationType::QAM16),
+                                    QAM64_modulator_(params::ModulationType::QAM64) {
         };
 
-        virtual const params::FrameInfo& getFrame() const = 0;
+        virtual const params::FrameInfo &getFrame() const = 0;
 
+        std::optional<params::BlockBuffer> collectBlockBuff(const params::PhySdu &sdu,
+                                                                    params::ProcessUnit &unit, size_t int_count);
 
         // modulation
-        void modulate(params::BlockBuffer &block, params::ModulationType mod_type) const ;
+        void modulate(params::BlockBuffer &block, params::ModulationType mod_type) const;
 
-        [[nodiscard]] itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, params::ModulationType mod_type) const;
+        [[nodiscard]] itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise,
+                                           params::ModulationType mod_type) const;
 
     private:
         params::LdacsModulator QPSK_modulator_;

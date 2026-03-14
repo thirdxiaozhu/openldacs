@@ -41,7 +41,6 @@ namespace openldacs::phy::link::rl {
 
     class RLChannelHandler: public ChannelHandler {
 
-
     protected:
         explicit RLChannelHandler(PhyRl::RLConfig &config, device::DevPtr &dev)
             :device_(dev), config_(config){

@@ -44,4 +44,30 @@ namespace openldacs::phy::link {
             }
         }
     }
+
+    std::optional<BlockBuffer> ChannelHandler::collectBlockBuff(const PhySdu& sdu, ProcessUnit &unit, const size_t int_count) {
+        std::optional<BlockBuffer> ready_block;
+        const BlockKey key(sdu);
+        {
+            std::lock_guard<std::mutex> lk(block_m_);
+
+            auto &buf = block_map_[key];
+
+            if (buf.units.empty()) {
+                buf.interleaver_count = int_count;
+                buf.is_cc = sdu.channel == CCCH_DCH;
+            }
+            if (buf.interleaver_count != int_count) {
+                throw std::runtime_error("Interleaver count does not match");
+            }
+
+            buf.units.push_back(std::move(unit));
+
+            if (buf.units.size() == buf.interleaver_count) {
+                ready_block = std::move(buf);
+                block_map_.erase(key);
+            }
+        }
+        return ready_block;
+    }
 }

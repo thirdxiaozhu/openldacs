@@ -342,6 +342,61 @@ namespace openldacs::phy::params {
         std::vector<uint8_t> payload;
     };
 
+    struct BlockKey {
+        params::DirectionType direction;
+        uint32_t sf_id;
+        uint16_t mf_id;
+
+        // FL specific
+        uint8_t acm_id;
+        uint8_t fl_block_id;
+
+        // // RL specific
+        // uint16_t as_i;
+        // uint16_t rl_block_seq;   // 0,1,2... within MF if split by Nlim/10 limit
+
+        bool operator==(const BlockKey & o) const {
+            return direction == o.direction &&
+               sf_id == o.sf_id &&
+               mf_id == o.mf_id &&
+               acm_id == o.acm_id &&
+               fl_block_id == o.fl_block_id;
+        }
+
+        explicit BlockKey(const params::PhySdu &sdu): direction(sdu.direction),
+                                                      sf_id(sdu.sf_id),
+                                                      mf_id(sdu.mf_id),
+                                                      acm_id(sdu.acm_id)
+        {
+            if (direction == params::DirectionType::FL) {
+                if (sdu.sdu_index >= 1 && sdu.sdu_index <= 6) fl_block_id = 0;
+                else if (sdu.sdu_index >= 7 && sdu.sdu_index <= 12) fl_block_id = 1;
+                else if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) fl_block_id = 2;
+                else fl_block_id = 3;
+            }else {
+                // RL
+            }
+        }
+    };
+
+
+    struct BlockKeyHash {
+        size_t operator()(const BlockKey& k) const noexcept {
+            // crude hash, refine in real code
+            size_t h = 14695981039346656037ull;
+            auto mix = [&](uint64_t v){
+                h ^= v + 0x9e3779b97f4a7c15ull + (h<<6) + (h>>2);
+            };
+            mix(static_cast<uint64_t>(k.direction));
+            mix(k.sf_id);
+            mix(k.mf_id);
+            mix(k.acm_id);
+            mix(k.fl_block_id);
+            return h;
+        }
+    };
+
+
     // Result after (RS) encoding of one SDU (still bytes/bits, not modulated symbols)
     struct ProcessUnit {
         // store RS-coded bytes (systematic + parity), whatever your RS encoder outputs

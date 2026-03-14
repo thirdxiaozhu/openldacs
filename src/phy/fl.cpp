@@ -333,35 +333,8 @@ namespace openldacs::phy::link::fl {
 
         VecU8 to_process = sdu.payload;
         randomizer(to_process, coding_params);
-        const BlockKey key(sdu);
 
-        const size_t int_count = coding_params.joint_frame * coding_params.n_pdus;
-        ProcessUnit unit = rsEncoder(to_process, sdu.sdu_index, coding_params);
-        std::optional<BlockBuffer> ready_block;
-
-        {
-            std::lock_guard<std::mutex> lk(block_m_);
-
-            auto &buf = block_map_[key];
-
-            if (buf.units.empty()) {
-                buf.interleaver_count = int_count;
-                buf.is_cc = sdu.channel == CCCH_DCH;
-            }
-            if (buf.interleaver_count != int_count) {
-                throw std::runtime_error("Interleaver count does not match");
-            }
-
-            buf.units.push_back(std::move(unit));
-
-            if (buf.units.size() == buf.interleaver_count) {
-                ready_block = std::move(buf);
-                block_map_.erase(key);
-            }
-        }
-
-        if (ready_block) {
-            channelCoding(*ready_block, coding_params);
+        if (std::optional<BlockBuffer> ready_block = channelCoding(sdu, to_process, coding_params)) {
             modulate(*ready_block, coding_params.mod_type);
             subcarrierAllocation(*ready_block, coding_params.joint_frame);
             matrixIfft(*ready_block);
@@ -394,21 +367,33 @@ namespace openldacs::phy::link::fl {
         }
     }
 
-    void FLChannelHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) const {
 
-        std::ranges::sort(block.units,
-                          [](const ProcessUnit& a, const ProcessUnit& b){
-                              return a.sdu_index < b.sdu_index;
-                          });
 
-        const itpp::ivec block_int = blockInterleaver(block.units, coding_params);
+    std::optional<BlockBuffer> FLChannelHandler::channelCoding(const PhySdu& sdu, const VecU8 &to_process, const CodingParams &coding_params) {
 
-        // 字节层面转为bit层面
-        const itpp::bvec conv_bits = convCode(block_int, coding_params);
+        // const BlockKey key(sdu);
+        const size_t int_count = coding_params.joint_frame * coding_params.n_pdus;
+        ProcessUnit unit = rsEncoder(to_process, sdu.sdu_index, coding_params);
 
-        const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
+        std::optional<BlockBuffer> ready_block = collectBlockBuff(sdu, unit, int_count);
 
-        block.coded_bits = helical_bits;
+        if (ready_block) {
+            std::ranges::sort(ready_block.value().units,
+                              [](const ProcessUnit& a, const ProcessUnit& b){
+                                  return a.sdu_index < b.sdu_index;
+                              });
+
+            const itpp::ivec block_int = blockInterleaver(ready_block.value().units, coding_params);
+
+            // 字节层面转为bit层面
+            const itpp::bvec conv_bits = convCode(block_int, coding_params);
+
+            const itpp::bvec helical_bits = helicalInterleaver(conv_bits, coding_params);
+
+            ready_block.value().coded_bits = helical_bits;
+        }
+
+        return ready_block;
     }
 
     void FLChannelHandler::subcarrierAllocation(BlockBuffer &block, const int joint_frame) {
