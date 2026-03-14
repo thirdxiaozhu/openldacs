@@ -137,7 +137,7 @@ int main() {
         std::cout << "t_u = " << t_u << std::endl;
         std::cout << "t_symb = " << t_symb << std::endl;
 
-        const PhyService phy_ser(device::DeviceType::USRP);
+        const PhyService phy_ser(device::DeviceType::USRP, GS);
 
         int times = 1000;
         while (times--) {

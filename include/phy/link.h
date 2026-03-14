@@ -38,12 +38,13 @@ namespace openldacs::phy::link {
         void setCms(const CMS cms) {
             default_cms_ = cms;
         }
-        explicit ChannelHandler(int ofdm_symb) : frame_info_(ofdm_symb),
+        explicit ChannelHandler():
               QPSK_modulator_(ModulationType::QPSK),
               QAM16_modulator_(ModulationType::QAM16), QAM64_modulator_(ModulationType::QAM64){
         };
 
-        FrameInfo frame_info_;
+        virtual const FrameInfo& getFrame() const = 0;
+
 
         // modulation
         void modulate(BlockBuffer &block, ModulationType mod_type) const;

@@ -13,33 +13,28 @@ namespace openldacs::phy {
         class PhyFl;
     }
 
+    namespace link::rl {
+        class PhyRl;
+    }
+
     namespace device {
         class Device;
         class USRP;
     }
 
-    enum  DirectionType {
-        FL = 0,
-        RL = 1,
-    };
 
-    struct PhySdu {
-        DirectionType direction;
-        uint32_t sf_id;
-        uint8_t mf_id;
-        uint8_t sdu_index;              // FL: 1-27             从 1 开始！！！！！
-        uint8_t acm_id;                 // 0 for cell-spec
-        ChannelSlot channel;
-        std::vector<uint8_t> payload;
-    };
 
     class PhyService {
     public:
         struct PhyConfig {
             std::unique_ptr<link::fl::PhyFl> PhyFL;
+            std::unique_ptr<link::rl::PhyRl> PhyRL;
             std::unique_ptr<device::Device> Device;
+
         };
-        explicit PhyService (device::DeviceType dev_type);
+        explicit PhyService (device::DeviceType dev_type, uint8_t role);
+
+        ~PhyService() = default;
         void sendFlData(const PhySdu &sdu) const;
         std::unique_ptr<device::Device>& getDevice() {
             return config_.Device;

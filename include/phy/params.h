@@ -26,13 +26,9 @@ namespace openldacs::phy::params {
 
 
     enum class ModulationType : uint8_t { QPSK, QAM16, QAM64, };
-    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, };
+    enum class SymbolValue : int { GUARD = 0, DATA = 1, PILOT = 2, PAPR = 3 };
 
     inline constexpr std::size_t n_sync_symb = 2;
-    inline constexpr std::int64_t pos_sync1 = 0;
-    inline constexpr std::int64_t pos_sync2 = 1;
-    inline constexpr std::int64_t guard_left = 7;
-    inline constexpr std::int64_t guard_right = 6;
     inline constexpr std::array<int, 12> sync_ind1 = {
         -24 + n_fft/2,
         -20 + n_fft/2,
@@ -127,6 +123,23 @@ namespace openldacs::phy::params {
         25 + n_fft/2,
     };
 
+    inline constexpr std::array<int, 8> pilot_ra = {
+        -13 + n_fft/2,
+        -9 + n_fft/2,
+        -5 + n_fft/2,
+        -1 + n_fft/2,
+        1 + n_fft/2,
+        5 + n_fft/2,
+        9 + n_fft/2,
+        13 + n_fft/2,
+    };
+
+    inline constexpr std::array<int, 2> papr_set = {
+        -11 + n_fft/2,
+        11 + n_fft/2,
+    };
+
+
     inline constexpr std::array<cd, 4> pilot_seed0 = {
         1, -1, -1 , -1
     };
@@ -201,10 +214,26 @@ namespace openldacs::phy::params {
     static constexpr std::size_t n_bc13_ofdm_symb = 15;
     static constexpr std::size_t n_bc2_ofdm_symb = 26;
     static constexpr std::size_t n_fl_ofdm_symb = 54;
+    static constexpr std::size_t n_ra_ofdm_symb = 7;
     static constexpr std::size_t n_rl_ofdm_symb = 6;
 
     enum class SyncState { ACQUIRE, TRACK };
 
+
+    enum  DirectionType {
+        FL = 0,
+        RL = 1,
+    };
+
+    struct PhySdu {
+        DirectionType direction;
+        uint32_t sf_id;
+        uint8_t mf_id;
+        uint8_t sdu_index;              // FL: 1-27             从 1 开始！！！！！
+        uint8_t acm_id;                 // 0 for cell-spec
+        ChannelSlot channel;
+        std::vector<uint8_t> payload;
+    };
 
     // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
     struct RsEncodedUnit {
@@ -225,9 +254,11 @@ namespace openldacs::phy::params {
     };
 
     struct FrameInfo {
+        virtual ~FrameInfo() = default;
+
         std::vector<int> data_ind;
         std::vector<int> pilot_ind;
-        std::vector<int> sync_ind;
+        // std::vector<int> sync_ind;
         itpp::imat frame_pattern;
         size_t n_data = 0;
         size_t n_pilot = 0;
@@ -242,14 +273,45 @@ namespace openldacs::phy::params {
         itpp::cmat frame;
 
         explicit FrameInfo(const int symbols):symbols_(symbols){
+        }
+    protected:
+        int symbols_;
+        virtual void getFrameIndices() = 0;
+    };
+
+    struct RAFrameInfo final: FrameInfo {
+        static constexpr std::int64_t pos_agc = 0;
+        static constexpr std::int64_t pos_sync1 = 1;
+        static constexpr std::int64_t pos_sync2 = 2;
+        static constexpr std::int64_t guard_left = 19;
+        static constexpr std::int64_t guard_right = 18;
+
+        std::vector<int> papr_ind;
+        size_t n_papr = 0;
+
+        explicit RAFrameInfo(const int symbols):FrameInfo(symbols){
+            getFrameIndices();
+        }
+
+    private:
+        void getFrameIndices() override;
+    };
+
+    struct FLFrameInfo final : FrameInfo{
+
+        static constexpr std::int64_t pos_sync1 = 0;
+        static constexpr std::int64_t pos_sync2 = 1;
+        static constexpr std::int64_t guard_left = 7;
+        static constexpr std::int64_t guard_right = 6;
+
+        explicit FLFrameInfo(const int symbols):FrameInfo(symbols){
             getFrameIndices();
             calcSequences();
             composeFrame();
         }
 
     private:
-        int symbols_;
-        void getFrameIndices();
+        void getFrameIndices() override;
         void calcSequences();
         void composeFrame();
     };
@@ -605,7 +667,7 @@ namespace openldacs::phy::params {
         itpp::imat frame_pattern_sync_;
         int ofdm_symb_;
 
-        explicit ChannelEstimate(FrameInfo &frame, const int ofdm_symb): ofdm_symb_(ofdm_symb), frame_info_(frame) {
+        explicit ChannelEstimate(FLFrameInfo &frame, const int ofdm_symb): ofdm_symb_(ofdm_symb), frame_info_(frame) {
             frame_pattern_sync_ = std::move(frame_info_.frame_pattern);
             // 判断是否是FL
             if (1) {
@@ -665,12 +727,12 @@ namespace openldacs::phy::params {
             // std::cout << frame_pattern_sync_ << std::endl;
         }
 
-        itpp::cmat channelEst(const itpp::cmat &input);
+        itpp::cmat channelEst(const itpp::cmat &input, int64_t sync2);
     private:
-        FrameInfo &frame_info_;
+        FLFrameInfo &frame_info_;
         int influence_length = 6;
 
-        itpp::cmat channel_coeff_pil(const itpp::cmat &input);
+        itpp::cmat channel_coeff_pil(const itpp::cmat &input, int64_t sync2);
 
         void line_int_2d(itpp::cmat &input);
 
@@ -678,7 +740,7 @@ namespace openldacs::phy::params {
 
     struct Equalizer {
 
-        explicit Equalizer(const FrameInfo &frame, device::DevPtr& dev, int ofdm_symb):dev_(dev), frame_info_(frame), ofdm_symb_(ofdm_symb) {
+        explicit Equalizer(const FLFrameInfo &frame, device::DevPtr& dev, int ofdm_symb):dev_(dev), frame_info_(frame), ofdm_symb_(ofdm_symb) {
 
         }
 
@@ -782,7 +844,7 @@ namespace openldacs::phy::params {
         }
     private:
         device::DevPtr& dev_;
-        FrameInfo frame_info_;
+        FLFrameInfo frame_info_;
         int ofdm_symb_;
         int tt = 0;
     };

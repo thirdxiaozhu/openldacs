@@ -703,11 +703,13 @@ namespace openldacs::phy::link::fl {
         virtual void submit(PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
-        const FrameInfo& frame() const noexcept { return frame_info_; }
+        const FrameInfo& getFrame() const override  { return frame_info_; }
+
+        FLFrameInfo frame_info_;
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : ChannelHandler(ofdm_symb), device_(dev), config_(config),   channel_est_(frame_info_, ofdm_symb),
+            :  frame_info_(ofdm_symb), device_(dev), config_(config),   channel_est_(frame_info_, ofdm_symb),
               equalizer_(frame_info_, dev, ofdm_symb), ofdm_symb_(ofdm_symb), f_sync(ofdm_symb) {
         }
 

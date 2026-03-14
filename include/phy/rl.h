@@ -41,24 +41,27 @@ namespace openldacs::phy::link::rl {
 
     class RLChannelHandler: public ChannelHandler {
 
+
     protected:
-        explicit RLChannelHandler(PhyRl::RLConfig &config, device::DevPtr &dev, const int ofdm_symb)
-            : ChannelHandler(ofdm_symb), device_(dev), config_(config){
+        explicit RLChannelHandler(PhyRl::RLConfig &config, device::DevPtr &dev)
+            :device_(dev), config_(config){
         }
 
         device::DevPtr& device_;
         PhyRl::RLConfig& config_;
     };
 
-    class RAHandler: public RLChannelHandler {
+    class RAHandler final: public RLChannelHandler {
+        RAFrameInfo ra_frame_info_;
+        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_rl_ofdm_symb) {
+        explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_ra_ofdm_symb) {
         }
     protected:
 
     private:
         CodingTable coding_table_{
-            frame_info_, {
+            ra_frame_info_, {
                     {CMS::QPSK_R13, 1},
                 },
                 RACH
@@ -66,32 +69,36 @@ namespace openldacs::phy::link::rl {
     };
 
     class DCHandler: public RLChannelHandler {
+        RAFrameInfo ra_frame_info_;
+        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit DCHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_rl_ofdm_symb) {
+        explicit DCHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_rl_ofdm_symb) {
         }
     protected:
 
     private:
-        CodingTable coding_table_{
-            frame_info_, {
-                        {CMS::QPSK_R13, 1},
-                    },
-                    RACH
-                };
+        // CodingTable coding_table_{
+        //     frame_info_, {
+        //                 // {CMS::QPSK_R13, 1},
+        //             },
+        //             RACH
+        //         };
     };
 
     class RLDataHandler: public RLChannelHandler {
+        RAFrameInfo ra_frame_info_;
+        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev, n_rl_ofdm_symb) {
+        explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_rl_ofdm_symb) {
         }
 
     private:
-        CodingTable coding_table_{
-            frame_info_, {
-                    {CMS::QPSK_R12, 1},
-                },
-                RL_DCH
-            };
+        // CodingTable coding_table_{
+        //     frame_info_, {
+        //             {CMS::QPSK_R12, 1},
+        //         },
+        //         RL_DCH
+        //     };
     };
 
 

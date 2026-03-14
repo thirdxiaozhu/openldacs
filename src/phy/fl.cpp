@@ -467,7 +467,7 @@ namespace openldacs::phy::link::fl {
 
             const itpp::cmat data_freq_up_dbg = matrixFft(data_time_dbg);
             const itpp::cmat data_freq_dbg = downsamplingFreq(data_freq_up_dbg, f_sync.sync.upsample_rate);
-            const itpp::cmat chan_coeff_dbg = channel_est_.channelEst(data_freq_dbg);
+            const itpp::cmat chan_coeff_dbg = channel_est_.channelEst(data_freq_dbg, frame_info_.pos_sync2);
 
             itpp::cmat data_equ_dbg;
             itpp::mat sigma2_dbg;
@@ -489,7 +489,7 @@ namespace openldacs::phy::link::fl {
         const itpp::cmat data_freq_up = matrixFft(data_time);
         const itpp::cmat data_freq = downsamplingFreq(data_freq_up, f_sync.sync.upsample_rate);
 
-        const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq);
+        const itpp::cmat chan_coeff_mat = channel_est_.channelEst(data_freq, frame_info_.pos_sync2);
 
         itpp::cmat data_equ;
         itpp::mat sigma2_sum;

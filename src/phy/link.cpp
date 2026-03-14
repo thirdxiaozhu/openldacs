@@ -29,13 +29,13 @@ namespace openldacs::phy::link {
     itpp::mat ChannelHandler::demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, const ModulationType mod_type) const {
         switch (mod_type) {
             case ModulationType::QPSK: {
-                return QPSK_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+                return QPSK_modulator_.demod_soft_matlab(data_equ, noise, getFrame().data_ind);
             }
             case ModulationType::QAM16: {
-                return QAM16_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+                return QAM16_modulator_.demod_soft_matlab(data_equ, noise, getFrame().data_ind);
             }
             case ModulationType::QAM64: {
-                return QAM64_modulator_.demod_soft_matlab(data_equ, noise, frame_info_.data_ind);
+                return QAM64_modulator_.demod_soft_matlab(data_equ, noise, getFrame().data_ind);
             }
             default: {
                 throw std::runtime_error("Unknown ModulationType");

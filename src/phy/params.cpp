@@ -16,7 +16,7 @@
 namespace openldacs::phy::params {
 
 
-    void FrameInfo::getFrameIndices() {
+    void FLFrameInfo::getFrameIndices() {
 
         itpp::imat& pattern = frame_pattern;
 
@@ -56,12 +56,12 @@ namespace openldacs::phy::params {
         n_pilot = pilot_ind.size();
 
         // for sync
-        sync_ind.insert(sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
-        sync_ind.insert(sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
+        // sync_ind.insert(sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
+        // sync_ind.insert(sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
     }
 
 
-    void FrameInfo::calcSequences() {
+    void FLFrameInfo::calcSequences() {
         // pilot symbol
         {
             pilot_seeds.set_size(static_cast<int>(n_pilot));
@@ -117,7 +117,7 @@ namespace openldacs::phy::params {
         // std::cout << frame_info_.sync_symbols << std::endl;
     }
 
-    void FrameInfo::composeFrame() {
+    void FLFrameInfo::composeFrame() {
         frame.set_size(n_fft, symbols_);
         frame.zeros();
 
@@ -132,8 +132,52 @@ namespace openldacs::phy::params {
         for (int i = 0; i < sync_ind2.size(); i++) {
             frame(sync_ind2[i]) = sync_symbols2[i];
         }
-
     }
+
+    void RAFrameInfo::getFrameIndices() {
+        itpp::imat& pattern = frame_pattern;
+
+        pattern = itpp::imat(n_fft, symbols_);
+        pattern.ones();
+        pattern.set_col(pos_agc, itpp::zeros_i(n_fft));
+        pattern.set_col(pos_sync1, itpp::zeros_i(n_fft));
+        pattern.set_col(pos_sync2, itpp::zeros_i(n_fft));
+
+        // guards
+        pattern.set_rows(0, itpp::zeros_i(guard_left, symbols_));
+        pattern.set_rows(n_fft-guard_right, itpp::zeros_i(guard_right, symbols_));
+        // middle
+        pattern.set_row(n_fft/2, itpp::zeros_i(symbols_));
+
+        //
+
+        // pilots ra
+        for (const int i : pilot_ra) {
+            pattern(i, 6) = static_cast<int>(SymbolValue::PILOT);
+        }
+
+        // papr
+        for (const int i: papr_set) {
+            for (int j = 3; j < 6; j++) {
+                pattern(i, j) = static_cast<int>(SymbolValue::PAPR);
+            }
+        }
+
+
+        std::cout << pattern << std::endl;
+
+        find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
+        find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
+        find_value_imat(papr_ind, pattern, static_cast<int>(SymbolValue::PAPR));
+        n_data = data_ind.size();
+        n_pilot = pilot_ind.size();
+        n_papr = pilot_ind.size();
+
+        // for sync
+        // sync_ind.insert(sync_ind.end(), sync_ind1.begin(), sync_ind1.end());
+        // sync_ind.insert(sync_ind.end(), sync_ind2.begin(), sync_ind2.end());
+    }
+
 
 
     CodingParams CodingTable::setCodingParams(CodingKey key, const ChannelSlot ch) const {
@@ -778,22 +822,19 @@ namespace openldacs::phy::params {
 
 
 
-    itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input) {
-
-
-
-        itpp::cmat ce_pil = channel_coeff_pil(input);
+    itpp::cmat ChannelEstimate::channelEst(const itpp::cmat &input, const int64_t sync2) {
+        itpp::cmat ce_pil = channel_coeff_pil(input, sync2);
         line_int_2d(ce_pil);
         return ce_pil;
     }
 
-    itpp::cmat ChannelEstimate::channel_coeff_pil(const itpp::cmat &input) {
+    itpp::cmat ChannelEstimate::channel_coeff_pil(const itpp::cmat &input, const int64_t sync2) {
         int num_frames = input.size() / ofdm_symb_ / n_fft;
         int sync_pos = -1;
 
         // 判断信道是否存在同步符号 ,在FL试验阶段直接就true
         if (1) {
-            sync_pos = pos_sync2;
+            sync_pos = sync2;
         }
         itpp::cmat chan_coeff_mat = itpp::zeros_c(n_fft, ofdm_symb_ * num_frames);
 
