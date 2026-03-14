@@ -342,10 +342,10 @@ namespace openldacs::phy::params {
         std::vector<uint8_t> payload;
     };
 
-    // Result after RS encoding of one SDU (still bytes/bits, not modulated symbols)
-    struct RsEncodedUnit {
+    // Result after (RS) encoding of one SDU (still bytes/bits, not modulated symbols)
+    struct ProcessUnit {
         // store RS-coded bytes (systematic + parity), whatever your RS encoder outputs
-        std::vector<uint8_t> rs_bytes;
+        std::vector<uint8_t> en_bytes;
         // Keep original metadata for ordering
         uint16_t sdu_index;
     };
@@ -353,7 +353,7 @@ namespace openldacs::phy::params {
     struct BlockBuffer {
         size_t interleaver_count;
         bool is_cc;
-        std::vector<RsEncodedUnit> units;
+        std::vector<ProcessUnit> units;
         itpp::bvec coded_bits;
         itpp::cvec mod_vec;
         itpp::cmat frames_freq;

@@ -725,14 +725,13 @@ namespace openldacs::phy::link::fl {
         int debug_fft_offset_dump_count_ = 0;
 
         virtual const params::CodingTable &getCodingTable() const = 0;
-        virtual size_t getInterleaverCount(const params::PhySdu &sdu) const = 0;
 
         // channel coding
         void channelCoding(params::BlockBuffer &block, const params::CodingParams &coding_params) const;
 
         static void randomizer(VecU8 &to_process, const params::CodingParams &coding_params);
-        static params::RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const params::CodingParams &coding_params);
-        static itpp::ivec blockInterleaver(const std::vector<params::RsEncodedUnit> &units,
+        static params::ProcessUnit rsEncoder(const VecU8 &to_process, uint8_t index, const params::CodingParams &coding_params);
+        static itpp::ivec blockInterleaver(const std::vector<params::ProcessUnit> &units,
                                            const params::CodingParams &coding_params);
         itpp::bvec convCode(const itpp::ivec &input, const params::CodingParams &coding_params) const;
         static itpp::bvec helicalInterleaver(const itpp::bvec &input, const params::CodingParams &coding_params);
@@ -767,9 +766,6 @@ namespace openldacs::phy::link::fl {
         const params::CodingTable& getCodingTable() const override{
             return coding_table_;
         }
-        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
-            return 1;
-        }
 
     private:
         params::CodingTable coding_table_{
@@ -794,9 +790,6 @@ namespace openldacs::phy::link::fl {
         const params::CodingTable& getCodingTable() const override{
             return coding_table_;
         }
-        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
-            return 1;
-        }
     private:
         params::CodingTable coding_table_{
             frame_info_, {
@@ -810,7 +803,7 @@ namespace openldacs::phy::link::fl {
     public:
         explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, params::n_fl_ofdm_symb) {
             // setCms(CMS::QAM16_R23);
-            setCms(CMS::QAM64_R34);
+            setCms(CMS::QPSK_R12);
 
             auto FLDchHandler = [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
                 if (t_coarse.size() != 2 ) {
@@ -839,16 +832,6 @@ namespace openldacs::phy::link::fl {
 
         const params::CodingTable& getCodingTable() const override{
             return coding_table_;
-        }
-
-        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
-            if (sdu.direction == params::FL) {
-                if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) return 9;
-                return 6;
-            }else {
-                // RL
-                return 0;
-            }
         }
 
     private:

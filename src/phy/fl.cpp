@@ -121,8 +121,8 @@ namespace openldacs::phy::link::fl {
         return output;
     }
 
-    RsEncodedUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
-        RsEncodedUnit unit;
+    ProcessUnit FLChannelHandler::rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params) {
+        ProcessUnit unit;
         unit.sdu_index = index;
         if (!coding_params.rs_params.has_value()) {
             throw std::runtime_error("Reed-Solomon unsupported in this channel");
@@ -140,7 +140,7 @@ namespace openldacs::phy::link::fl {
             VecU8 sub(to_process.begin() + i * rs_params.k, to_process.begin() + (i + 1) * rs_params.k);
 
             rs_params.rs.rsEncode(sub, output);
-            unit.rs_bytes.insert(unit.rs_bytes.end(), output.begin(), output.end());
+            unit.en_bytes.insert(unit.en_bytes.end(), output.begin(), output.end());
 
         }
 
@@ -185,17 +185,17 @@ namespace openldacs::phy::link::fl {
         return output;
     }
 
-    itpp::ivec FLChannelHandler::blockInterleaver(const std::vector<RsEncodedUnit> &units,
+    itpp::ivec FLChannelHandler::blockInterleaver(const std::vector<ProcessUnit> &units,
                                                   const CodingParams &coding_params) {
         const size_t rows = coding_params.joint_frame * coding_params.n_pdus;
-        const size_t cols = units[0].rs_bytes.size();
+        const size_t cols = units[0].en_bytes.size();
 
         itpp::ivec out(rows * cols);
 
         int count = 0;
         for (int i = 0; i < cols; ++i) {
             for (int j = 0; j < rows; ++j) {
-                out(count++) = units[j].rs_bytes[i];
+                out(count++) = units[j].en_bytes[i];
             }
         }
 
@@ -332,18 +332,18 @@ namespace openldacs::phy::link::fl {
         }
 
         VecU8 to_process = sdu.payload;
-
         randomizer(to_process, coding_params);
-        RsEncodedUnit unit = rsEncoder(to_process, sdu.sdu_index, coding_params);
+        const BlockKey key(sdu);
+
+        const size_t int_count = coding_params.joint_frame * coding_params.n_pdus;
+        ProcessUnit unit = rsEncoder(to_process, sdu.sdu_index, coding_params);
+        std::optional<BlockBuffer> ready_block;
 
         {
-            // lock
             std::lock_guard<std::mutex> lk(block_m_);
 
-            const BlockKey key(sdu);
-
-            const size_t int_count = getInterleaverCount(sdu);
             auto &buf = block_map_[key];
+
             if (buf.units.empty()) {
                 buf.interleaver_count = int_count;
                 buf.is_cc = sdu.channel == CCCH_DCH;
@@ -355,16 +355,17 @@ namespace openldacs::phy::link::fl {
             buf.units.push_back(std::move(unit));
 
             if (buf.units.size() == buf.interleaver_count) {
-                BlockBuffer block = std::move(buf);
+                ready_block = std::move(buf);
                 block_map_.erase(key);
-
-                channelCoding(block, coding_params);
-                modulate(block, coding_params.mod_type); // 长度应该是一个ofdm frame的data symbol长度的两倍
-
-                subcarrierAllocation(block, coding_params.joint_frame);
-                matrixIfft(block);
-                config_.sink_.enqueue(block, sdu.channel);
             }
+        }
+
+        if (ready_block) {
+            channelCoding(*ready_block, coding_params);
+            modulate(*ready_block, coding_params.mod_type);
+            subcarrierAllocation(*ready_block, coding_params.joint_frame);
+            matrixIfft(*ready_block);
+            config_.sink_.enqueue(*ready_block, sdu.channel);
         }
     }
 
@@ -396,7 +397,7 @@ namespace openldacs::phy::link::fl {
     void FLChannelHandler::channelCoding(BlockBuffer &block, const CodingParams &coding_params) const {
 
         std::ranges::sort(block.units,
-                          [](const RsEncodedUnit& a, const RsEncodedUnit& b){
+                          [](const ProcessUnit& a, const ProcessUnit& b){
                               return a.sdu_index < b.sdu_index;
                           });
 
