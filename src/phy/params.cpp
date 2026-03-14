@@ -14,6 +14,7 @@
 
 
 namespace openldacs::phy::params {
+    using namespace openldacs::util;
 
     void FLFrameInfo::getFrameIndices() {
 
@@ -136,9 +137,6 @@ namespace openldacs::phy::params {
             }
         }
 
-
-        std::cout << pattern << std::endl;
-
         util::find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
         util::find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
         util::find_value_imat(papr_ind, pattern, static_cast<int>(SymbolValue::PAPR));
@@ -158,66 +156,43 @@ namespace openldacs::phy::params {
         // pilot symbol
         {
             pilot_seeds.set_size(static_cast<int>(n_pilot));
-
-            int idx = 0;
-
-            // seed1 - pilot_seed0
-            for (const auto current_pilot_seed : pilot_seed0) {
-                pilot_seeds(idx++) = current_pilot_seed;
-            }
-
-            for (int i = 0; i < symbols_ - 4; i++) {
-                const std::vector<cd>& current_pilot_seeds = pilot_seeds_define[i % 5];
-                for (auto current_pilot_seed : current_pilot_seeds) {
-                    pilot_seeds(idx++) = current_pilot_seed;
-                }
-            }
-
-            // seed7 - pilot_seed6
-            for (const auto current_pilot_seed : pilot_seed6) {
-                pilot_seeds(idx++) = current_pilot_seed;
+            for (int i = 0; i < n_pilot; i++) {
+                pilot_seeds(i) = pilot_ra_symbol[i];
             }
         }
 
-        // // sync symbol2
+        // // agc
         // {
+        //     const int N = static_cast<int>(n_agc);
+        //     agc_seeds.set_size(N);
         //
-        //     const int N1 = static_cast<int>(n_sync1);
-        //     sync_symbols1.set_size(N1);
-        //
-        //     for (int k = 0; k < N1; ++k) {
-        //         const std::complex<double> W_N1 = std::exp(std::complex<double>(0.0, 5 * M_PI * k * k / N1));
-        //         sync_symbols1(k) = std::sqrt(4) * W_N1;
+        //     for (int k = 0; k < N; ++k) {
+        //         agc_seeds(k) = std::exp(std::complex<double>(0.0,  2.0 * M_PI * agc_k[k] / 64));
         //     }
         // }
+    }
 
-        // sync symbol1
-        // {
-        //     const int N2 = static_cast<int>(n_sync2);
-        //     sync_symbols2.set_size(N2);
-        //
-        //     for (int k = 0; k < N2; ++k) {
-        //         const std::complex<double> W_N2 = std::exp(std::complex<double>(0.0,  M_PI * k * k / N2));
-        //         sync_symbols2(k) = std::sqrt(2) * W_N2;
-        //     }
-        // }
+    void RAFrameInfo::composeFrame() {
+        frame.set_size(n_fft, symbols_);
+        frame.zeros();
 
-        // agc
-        {
-            const int N = static_cast<int>(n_agc);
-            agc_seeds.set_size(N);
-
-            for (int k = 0; k < N; ++k) {
-                agc_seeds(k) = std::exp(std::complex<double>(0.0,  M_PI * agc_k[k] / 64));
-            }
+        for (int i = 0; i < pilot_ind.size(); i++) {
+            frame(pilot_ind[i]) = pilot_seeds[i];
         }
 
-        // sync_symbols = itpp::concat(sync_symbols1, sync_symbols2);
+        for (int i = 0; i < agc_ind.size(); i++) {
+            frame(agc_ind[i]) = agc_pilot_symbol[i];
+        }
 
-        // std::cout << frame_info_.sync_ind << std::endl;
-        // std::cout << frame_info_.sync_symbols1 << std::endl;
-        // std::cout << frame_info_.sync_symbols2 << std::endl;
-        // std::cout << frame_info_.sync_symbols << std::endl;
+        for (int i = 0; i < sync_ind1.size(); i++) {
+            frame(sync_ind1[i] + n_fft) = sync_symbol1[i];
+        }
+
+        for (int i = 0; i < sync_ind2.size(); i++) {
+            frame(sync_ind2[i] + n_fft) = sync_symbol2[i];
+        }
+
+        // std::cout << frame << std::endl;
     }
 
     CodingParams CodingTable::setCodingParams(CodingKey key, const ChannelSlot ch) const {

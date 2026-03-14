@@ -224,10 +224,73 @@ namespace openldacs::phy::params {
         cd(1.22474, 0.707107),
         cd(1.40211, 0.184592),
     };
-
-    inline constexpr std::array<int, 50> agc_k = {
-        29, 8, 35, 53, 30, 17, 21, 16, 7, 37, 23, 35, 40, 41, 8, 46, 32, 47, 8, 36, 26, 53, 12, 26, 33, 4, 31, 42, 0, 6, 48, 18, 60, 24, 2, 15, 16, 58, 48, 37, 61, 22, 38, 52, 23, 3, 63, 36, 49, 42
+    inline constexpr std::array<cd, 8> pilot_ra_symbol = {
+        cd(0.95694, -0.290285),
+        cd(-0.19509, -0.980785),
+        cd(0.471397, 0.881921),
+        cd(0.77301, -0.634393),
+        cd(-0.707107, -0.707107),
+        cd(0.19509, -0.980785),
+        cd(-0.19509, 0.980785),
+        cd(-0.92388, 0.382683),
     };
+
+    inline constexpr std::array<cd, 50> agc_pilot_symbol = {
+        cd(-0.95694, 0.290285),
+        cd(0.707107, 0.707107),
+        cd(-0.95694, -0.290285),
+        cd(0.471397, -0.881921),
+        cd(-0.980785, 0.19509),
+        cd(-0.0980171, 0.995185),
+        cd(-0.471397, 0.881921),
+        cd(6.12323e-17, 1.0),
+        cd(0.77301, 0.634393),
+        cd(-0.881921, -0.471397),
+        cd(-0.634393, 0.77301),
+        cd(-0.95694, -0.290285),
+        cd(-0.707107, -0.707107),
+        cd(-0.634393, -0.77301),
+        cd(0.707107, 0.707107),
+        cd(-0.19509, -0.980785),
+        cd(-1.0, 1.22465e-16),
+        cd(-0.0980171, -0.995185),
+        cd(0.707107, 0.707107),
+        cd(-0.92388, -0.382683),
+        cd(-0.83147, 0.55557),
+        cd(0.471397, -0.881921),
+        cd(0.382683, 0.92388),
+        cd(-0.83147, 0.55557),
+        cd(-0.995185, -0.0980171),
+        cd(0.92388, 0.382683),
+        cd(-0.995185, 0.0980171),
+        cd(-0.55557, -0.83147),
+        cd(1.0, 0.0),
+        cd(0.83147, 0.55557),
+        cd(-1.83697e-16, -1.0),
+        cd(-0.19509, 0.980785),
+        cd(0.92388, -0.382683),
+        cd(-0.707107, 0.707107),
+        cd(0.980785, 0.19509),
+        cd(0.0980171, 0.995185),
+        cd(6.12323e-17, 1.0),
+        cd(0.83147, -0.55557),
+        cd(-1.83697e-16, -1.0),
+        cd(-0.881921, -0.471397),
+        cd(0.95694, -0.290285),
+        cd(-0.55557, 0.83147),
+        cd(-0.83147, -0.55557),
+        cd(0.382683, -0.92388),
+        cd(-0.634393, 0.77301),
+        cd(0.95694, 0.290285),
+        cd(0.995185, -0.0980171),
+        cd(-0.92388, -0.382683),
+        cd(0.0980171, -0.995185),
+        cd(-0.55557, -0.83147),
+    };
+
+    // inline constexpr std::array<int, 8> agc_k = {
+    //     61, 46, 11, 57, 40, 50, 18, 28
+    // };
 
     inline constexpr std::array<uint8_t, 412> random_output = {
         0xBF, 0x03, 0x82, 0x09, 0x0C, 0x36, 0x28, 0xB4, 0xF3, 0xBA, 0x29, 0x9C, 0xF5, 0x4A, 0x3F, 0xBC, 0x81, 0x8B,
@@ -312,8 +375,6 @@ namespace openldacs::phy::params {
         itpp::cvec pilot_seeds;
         itpp::cvec agc_seeds;
 
-
-
         itpp::cmat frame;
 
         explicit FrameInfo(const int symbols):symbols_(symbols){
@@ -322,6 +383,7 @@ namespace openldacs::phy::params {
         int symbols_;
         virtual void getFrameIndices() = 0;
         virtual void calcSequences() = 0;
+        virtual void composeFrame() = 0;
     };
 
     struct RAFrameInfo final: FrameInfo {
@@ -338,11 +400,14 @@ namespace openldacs::phy::params {
 
         explicit RAFrameInfo(const int symbols):FrameInfo(symbols){
             getFrameIndices();
+            calcSequences();
+            composeFrame();
         }
 
     private:
         void getFrameIndices() override;
         void calcSequences() override;
+        void composeFrame() override;
     };
 
     struct FLFrameInfo final : FrameInfo{
@@ -361,7 +426,7 @@ namespace openldacs::phy::params {
     private:
         void getFrameIndices() override;
         void calcSequences() override;
-        void composeFrame();
+        void composeFrame() override;
     };
 
     class SampleBuffer {

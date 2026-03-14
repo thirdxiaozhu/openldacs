@@ -33,7 +33,7 @@ namespace openldacs::phy {
     public:
         struct PhyConfig {
             std::unique_ptr<link::fl::PhyFl> PhyFL;
-            // std::unique_ptr<link::rl::PhyRl> PhyRL;
+            std::unique_ptr<link::rl::PhyRl> PhyRL;
             std::unique_ptr<device::Device> Device;
 
         };
