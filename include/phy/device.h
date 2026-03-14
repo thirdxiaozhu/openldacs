@@ -18,7 +18,6 @@
 #include <zmq.hpp>
 
 namespace openldacs::phy::device {
-    using namespace openldacs::util;
     using cd = std::complex<double>;
 
     enum class DeviceType : int {
@@ -92,10 +91,10 @@ namespace openldacs::phy::device {
         std::atomic<double> snr_db_ = 17.0;
         std::atomic<double> last_noise_power_linear_ = 0.0;
 
-        BoundedPriorityQueue<VecCD> fl_to_trans_;
-        Worker trans_worker_;
-        Worker recv_worker_;
-        Worker tx_async_worker_;
+        util::BoundedPriorityQueue<VecCD> fl_to_trans_;
+        util::Worker trans_worker_;
+        util::Worker recv_worker_;
+        util::Worker tx_async_worker_;
 
         RxCallbackType rx_callback_;
 

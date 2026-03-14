@@ -28,7 +28,7 @@ namespace openldacs::phy::link::rl {
              data_(std::make_unique<RLDataHandler>(config_, dev)) {
         }
 
-        void processPacket(const PhySdu &sdu) const override;
+        void processPacket(const params::PhySdu &sdu) const override {};
 
     private:
         RLConfig config_;
@@ -52,15 +52,15 @@ namespace openldacs::phy::link::rl {
     };
 
     class RAHandler final: public RLChannelHandler {
-        RAFrameInfo ra_frame_info_;
-        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
+        params::RAFrameInfo ra_frame_info_;
+        const params::FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_ra_ofdm_symb) {
+        explicit RAHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(params::n_ra_ofdm_symb) {
         }
     protected:
 
     private:
-        CodingTable coding_table_{
+        params::CodingTable coding_table_{
             ra_frame_info_, {
                     {CMS::QPSK_R13, 1},
                 },
@@ -69,10 +69,10 @@ namespace openldacs::phy::link::rl {
     };
 
     class DCHandler: public RLChannelHandler {
-        RAFrameInfo ra_frame_info_;
-        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
+        params::RAFrameInfo ra_frame_info_;
+        const params::FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit DCHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_rl_ofdm_symb) {
+        explicit DCHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(params::n_rl_ofdm_symb) {
         }
     protected:
 
@@ -86,10 +86,10 @@ namespace openldacs::phy::link::rl {
     };
 
     class RLDataHandler: public RLChannelHandler {
-        RAFrameInfo ra_frame_info_;
-        const FrameInfo& getFrame() const override  { return ra_frame_info_; }
+        params::RAFrameInfo ra_frame_info_;
+        const params::FrameInfo& getFrame() const override  { return ra_frame_info_; }
     public:
-        explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(n_rl_ofdm_symb) {
+        explicit RLDataHandler(PhyRl::RLConfig& config, device::DevPtr& dev) : RLChannelHandler(config, dev), ra_frame_info_(params::n_rl_ofdm_symb) {
         }
 
     private:

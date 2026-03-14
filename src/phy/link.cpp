@@ -6,6 +6,8 @@
 
 namespace openldacs::phy::link {
 
+    using namespace phy::params;
+
     void ChannelHandler::modulate(BlockBuffer &block, const ModulationType mod_type) const {
         switch (mod_type) {
             case ModulationType::QPSK: {

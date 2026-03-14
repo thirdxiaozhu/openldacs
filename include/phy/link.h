@@ -10,7 +10,6 @@
 
 namespace openldacs::phy::link {
 
-    using namespace phy::params;
 
     constexpr static int CC_DATA_IDX = 3-1; // 0-base
     constexpr static int MF_PER_SF = 4;
@@ -22,13 +21,15 @@ namespace openldacs::phy::link {
         virtual ~LinkBase() = default;
         explicit LinkBase() = default;
 
-        virtual void processPacket(const PhySdu &sdu) const = 0;
+        virtual void processPacket(const params::PhySdu &sdu) const = 0;
     protected:
         // LinkType type_;
     private:
     };
 
     class ChannelHandler {
+    public:
+        virtual ~ChannelHandler() = default;
 
     protected:
         [[nodiscard]] CMS getCms() const {
@@ -38,22 +39,22 @@ namespace openldacs::phy::link {
             default_cms_ = cms;
         }
         explicit ChannelHandler():
-              QPSK_modulator_(ModulationType::QPSK),
-              QAM16_modulator_(ModulationType::QAM16), QAM64_modulator_(ModulationType::QAM64){
+              QPSK_modulator_(params::ModulationType::QPSK),
+              QAM16_modulator_(params::ModulationType::QAM16), QAM64_modulator_(params::ModulationType::QAM64){
         };
 
-        virtual const FrameInfo& getFrame() const = 0;
+        virtual const params::FrameInfo& getFrame() const = 0;
 
 
         // modulation
-        void modulate(BlockBuffer &block, ModulationType mod_type) const;
-        [[nodiscard]] itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, ModulationType mod_type) const;
+        void modulate(params::BlockBuffer &block, params::ModulationType mod_type) const ;
+
+        [[nodiscard]] itpp::mat demodulate(const itpp::cmat &data_equ, const itpp::mat &noise, params::ModulationType mod_type) const;
 
     private:
-
-        LdacsModulator QPSK_modulator_;
-        LdacsModulator QAM16_modulator_;
-        LdacsModulator QAM64_modulator_;
+        params::LdacsModulator QPSK_modulator_;
+        params::LdacsModulator QAM16_modulator_;
+        params::LdacsModulator QAM64_modulator_;
         CMS default_cms_ = CMS::QPSK_R23;
     };
 }

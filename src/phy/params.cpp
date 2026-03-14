@@ -15,7 +15,6 @@
 
 namespace openldacs::phy::params {
 
-
     void FLFrameInfo::getFrameIndices() {
 
         itpp::imat& pattern = frame_pattern;
@@ -50,8 +49,8 @@ namespace openldacs::phy::params {
 
         // std::cout << pattern << std::endl;
 
-        find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
-        find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
+        util::find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
+        util::find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
         n_data = data_ind.size();
         n_pilot = pilot_ind.size();
 
@@ -166,9 +165,9 @@ namespace openldacs::phy::params {
 
         std::cout << pattern << std::endl;
 
-        find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
-        find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
-        find_value_imat(papr_ind, pattern, static_cast<int>(SymbolValue::PAPR));
+        util::find_value_imat(data_ind, pattern, static_cast<int>(SymbolValue::DATA));
+        util::find_value_imat(pilot_ind, pattern, static_cast<int>(SymbolValue::PILOT));
+        util::find_value_imat(papr_ind, pattern, static_cast<int>(SymbolValue::PAPR));
         n_data = data_ind.size();
         n_pilot = pilot_ind.size();
         n_papr = pilot_ind.size();

@@ -20,7 +20,6 @@ namespace openldacs::phy::link::fl {
     class BC1_3Handler;
     class BC2Handler;
     class FLDataHandler;
-    using namespace phy::params;
 
     enum class ChannelState {
         BCCH1,
@@ -31,7 +30,7 @@ namespace openldacs::phy::link::fl {
 
 
     struct BlockKey {
-        DirectionType direction;
+        params::DirectionType direction;
         uint32_t sf_id;
         uint16_t mf_id;
 
@@ -51,12 +50,12 @@ namespace openldacs::phy::link::fl {
                fl_block_id == o.fl_block_id;
         }
 
-        explicit BlockKey(const PhySdu &sdu): direction(sdu.direction),
-                                              sf_id(sdu.sf_id),
-                                              mf_id(sdu.mf_id),
-                                              acm_id(sdu.acm_id)
+        explicit BlockKey(const params::PhySdu &sdu): direction(sdu.direction),
+                                                      sf_id(sdu.sf_id),
+                                                      mf_id(sdu.mf_id),
+                                                      acm_id(sdu.acm_id)
                                               {
-            if (direction == DirectionType::FL) {
+            if (direction == params::DirectionType::FL) {
                 if (sdu.sdu_index >= 1 && sdu.sdu_index <= 6) fl_block_id = 0;
                 else if (sdu.sdu_index >= 7 && sdu.sdu_index <= 12) fl_block_id = 1;
                 else if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) fl_block_id = 2;
@@ -97,7 +96,7 @@ namespace openldacs::phy::link::fl {
                         popSamplesTo(slide_samples);
                     }
                     SPDLOG_WARN("Reset to ACQUIRE: {}", reason);
-                    sync_state_.set_state(SyncState::ACQUIRE);
+                    sync_state_.set_state(params::SyncState::ACQUIRE);
                     current_channel_ = ChannelState::DATA;
                     fl_counter = 0;
                     mf_counter = 0;
@@ -124,8 +123,8 @@ namespace openldacs::phy::link::fl {
                         std::vector<double> t_coarse;
                         std::vector<double> f_coarse;
 
-                        if (sync_state_.get_state() == SyncState::ACQUIRE) {
-                            while (!source_worker_.stop_requested() && sync_state_.get_state() == SyncState::ACQUIRE) {
+                        if (sync_state_.get_state() == params::SyncState::ACQUIRE) {
+                            while (!source_worker_.stop_requested() && sync_state_.get_state() == params::SyncState::ACQUIRE) {
                                 curr_buf = getSamples(acquire_sample);
 
                                 const auto t0 = std::chrono::high_resolution_clock::now();
@@ -143,7 +142,7 @@ namespace openldacs::phy::link::fl {
                                                 : static_cast<double>(acquire_slide_samples));
                                         continue;
                                     case 2: {
-                                        if (double interval = t_coarse[1] - t_coarse[0]; !inRange(
+                                        if (double interval = t_coarse[1] - t_coarse[0]; !util::inRange(
                                             interval, bcch13_sample, threshold)) {
                                             popSamplesTo(t_coarse[1] - threshold);
                                         } else {
@@ -152,7 +151,7 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
                                     case 3: {
-                                        if (double interval = t_coarse[2] - t_coarse[1]; !inRange(
+                                        if (double interval = t_coarse[2] - t_coarse[1]; !util::inRange(
                                             interval, bcch2_sample, threshold)) {
                                             popSamplesTo(t_coarse[2] - threshold);
                                             continue;
@@ -161,7 +160,7 @@ namespace openldacs::phy::link::fl {
                                         continue;
                                     }
                                     case 4: {
-                                        if (double interval = t_coarse[3] - t_coarse[2]; !inRange(
+                                        if (double interval = t_coarse[3] - t_coarse[2]; !util::inRange(
                                             interval, bcch13_sample, threshold)) {
                                             popSamplesTo(t_coarse[3] - threshold);
                                             continue;
@@ -186,7 +185,7 @@ namespace openldacs::phy::link::fl {
                                         SPDLOG_INFO("Super frame sync has finished!");
                                         popSamplesTo(t_coarse[3] - threshold); // 获取下一帧的数个样本
 
-                                        sync_state_.set_state(SyncState::TRACK);
+                                        sync_state_.set_state(params::SyncState::TRACK);
                                         current_channel_ = ChannelState::DATA;
                                         fl_counter = 0;
                                         mf_counter = 0;
@@ -206,13 +205,13 @@ namespace openldacs::phy::link::fl {
                                     }
                                 }
 
-                                if (sync_state_.get_state() == SyncState::TRACK) {
+                                if (sync_state_.get_state() == params::SyncState::TRACK) {
                                     break;
                                 }
                             }
                         }
 
-                        if (sync_state_.get_state() != SyncState::TRACK) {
+                        if (sync_state_.get_state() != params::SyncState::TRACK) {
                             continue;
                         }
 
@@ -346,7 +345,7 @@ namespace openldacs::phy::link::fl {
             }
 
             SPDLOG_INFO("Get Samples:{}, Sample remain: {}", size, sample_buffer.size());
-            return cdVecToCvec(buf.value());
+            return util::cdVecToCvec(buf.value());
         }
 
         void popSamplesTo(const double pos) {
@@ -500,11 +499,11 @@ namespace openldacs::phy::link::fl {
         }
     private:
         device::DevPtr& dev_;
-        CoarseSyncParam c_sync_param_;
-        SyncStateMachine sync_state_;
+        params::CoarseSyncParam c_sync_param_;
+        params::SyncStateMachine sync_state_;
         std::map<ChannelSlot, std::optional<ChRxCallbackType>> rx_handlers_;
-        SampleBuffer sample_buffer;
-        Worker source_worker_;
+        params::SampleBuffer sample_buffer;
+        util::Worker source_worker_;
         ChannelState current_channel_ = ChannelState::DATA;
         int fl_counter = 0;
         int mf_counter = 0;
@@ -538,7 +537,7 @@ namespace openldacs::phy::link::fl {
             sink_worker_.start([&] {
                 while (!sink_worker_.stop_requested()) {
                     try {
-                    std::optional<BlockBuffer> bf;
+                    std::optional<params::BlockBuffer> bf;
                     switch (current_channel_) {
                         case ChannelState::BCCH1:
                         case ChannelState::BCCH3: {
@@ -603,7 +602,7 @@ namespace openldacs::phy::link::fl {
             });
         }
 
-        void enqueue(const BlockBuffer &buffer, const ChannelSlot ch) {
+        void enqueue(const params::BlockBuffer &buffer, const ChannelSlot ch) {
             switch (ch) {
                 case BCCH1_3:
                     bc13_queue_.push(buffer);
@@ -633,17 +632,17 @@ namespace openldacs::phy::link::fl {
 
     private:
         device::DevPtr& dev_;
-        BoundedQueue<BlockBuffer> bc13_queue_;
-        BoundedQueue<BlockBuffer> bc2_queue_;
-        BoundedQueue<BlockBuffer> cc_fl_data_queue_;
-        BoundedQueue<BlockBuffer> fl_data_queue_;
-        Worker sink_worker_;
+        util::BoundedQueue<params::BlockBuffer> bc13_queue_;
+        util::BoundedQueue<params::BlockBuffer> bc2_queue_;
+        util::BoundedQueue<params::BlockBuffer> cc_fl_data_queue_;
+        util::BoundedQueue<params::BlockBuffer> fl_data_queue_;
+        util::Worker sink_worker_;
         std::optional<itpp::cvec> prev_post_;
         ChannelState current_channel_ = ChannelState::BCCH1;
 
         uint8_t fl_counter = 0;
 
-        itpp::cvec windowing(const BlockBuffer &block);
+        itpp::cvec windowing(const params::BlockBuffer &block);
     };
 
     class PhyFl final : public LinkBase {
@@ -669,7 +668,7 @@ namespace openldacs::phy::link::fl {
              data_(std::make_unique<FLDataHandler>(config_, dev)) {
         }
 
-        void processPacket(const PhySdu &sdu) const override;
+        void processPacket(const params::PhySdu &sdu) const override;
 
     private:
         FLConfig config_;
@@ -699,13 +698,13 @@ namespace openldacs::phy::link::fl {
     class FLChannelHandler: public ChannelHandler{
     public:
         virtual ~FLChannelHandler() = default;
-        void processData(const PhySdu& sdu, const CodingParams &coding_params);  // user-specific
-        virtual void submit(PhySdu sdu) = 0;  // cell-specific
+        void processData(const params::PhySdu& sdu, const params::CodingParams &coding_params);  // user-specific
+        virtual void submit(params::PhySdu sdu) = 0;  // cell-specific
 
         const PhyFl::FLConfig& config() const noexcept { return config_; }
-        const FrameInfo& getFrame() const override  { return frame_info_; }
+        const params::FrameInfo& getFrame() const override  { return frame_info_; }
 
-        FLFrameInfo frame_info_;
+        params::FLFrameInfo frame_info_;
 
     protected:
         explicit FLChannelHandler(PhyFl::FLConfig &config, device::DevPtr &dev, const int ofdm_symb)
@@ -717,63 +716,63 @@ namespace openldacs::phy::link::fl {
         device::DevPtr& device_;
         PhyFl::FLConfig& config_;
 
-        ChannelEstimate channel_est_;
-        Equalizer equalizer_;
-        std::unordered_map<BlockKey, BlockBuffer, BlockKeyHash> block_map_;
+        params::ChannelEstimate channel_est_;
+        params::Equalizer equalizer_;
+        std::unordered_map<BlockKey, params::BlockBuffer, BlockKeyHash> block_map_;
         // CMS default_cms_ = CMS::QPSK_R34;
         int ofdm_symb_;
-        FineSyncParam f_sync;
+        params::FineSyncParam f_sync;
         int debug_fft_offset_dump_count_ = 0;
 
-        virtual const CodingTable &getCodingTable() const = 0;
-        virtual size_t getInterleaverCount(const PhySdu &sdu) const = 0;
+        virtual const params::CodingTable &getCodingTable() const = 0;
+        virtual size_t getInterleaverCount(const params::PhySdu &sdu) const = 0;
 
         // channel coding
-        void channelCoding(BlockBuffer &block, const CodingParams &coding_params) const;
+        void channelCoding(params::BlockBuffer &block, const params::CodingParams &coding_params) const;
 
-        static void randomizer(VecU8 &to_process, const CodingParams &coding_params);
-        static RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const CodingParams &coding_params);
-        static itpp::ivec blockInterleaver(const std::vector<RsEncodedUnit> &units,
-                                           const CodingParams &coding_params);
-        itpp::bvec convCode(const itpp::ivec &input, const CodingParams &coding_params) const;
-        static itpp::bvec helicalInterleaver(const itpp::bvec &input, const CodingParams &coding_params);
+        static void randomizer(VecU8 &to_process, const params::CodingParams &coding_params);
+        static params::RsEncodedUnit rsEncoder(const VecU8 &to_process, uint8_t index, const params::CodingParams &coding_params);
+        static itpp::ivec blockInterleaver(const std::vector<params::RsEncodedUnit> &units,
+                                           const params::CodingParams &coding_params);
+        itpp::bvec convCode(const itpp::ivec &input, const params::CodingParams &coding_params) const;
+        static itpp::bvec helicalInterleaver(const itpp::bvec &input, const params::CodingParams &coding_params);
 
-        void subcarrierAllocation(BlockBuffer &block, int joint_frame);
-        static void matrixIfft(BlockBuffer &block);
+        void subcarrierAllocation(params::BlockBuffer &block, int joint_frame);
+        static void matrixIfft(params::BlockBuffer &block);
         static std::vector<itpp::cvec> windowing(const itpp::cmat &to_process, int joint_frame);
 
         // demod
         static itpp::cmat matrixFft(const itpp::cmat &to_process);
         static itpp::cmat downsamplingFreq(const itpp::cmat &signal, int downsample);
-        itpp::imat blockDeinterleaver(const itpp::ivec &input, const CodingParams &coding_params);
-        static std::vector<VecU8> rsDecoder(const itpp::imat &input, const CodingParams &coding_params);
-        static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const CodingParams &coding_params);
-        static itpp::vec helicalDeinterleaver(const itpp::vec &in, const CodingParams &p);
+        itpp::imat blockDeinterleaver(const itpp::ivec &input, const params::CodingParams &coding_params);
+        static std::vector<VecU8> rsDecoder(const itpp::imat &input, const params::CodingParams &coding_params);
+        static std::vector<VecU8> derandomizer(const std::vector<VecU8> &to_process, const params::CodingParams &coding_params);
+        static itpp::vec helicalDeinterleaver(const itpp::vec &in, const params::CodingParams &p);
 
         void dumpFftOffsetSweepDebug(const itpp::cvec& input);
-        void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const CodingParams &params);
+        void recvHandler(const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse, const params::CodingParams &params);
     };
 
     class BC1_3Handler final:public FLChannelHandler {
     public:
-        explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc13_ofdm_symb) {
+        explicit BC1_3Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, params::n_bc13_ofdm_symb) {
             setCms(CMS::QPSK_R12);
 
             config_.source_.registerRecvHandler(BCCH1_3, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
-                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
+                const params::CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             });
         }
-        void submit(PhySdu sdu) override;
-        const CodingTable& getCodingTable() const override{
+        void submit(params::PhySdu sdu) override;
+        const params::CodingTable& getCodingTable() const override{
             return coding_table_;
         }
-        size_t getInterleaverCount(const PhySdu &sdu) const override {
+        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
             return 1;
         }
 
     private:
-        CodingTable coding_table_{
+        params::CodingTable coding_table_{
             frame_info_, {
                 {CMS::QPSK_R12, 1},
             },
@@ -783,23 +782,23 @@ namespace openldacs::phy::link::fl {
 
     class BC2Handler final:public FLChannelHandler {
     public:
-        explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_bc2_ofdm_symb) {
+        explicit BC2Handler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, params::n_bc2_ofdm_symb) {
             setCms(CMS::QPSK_R12);
 
             config_.source_.registerRecvHandler(BCCH2, [this](const itpp::cvec& input, const std::vector<double> &t_coarse, const std::vector<double> &f_coarse){
-                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
+                const params::CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 1}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             });
         }
-        void submit(PhySdu sdu) override;
-        const CodingTable& getCodingTable() const override{
+        void submit(params::PhySdu sdu) override;
+        const params::CodingTable& getCodingTable() const override{
             return coding_table_;
         }
-        size_t getInterleaverCount(const PhySdu &sdu) const override {
+        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
             return 1;
         }
     private:
-        CodingTable coding_table_{
+        params::CodingTable coding_table_{
             frame_info_, {
                 {CMS::QPSK_R12, 1},
             },
@@ -809,7 +808,7 @@ namespace openldacs::phy::link::fl {
 
     class FLDataHandler final:public FLChannelHandler {
     public:
-        explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, n_fl_ofdm_symb) {
+        explicit FLDataHandler(PhyFl::FLConfig& config, device::DevPtr& dev) : FLChannelHandler(config, dev, params::n_fl_ofdm_symb) {
             // setCms(CMS::QAM16_R23);
             setCms(CMS::QAM64_R34);
 
@@ -819,7 +818,7 @@ namespace openldacs::phy::link::fl {
                 }
 
                 CMS cms = getCms();
-                const CodingParams& params = coding_table_.getCodingParams({cms, 2}); // 临时参数
+                const params::CodingParams& params = coding_table_.getCodingParams({cms, 2}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             };
 
@@ -828,7 +827,7 @@ namespace openldacs::phy::link::fl {
                     throw std::runtime_error("unmatched size for coarse sync in CCCH_DCH slot");
                 }
 
-                const CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 3}); // 临时参数
+                const params::CodingParams& params = coding_table_.getCodingParams({CMS::QPSK_R12, 3}); // 临时参数
                 recvHandler(input, t_coarse, f_coarse, params);
             };
 
@@ -836,14 +835,14 @@ namespace openldacs::phy::link::fl {
             config_.source_.registerRecvHandler(CCCH_DCH, CCDchHandler);
         }
 
-        void submit(PhySdu sdu) override;
+        void submit(params::PhySdu sdu) override;
 
-        const CodingTable& getCodingTable() const override{
+        const params::CodingTable& getCodingTable() const override{
             return coding_table_;
         }
 
-        size_t getInterleaverCount(const PhySdu &sdu) const override {
-            if (sdu.direction == FL) {
+        size_t getInterleaverCount(const params::PhySdu &sdu) const override {
+            if (sdu.direction == params::FL) {
                 if (sdu.sdu_index >= 13 && sdu.sdu_index <= 21) return 9;
                 return 6;
             }else {
@@ -853,7 +852,7 @@ namespace openldacs::phy::link::fl {
         }
 
     private:
-        CodingTable coding_table_{
+        params::CodingTable coding_table_{
             frame_info_, {
                 {CMS::QPSK_R12, 2},
                 {CMS::QPSK_R12, 3},

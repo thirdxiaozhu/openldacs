@@ -10,6 +10,10 @@
 
 
 namespace openldacs::phy::link::fl {
+
+    using namespace phy::params;
+    using namespace util;
+
     namespace {
         itpp::cmat extractDataTimeWithDelta(const itpp::cvec &input,
                                            const std::vector<double> &t_fine,
