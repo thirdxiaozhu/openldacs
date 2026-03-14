@@ -10,11 +10,10 @@
 #include "phy/rl.h"
 #include "util/util.h"
 
-using  namespace  openldacs::phy;
 
 using namespace openldacs;
 using namespace openldacs::phy::config;
-using namespace openldacs::phy::link::fl;
+using namespace openldacs::phy::link::rl;
 
 uint32_t sf_id = 0;
 uint8_t mf_id = 0;
@@ -32,7 +31,7 @@ int main() {
 
         pthread_sigmask(SIG_BLOCK, &set, nullptr);
 
-        const PhyService phy_ser(device::DeviceType::USRP, AS);
+        const phy::PhyService phy_ser(phy::device::DeviceType::USRP, AS);
 
 
         // 3) 主线程阻塞等待信号

@@ -6,21 +6,26 @@
 #define OPENLDACS_PHY_H
 #include "openldacs.h"
 #include "phy/device.h"
+#include "phy/params.h"
+#include "phy/fl.h"
+#include "phy/rl.h"
 
 namespace openldacs::phy {
 
-    namespace link::fl {
-        class PhyFl;
-    }
+    using namespace openldacs::phy::params;
 
-    namespace link::rl {
-        class PhyRl;
-    }
+    // namespace link::fl {
+    //     class PhyFl;
+    // }
+    //
+    // namespace link::rl {
+    //     class PhyRl;
+    // }
 
-    namespace device {
-        class Device;
-        class USRP;
-    }
+    // namespace device {
+    //     class Device;
+    //     class USRP;
+    // }
 
 
 

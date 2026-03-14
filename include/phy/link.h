@@ -6,7 +6,6 @@
 #define OPENLDACS_LINK_H
 
 #include "openldacs.h"
-#include "phy.h"
 #include "params.h"
 
 namespace openldacs::phy::link {

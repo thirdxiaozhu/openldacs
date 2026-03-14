@@ -14,7 +14,7 @@ namespace openldacs::phy {
         config_.PhyRL = std::make_unique<link::rl::PhyRl>(config_.Device);
     }
 
-    void PhyService::sendFlData(const PhySdu &sdu) const {
+    void PhyService::sendFlData(const params::PhySdu &sdu) const {
         config_.PhyFL->processPacket(sdu);
     }
 }
